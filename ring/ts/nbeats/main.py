@@ -1,4 +1,4 @@
-import argparse
+from argparse import ArgumentParser
 
 from ring.common.cmd_parsers import get_predict_parser, get_train_parser, get_validate_parser
 
@@ -20,10 +20,11 @@ def serve():
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    subparsers = parser.add_subparsers()
+    parser = ArgumentParser()
 
-    get_train_parser(subparsers)
+    subparsers = parser.add_subparsers(dest="command")
+    train_parser = get_train_parser(subparsers)
+
     get_validate_parser(subparsers)
     get_predict_parser(subparsers)
 
