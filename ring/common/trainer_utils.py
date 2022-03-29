@@ -1,6 +1,7 @@
 import torch
 import collections.abc as collections
 import itertools
+import functools
 from collections.abc import Mapping
 from ignite.engine import Engine, DeterministicEngine
 from ignite.metrics import Metric
@@ -107,6 +108,7 @@ def supervised_training_step(
     loss_start_indices = [i - loss_end_indices[0] for i in loss_end_indices]
 
     def update(engine: Engine, batch: Sequence[torch.Tensor]) -> Union[Any, Tuple[torch.Tensor]]:
+        optimizer.zero_grad()
         model.train()
         x, y = prepare_batch(batch, device=device, non_blocking=non_blocking)
         y_pred = model(x)
@@ -117,11 +119,12 @@ def supervised_training_step(
             normalizers[i],
         )
 
-        loss = torch.mean(
-            torch.tensor(
+        loss = (
+            functools.reduce(
+                lambda a, b: a + b,
                 [loss_fn(reverse_scale(i, loss_fn), y[..., i]) for i, loss_fn in enumerate(loss_fns)],
-                requires_grad=True,
-            ).to(y_pred.device)
+            )
+            / len(loss_fns)
         )
         if gradient_accumulation_steps > 1:
             loss = loss / gradient_accumulation_steps

@@ -12,7 +12,7 @@ from ignite.contrib.handlers.tensorboard_logger import TensorboardLogger, global
 from ignite.handlers import Checkpoint, EarlyStopping, DiskSaver
 from tabulate import tabulate
 from .loss import cfg_to_losses
-from .metrics import Loss, RMSE, SMAPE
+from .metrics import RMSE, SMAPE
 from .dataset import TimeSeriesDataset
 from .serializer import dumps, loads
 from .utils import add_time_idx, get_latest_updated_file
@@ -150,8 +150,6 @@ class Predictor:
         trainer = create_supervised_trainer(
             model, optimizer, self._losses, normalizers=dataset_train.target_normalizers, device=self._device
         )
-
-        # TODO: val loss should be condidered after
         val_metrics = {
             "val_rmse": RMSE(device=self._device),
             "val_smape": SMAPE(device=self._device),
@@ -215,7 +213,7 @@ class Predictor:
             )
             logger.attach_output_handler(
                 evaluator,
-                event_name=Events.EPOCH_COMPLETED,
+                event_name=Events.COMPLETED,
                 tag="val",
                 metric_names=list(val_metrics.keys()),
                 global_step_transform=global_step_from_engine(trainer),
@@ -260,7 +258,6 @@ class Predictor:
 
         batch_size = self._trainer_cfg.get("batch_size", 64)
         test_metrics = {
-            "loss": Loss(loss, device=self._device),
             "rmse": RMSE(loss.to_prediction, device=self._device),
             "smape": SMAPE(loss.to_prediction, device=self._device),
         }
