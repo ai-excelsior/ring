@@ -44,9 +44,7 @@ class RMSE(Metric):
     def update(self, output: Sequence[torch.Tensor]) -> None:
         y_pred, y = output[0].detach(), output[1].detach()
 
-        root_mean_squared_errors = torch.mean(
-            torch.sqrt(torch.sum(torch.pow(y_pred - y.view_as(y_pred), 2), dim=1))
-        )
+        root_mean_squared_errors = torch.mean(torch.sqrt(torch.pow(y_pred - y.view_as(y_pred), 2)))
 
         self._sum_of_errors += root_mean_squared_errors
         self._num_examples += 1
