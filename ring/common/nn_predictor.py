@@ -223,7 +223,7 @@ class Predictor:
             )
 
             # evaluator.run(val_dataloader)
-            trainer.run(train_dataloader, max_epochs=999)
+            trainer.run(train_dataloader, max_epochs=self._trainer_cfg.get("max_epochs", 200))
 
     def get_parameters(self) -> Dict[str, Any]:
         """
