@@ -38,6 +38,7 @@ def get_validate_parser(subparsers):
 
 def get_predict_parser(subparsers):
     parser = subparsers.add_parser("predict", help="predict the last part of the given data")
+    parser.add_argument("--data_cfg", type=str, required=True, help="The data config, s3 address")
     parser.add_argument("--data", type=str, required=True, help="The data source, s3 address")
     parser.add_argument(
         "--model_state",

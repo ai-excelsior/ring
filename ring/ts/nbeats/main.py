@@ -6,8 +6,6 @@ from ring.common.serializer import loads
 from ring.common.nn_predictor import Predictor
 from model import NbeatsNetwork
 
-ROOT_DIR = "/tmp/ring"
-
 
 def train(data_config: DataConfig, data_train: pd.DataFrame, data_val: pd.DataFrame, **kwargs):
     predictor = Predictor(

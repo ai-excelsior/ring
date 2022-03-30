@@ -17,10 +17,7 @@ def train(data_config: DataConfig, data_train: pd.DataFrame, data_val: pd.DataFr
 
     is_load_from_model_state = model_state is not None and model_bucket.object_exists(model_state)
     if is_load_from_model_state:
-        if model_state.startswith("file://"):
-            predictor = Predictor.load(remove_prefix(model_state, "file://"), RNNSeq2Seq)
-        else:
-            predictor = Predictor.load_from_oss_bucket(model_bucket, model_state, RNNSeq2Seq)
+        predictor = Predictor.load(model_state, RNNSeq2Seq)
         predictor.train(data_train, data_val, load=True)
     else:
         predictor = Predictor(
@@ -54,16 +51,21 @@ def validate(model_state: str, data_val: pd.DataFrame):
     """
     load a model and using this model to validate a given dataset
     """
-    model_bucket = get_bucket()
-
     assert model_state is not None, "model_state is required when validate"
-    assert model_bucket.object_exists(model_state), "model_state should exist in oss bucket"
 
-    predictor = Predictor.load_from_oss_bucket(model_bucket, model_state, RNNSeq2Seq)
+    predictor = Predictor.load(model_state, RNNSeq2Seq)
     predictor.validate(data_val)
 
 
-def predict():
+def predict(model_state: str, data: pd.DataFrame):
+    """
+    load a model and predict with given dataset
+    """
+    assert model_state is not None, "model_state is required when validate"
+
+    predictor = Predictor.load(model_state, RNNSeq2Seq)
+    pred_df = predictor.smoke_test(data, plot=True)
+    # TODO: save to influxdb
     pass
 
 
@@ -115,6 +117,12 @@ if __name__ == "__main__":
         validate(kwargs.pop("model_state", None), data_val)
 
     elif command == "predict":
-        pass
+        data_config = url_to_data_config(kwargs.pop("data_cfg"))
+
+        data = read_csv(
+            kwargs.pop("data"),
+            parse_dates=[] if data_config.time is None else [data_config.time],
+        )
+        predict(kwargs.pop("model_state", None), data)
     elif command == "serve":
         pass
