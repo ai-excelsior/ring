@@ -9,6 +9,7 @@ from ring.common.data_config import DataConfig, dict_to_data_config
 from ring.common.serializer import loads
 from ring.common.nn_predictor import Predictor
 from ring.common.oss_utils import get_model_bucket
+from ring.common.data_utils import read_csv
 from model import RNNSeq2Seq
 
 
@@ -46,13 +47,20 @@ def train(data_config: DataConfig, data_train: pd.DataFrame, data_val: pd.DataFr
         )
         predictor.train(data_train, data_val)
 
-    zipfilepath = predictor.zip()
-    model_bucket.put_object_from_file(model_state, zipfilepath)
-    shutil.rmtree(predictor.root_dir)
+    if model_state is None:
+        print(f"Model saved in local file path: {predictor.root_dir}")
+    else:
+        zipfilepath = predictor.zip()
+        model_bucket.put_object_from_file(model_state, zipfilepath)
+        shutil.rmtree(predictor.root_dir)
 
 
-def validate():
-    pass
+def validate(
+    model_state: str,
+):
+    """
+    load a model and using this model to valide on a given dataset
+    """
 
 
 def predict():
@@ -90,15 +98,13 @@ if __name__ == "__main__":
         with open(data_cfg_file, "r") as f:
             data_config = dict_to_data_config(loads(f.read()))
 
-        data_train = pd.read_csv(
+        data_train = read_csv(
             kwargs.pop("data_train"),
             parse_dates=[] if data_config.time is None else [data_config.time],
-            thousands=",",
         )
-        data_val = pd.read_csv(
+        data_val = read_csv(
             kwargs.pop("data_val"),
             parse_dates=[] if data_config.time is None else [data_config.time],
-            thousands=",",
         )
 
         train(data_config, data_train, data_val, **kwargs)
