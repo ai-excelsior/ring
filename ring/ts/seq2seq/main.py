@@ -19,13 +19,7 @@ def train(data_config: DataConfig, data_train: pd.DataFrame, data_val: pd.DataFr
 
     is_load_from_model_state = model_state is not None and model_bucket.object_exists(model_state)
     if is_load_from_model_state:
-        root_dir = tempfile.mkdtemp(prefix=Predictor.DEFAULT_ROOT_DIR)
-        dest_zip_filepath = f"{root_dir}{os.sep}{model_state}"
-        model_bucket.get_object_to_file(model_state, dest_zip_filepath)
-        zipfile.ZipFile(dest_zip_filepath).extractall(root_dir)
-        os.remove(dest_zip_filepath)
-
-        predictor = Predictor.load(root_dir, model_cls=RNNSeq2Seq)
+        predictor = Predictor.load_from_oss_bucket(model_bucket, model_state, RNNSeq2Seq)
         predictor.train(data_train, data_val, load=True)
     else:
         predictor = Predictor(
@@ -55,12 +49,17 @@ def train(data_config: DataConfig, data_train: pd.DataFrame, data_val: pd.DataFr
         shutil.rmtree(predictor.root_dir)
 
 
-def validate(
-    model_state: str,
-):
+def validate(model_state: str, data_val: pd.DataFrame):
     """
-    load a model and using this model to valide on a given dataset
+    load a model and using this model to validate a given dataset
     """
+    model_bucket = get_model_bucket()
+
+    assert model_state is not None, "model_state is required when validate"
+    assert model_bucket.object_exists(model_state), "model_state should exist in oss bucket"
+
+    predictor = Predictor.load_from_oss_bucket(model_bucket, model_state, RNNSeq2Seq)
+    predictor.validate(data_val)
 
 
 def predict():
@@ -94,6 +93,7 @@ if __name__ == "__main__":
                 kwargs["hidden_size"] % kwargs["n_heads"] == 0
             ), "hidden_size should be integral multiple of n_heads"
 
+        # TODO: refactor this to support oss
         data_cfg_file = kwargs.pop("data_cfg")
         with open(data_cfg_file, "r") as f:
             data_config = dict_to_data_config(loads(f.read()))
@@ -106,10 +106,18 @@ if __name__ == "__main__":
             kwargs.pop("data_val"),
             parse_dates=[] if data_config.time is None else [data_config.time],
         )
-
         train(data_config, data_train, data_val, **kwargs)
     elif command == "validate":
-        pass
+        data_cfg_file = kwargs.pop("data_cfg")
+        with open(data_cfg_file, "r") as f:
+            data_config = dict_to_data_config(loads(f.read()))
+
+        data_val = read_csv(
+            kwargs.pop("data_val"),
+            parse_dates=[] if data_config.time is None else [data_config.time],
+        )
+        validate(kwargs.pop("model_state", None), data_val)
+
     elif command == "predict":
         pass
     elif command == "serve":

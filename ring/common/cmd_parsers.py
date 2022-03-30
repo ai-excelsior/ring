@@ -24,6 +24,7 @@ def get_train_parser(subparsers):
 
 def get_validate_parser(subparsers):
     parser = subparsers.add_parser("validate", help="validate a model, get validation metrics")
+    parser.add_argument("--data_cfg", type=str, required=True, help="The data config, s3 address")
     parser.add_argument("--data_val", type=str, required=True, help="The val data source, s3 address")
     parser.add_argument(
         "--model_state",

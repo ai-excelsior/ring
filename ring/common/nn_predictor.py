@@ -6,6 +6,7 @@ import inspect
 import numpy as np
 import zipfile
 import tempfile
+from oss2 import Bucket
 from glob import glob
 from copy import deepcopy
 from typing import Union, Dict, Any
@@ -248,24 +249,25 @@ class Predictor:
 
     def validate(
         self,
-        data: pd.DataFrame,
+        data_val: pd.DataFrame,
         model_filename=None,
     ):
-        dataset = self.create_dataset(data)
+        data_val = add_time_idx(data_val, self._data_cfg.time, freq=self._data_cfg.freq)
+        dataset = self.create_dataset(data_val)
 
         # load model
         if model_filename is None:
             model_filename = get_last_updated_model(self.root_dir)
-        loss = self.create_loss()
-        model = self.create_model(dataset, loss)
+
+        model = self.create_model(dataset)
         Checkpoint.load_objects(
             to_load={"model": model}, checkpoint=torch.load(f"{self.root_dir}/{model_filename}")
         )
 
         batch_size = self._trainer_cfg.get("batch_size", 64)
-        test_metrics = {
-            "rmse": RMSE(loss.to_prediction, device=self._device),
-            "smape": SMAPE(loss.to_prediction, device=self._device),
+        metrics = {
+            "RMSE": RMSE(device=self._device),
+            "SMAPE": SMAPE(device=self._device),
         }
         if self.enable_gpu:
             test_dataloader = dataset.to_dataloader(
@@ -273,15 +275,16 @@ class Predictor:
             )
         else:
             test_dataloader = dataset.to_dataloader(batch_size, train=False, num_workers=self.n_workers)
-        reporter = create_supervised_evaluator(model, metrics=test_metrics, device=self._device)
+
+        reporter = create_supervised_evaluator(
+            model, self._losses, dataset.target_normalizers, metrics=metrics, device=self._device
+        )
         reporter.run(test_dataloader)
-        trial_id = self.root_dir.split(os.sep)[-1]
-        headers = ["trial_id", *test_metrics.keys()]
-        print("Final Result:\n")
+        headers = metrics.keys()
+        print("===== Final Result =====")
         print(
             tabulate(
-                [[trial_id, *[reporter.state.metrics[key] for key in test_metrics.keys()]]],
-                headers=headers,
+                [[reporter.state.metrics[key] for key in metrics.keys()]], headers=headers, tablefmt="tsv"
             )
         )
 
@@ -368,6 +371,16 @@ class Predictor:
             state_dict = loads(f.read())
             state_dict["params"]["data_cfg"] = dict_to_data_config(state_dict["params"]["data_cfg"])
             return Predictor.from_parameters(state_dict, root_dir, model_cls)
+
+    @classmethod
+    def load_from_oss_bucket(cls, bucket: Bucket, key: str, model_cls: BaseModel) -> "Predictor":
+        root_dir = tempfile.mkdtemp(prefix=Predictor.DEFAULT_ROOT_DIR)
+        dest_zip_filepath = f"{root_dir}{os.sep}{key}"
+        bucket.get_object_to_file(key, dest_zip_filepath)
+        zipfile.ZipFile(dest_zip_filepath).extractall(root_dir)
+        os.remove(dest_zip_filepath)
+
+        return cls.load(root_dir, model_cls=model_cls)
 
     def save(self):
         """
