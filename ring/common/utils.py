@@ -126,6 +126,9 @@ def register(plugin: Dict[str, Any]):
 
 
 def get_latest_updated_file(files: List[str]):
+    if len(files) == 0:
+        return None
+
     times = [os.path.getmtime(filepath) for filepath in files]
     max_idx = np.argmax(times)
     return files[max_idx]

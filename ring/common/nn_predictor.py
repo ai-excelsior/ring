@@ -4,6 +4,8 @@ import torch
 import os
 import inspect
 import numpy as np
+import zipfile
+import tempfile
 from glob import glob
 from copy import deepcopy
 from typing import Union, Dict, Any
@@ -17,7 +19,7 @@ from .dataset import TimeSeriesDataset
 from .serializer import dumps, loads
 from .utils import add_time_idx, get_latest_updated_file
 from .trainer_utils import create_supervised_trainer, prepare_batch, create_supervised_evaluator
-from .data_config import DataConfig
+from .data_config import DataConfig, dict_to_data_config
 from .base_model import BaseModel
 
 
@@ -30,14 +32,16 @@ def get_last_updated_model(filepath: str):
 
 
 class Predictor:
+    DEFAULT_ROOT_DIR = "/tmp/ring/"
+
     def __init__(
         self,
         data_cfg: DataConfig,
         model_cls: BaseModel,
         model_params: Dict = {},
-        root_dir: str = "dist/ring",
         loss_cfg: str = "MSE",
         trainer_cfg: Dict = {},
+        root_dir: str = None,
         device=None,
     ) -> None:
         """
@@ -47,14 +51,16 @@ class Predictor:
         model_params = deepcopy(model_params)
         model_params["output_size"] = sum([loss.n_parameters for loss in self._losses])
 
-        self._root_dir = root_dir
+        if root_dir is None:
+            self.root_dir = tempfile.mkdtemp(prefix=self.DEFAULT_ROOT_DIR)
+        else:
+            self.root_dir = root_dir
+
         self._data_cfg = data_cfg
         self._trainer_cfg = trainer_cfg
         self._loss_cfg = loss_cfg
         self._model_cls = model_cls
         self._model_params = model_params
-
-        os.makedirs(root_dir, exist_ok=True)
 
         if device is None:
             if torch.cuda.is_available():
@@ -103,13 +109,13 @@ class Predictor:
         data_train = add_time_idx(data_train, self._data_cfg.time, freq=self._data_cfg.freq)
         data_val = add_time_idx(data_val, self._data_cfg.time, freq=self._data_cfg.freq)
 
-        if isinstance(load, str) and not os.path.isfile(f"{self._root_dir}/{load}"):
+        if isinstance(load, str) and not os.path.isfile(f"{self.root_dir}/{load}"):
             load = None
             warnings.warn(f"You are attemping to load file {load}, but it not exist.")
 
         # automatically get the last updated pt file
         if load == True:
-            files = glob(f"{self._root_dir}{os.sep}*.pt")
+            files = glob(f"{self.root_dir}{os.sep}*.pt")
             if len(files) == 0:
                 load = None
             else:
@@ -175,7 +181,7 @@ class Predictor:
         checkpoint = Checkpoint(
             to_save,
             save_handler=DiskSaver(
-                self._root_dir,
+                self.root_dir,
                 create_dir=True,
                 require_empty=False,
             ),
@@ -202,9 +208,9 @@ class Predictor:
 
         # load
         if isinstance(load, str):
-            Checkpoint.load_objects(to_load=to_save, checkpoint=torch.load(f"{self._root_dir}/{load}"))
+            Checkpoint.load_objects(to_load=to_save, checkpoint=torch.load(f"{self.root_dir}/{load}"))
 
-        with TensorboardLogger(log_dir=f"{self._root_dir}") as logger:
+        with TensorboardLogger(log_dir=f"{self.root_dir}") as logger:
             logger.attach_output_handler(
                 trainer,
                 event_name=Events.ITERATION_COMPLETED(every=1),
@@ -230,9 +236,9 @@ class Predictor:
         Get parameters that can be used with :py:meth:`~from_parameters` to create a new dataset with the same scalers.
         """
         params = {
-            name: getattr(self, f"_{name}")
+            name: getattr(self, f"_{name}", None) or getattr(self, name, None)
             for name in inspect.signature(self.__class__.__init__).parameters.keys()
-            if name not in ["self", "_losses", "model_cls"]
+            if name not in ["self", "_losses", "model_cls", "root_dir"]
         }
 
         # pipeline and dataset
@@ -249,11 +255,11 @@ class Predictor:
 
         # load model
         if model_filename is None:
-            model_filename = get_last_updated_model(self._root_dir)
+            model_filename = get_last_updated_model(self.root_dir)
         loss = self.create_loss()
         model = self.create_model(dataset, loss)
         Checkpoint.load_objects(
-            to_load={"model": model}, checkpoint=torch.load(f"{self._root_dir}/{model_filename}")
+            to_load={"model": model}, checkpoint=torch.load(f"{self.root_dir}/{model_filename}")
         )
 
         batch_size = self._trainer_cfg.get("batch_size", 64)
@@ -269,7 +275,7 @@ class Predictor:
             test_dataloader = dataset.to_dataloader(batch_size, train=False, num_workers=self.n_workers)
         reporter = create_supervised_evaluator(model, metrics=test_metrics, device=self._device)
         reporter.run(test_dataloader)
-        trial_id = self._root_dir.split(os.sep)[-1]
+        trial_id = self.root_dir.split(os.sep)[-1]
         headers = ["trial_id", *test_metrics.keys()]
         print("Final Result:\n")
         print(
@@ -292,11 +298,11 @@ class Predictor:
 
         # load model
         if model_filename is None:
-            model_filename = get_last_updated_model(self._root_dir)
+            model_filename = get_last_updated_model(self.root_dir)
         loss = self.create_loss()
         model = self.create_model(dataset, loss)
         Checkpoint.load_objects(
-            to_load={"model": model}, checkpoint=torch.load(f"{self._root_dir}/{model_filename}")
+            to_load={"model": model}, checkpoint=torch.load(f"{self.root_dir}/{model_filename}")
         )
 
         # create predict mode dataset
@@ -332,11 +338,11 @@ class Predictor:
         # plot
         # 这里需要的，根据不同的loss，绘制对应target, group_ids的图像
         fig = loss.plot(raw_data, x=dataset._time_idx, target=dataset.targets, group_ids=dataset._group_ids)
-        fig.savefig(f"{self._root_dir}{os.sep}smoke_testing.png")
+        fig.savefig(f"{self.root_dir}{os.sep}smoke_testing.png")
 
     @classmethod
-    def from_parameters(cls, d: Dict) -> "Predictor":
-        self = cls(**d["params"])
+    def from_parameters(cls, d: Dict, root_dir: str, model_cls: BaseModel) -> "Predictor":
+        self = cls(root_dir=root_dir, model_cls=model_cls, **d["params"])
 
         self._dataset_parameters = d["dataset"]
 
@@ -351,7 +357,7 @@ class Predictor:
         pass
 
     @classmethod
-    def load(cls, root_dir: str) -> "Predictor":
+    def load(cls, root_dir: str, model_cls: BaseModel) -> "Predictor":
         """
         Load predictor from a dir
         """
@@ -360,12 +366,30 @@ class Predictor:
 
         with open(filepath, "rb") as f:
             state_dict = loads(f.read())
-            return Predictor.from_parameters(state_dict)
+            state_dict["params"]["data_cfg"] = dict_to_data_config(state_dict["params"]["data_cfg"])
+            return Predictor.from_parameters(state_dict, root_dir, model_cls)
 
     def save(self):
         """
         Save predictor's state to root_dir
         """
         parameters = self.get_parameters()
-        with open(f"{self._root_dir}/state.json", "wb") as f:
+        with open(f"{self.root_dir}/state.json", "wb") as f:
             f.write(dumps(parameters))
+
+    def zip(self, filepath: str = None):
+        """zip last updated model file and state.json"""
+
+        files = glob(f"{self.root_dir}{os.sep}*.pt")
+        model_file = get_latest_updated_file(files)
+        state_file = f"{self.root_dir}{os.sep}state.json"
+
+        if filepath is None:
+            filepath = os.path.join(self.root_dir, "model.zip")
+
+        with zipfile.ZipFile(filepath, "w", compression=zipfile.ZIP_BZIP2) as archive:
+            if model_file is not None:
+                archive.write(model_file, os.path.basename(model_file))
+            archive.write(state_file, os.path.basename(state_file))
+
+        return filepath
