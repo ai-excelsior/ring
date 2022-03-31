@@ -37,6 +37,7 @@ def train(data_config: DataConfig, data_train: pd.DataFrame, data_val: pd.DataFr
                 "batch_size": kwargs["batch_size"],
                 "lr": kwargs["lr"],
                 "early_stopping_patience": kwargs["early_stopping_patience"],
+                "max_epochs": kwargs["max_epochs"],
             },
         )
         predictor.train(data_train, data_val)

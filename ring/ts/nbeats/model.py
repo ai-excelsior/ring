@@ -26,7 +26,6 @@ class NbeatsNetwork(BaseModel):
         dropout: float = 0.1,
         backcast_loss_ratio: float = 0,
         target_number: int = 1,
-        target_position: List = [],
         covariate_number: int = 0,
         encoder_cont: List[str] = [],
         decoder_cont: List[str] = [],
