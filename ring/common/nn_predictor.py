@@ -7,6 +7,7 @@ import numpy as np
 import zipfile
 import tempfile
 import itertools
+from math import inf
 from oss2 import Bucket
 from glob import glob
 from copy import deepcopy
@@ -19,7 +20,7 @@ from .loss import cfg_to_losses
 from .metrics import RMSE, SMAPE
 from .dataset import TimeSeriesDataset
 from .serializer import dumps, loads
-from .utils import add_time_idx, get_latest_updated_file, remove_prefix
+from .utils import get_latest_updated_file, remove_prefix
 from .trainer_utils import create_supervised_trainer, prepare_batch, create_supervised_evaluator
 from .data_config import DataConfig, dict_to_data_config
 from .base_model import BaseModel
@@ -76,6 +77,14 @@ class Predictor:
         self._dataset_parameters = None
 
     @property
+    def trainer_cfg(self):
+        return self._trainer_cfg
+
+    @trainer_cfg.setter
+    def trainer_cfg(self, trainer_cfg):
+        self._trainer_cfg.update(trainer_cfg)
+
+    @property
     def enable_gpu(self):
         if self._device == "cuda":
             return True
@@ -109,9 +118,6 @@ class Predictor:
         """
         Train the model based on train_data and data_val
         """
-        data_train = add_time_idx(data_train, self._data_cfg.time, freq=self._data_cfg.freq)
-        data_val = add_time_idx(data_val, self._data_cfg.time, freq=self._data_cfg.freq)
-
         if isinstance(load, str) and not os.path.isfile(f"{self.root_dir}/{load}"):
             load = None
             warnings.warn(f"You are attemping to load file {load}, but it not exist.")
@@ -232,7 +238,7 @@ class Predictor:
             )
 
             # evaluator.run(val_dataloader)
-            trainer.run(train_dataloader, max_epochs=self._trainer_cfg.get("max_epochs", 200))
+            trainer.run(train_dataloader, max_epochs=self._trainer_cfg.get("max_epochs", inf))
 
     def get_parameters(self) -> Dict[str, Any]:
         """
@@ -254,7 +260,6 @@ class Predictor:
         data_val: pd.DataFrame,
         model_filename=None,
     ):
-        data_val = add_time_idx(data_val, self._data_cfg.time, freq=self._data_cfg.freq)
         dataset = self.create_dataset(data_val)
 
         # load model
@@ -299,7 +304,6 @@ class Predictor:
         plot=False,
     ):
         """Do smoke test on given dataset, take the last max sequence to do a prediction and plot"""
-        data = add_time_idx(data, self._data_cfg.time, freq=self._data_cfg.freq)
         dataset = self.create_dataset(data, predict_mode=True)
 
         # load model

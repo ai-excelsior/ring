@@ -17,16 +17,18 @@ from .normalizers import (
     serialize_normalizer,
     deserialize_normalizer,
 )
-from .utils import get_default_embedding_size
+from .utils import get_default_embedding_size, add_time_idx
 
 STATIC_UNKNOWN_REAL_NAME = "_ZERO_"
+TIME_IDX = "_time_idx_"
 
 
 class TimeSeriesDataset(Dataset):
     def __init__(
         self,
         data: pd.DataFrame,
-        time_idx: str,
+        time: str,
+        freq: str,
         indexer: BaseIndexer,
         targets: List[str],
         group_ids: List[str] = [],
@@ -45,7 +47,8 @@ class TimeSeriesDataset(Dataset):
         enable_static_as_covariant=True,
         add_static_known_real=None,  # add zero to time varying known (decoder part) field
     ) -> None:
-        self._time_idx = time_idx
+        self._time = time
+        self._freq = freq
         self._group_ids = group_ids
         self._indexer = indexer
         self._targets = targets
@@ -90,7 +93,8 @@ class TimeSeriesDataset(Dataset):
                 )  # with unknow capacity
 
         # 初始化indexer
-        data.sort_values([*self._group_ids, self._time_idx], inplace=True)
+        data = add_time_idx(data, time_column_name=time, freq=freq)
+        data.sort_values([*self._group_ids, TIME_IDX], inplace=True)
         data.reset_index(drop=True, inplace=True)
         self._indexer.index(data, predict_mode)
 
@@ -230,7 +234,8 @@ class TimeSeriesDataset(Dataset):
 
         return cls(
             data,
-            time_idx="_time_idx_",
+            time=data_cfg.time,
+            freq=data_cfg.freq,
             targets=data_cfg.targets,
             group_ids=data_cfg.group_ids,
             indexer=indexer,
@@ -256,7 +261,7 @@ class TimeSeriesDataset(Dataset):
         # TODO 缺失值是个值得研究的主题
         encoder_cont = torch.tensor(encoder_period[self.encoder_cont].to_numpy(np.float64), dtype=torch.float)
         encoder_cat = torch.tensor(encoder_period[self.encoder_cat].to_numpy(np.int64), dtype=torch.int)
-        encoder_time_idx = encoder_period[self._time_idx]
+        encoder_time_idx = encoder_period[TIME_IDX]
         time_idx_start = encoder_time_idx.min()
         encoder_time_idx = torch.tensor(
             (encoder_time_idx - time_idx_start).to_numpy(np.int64), dtype=torch.long
@@ -265,7 +270,7 @@ class TimeSeriesDataset(Dataset):
 
         decoder_cont = torch.tensor(decoder_period[self.decoder_cont].to_numpy(np.float64), dtype=torch.float)
         decoder_cat = torch.tensor(decoder_period[self.decoder_cat].to_numpy(np.float64), dtype=torch.int)
-        decoder_time_idx = decoder_period[self._time_idx]
+        decoder_time_idx = decoder_period[TIME_IDX]
         decoder_time_idx = torch.tensor(
             (decoder_time_idx - time_idx_start).to_numpy(np.int64), dtype=torch.long
         )
@@ -376,13 +381,16 @@ class TimeSeriesDataset(Dataset):
         columns: List[str] = None,
     ):
         if columns is None:
-            columns = [self._time_idx, *self._group_ids, *self._targets]
+            if self._time is None:
+                columns = [*self._group_ids, *self._targets]
+            else:
+                columns = [self._time, *self._group_ids, *self._targets]
 
         data_to_return = self._data.loc[[*encoder_indices, *decoder_indices]][columns]
 
         # add decoder part is_prediction is True
         data_to_return = data_to_return.assign(is_prediction=False)
-        data_to_return.loc[decoder_indices]["is_prediction"] = True
+        data_to_return.loc[decoder_indices, "is_prediction"] = True
 
         if inverse_scale_target:
             data_to_return = data_to_return.assign(
