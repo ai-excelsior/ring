@@ -141,13 +141,37 @@ def get_default_embedding_size(n: int):
         return 1
 
 
+def diff_year(d1, d2, n=1):
+    return (d1.year - d2.year) // n
+
+
+def diff_quarter(d1, d2, n=1):
+    return ((d1.year - d2.year) * 12 + d1.month - d2.month) // (n * 3)
+
+
 def diff_month(d1, d2, n=1):
     return ((d1.year - d2.year) * 12 + d1.month - d2.month) // n
 
 
+def diff_week(d1, d2, n=1):
+    return (d1 - d2).days // (n * 7)
+
+
+def diff_hour(d1, d2, n=1):
+    return (d1 - d2).seconds // (n * 3600)
+
+
+def diff_miniute(d1, d2, n=1):
+    return (d1 - d2).seconds // (n * 60)
+
+
 def add_time_idx(data: pd.DataFrame, time_column_name: str, freq: str = None, time_idx_name="_time_idx_"):
-    time_column = pd.to_datetime(data[time_column_name]).dt.tz_localize(None)
-    freq = freq or pd.infer_freq(time_column)
+    if time_column_name is not None:
+        time_column = pd.to_datetime(data[time_column_name]).dt.tz_localize(None)
+        freq = freq or pd.infer_freq(time_column)
+    else:
+        time_column = pd.to_datetime(data.index.to_series()).dt.tz_localize(None)
+        freq = freq or pd.infer_freq(time_column)
 
     assert freq is not None, "Auto frequency infer failed, please provide it manully."
 
@@ -155,11 +179,20 @@ def add_time_idx(data: pd.DataFrame, time_column_name: str, freq: str = None, ti
     start_time = time_column.min()
 
     # TODO: more offset should be supported in here.
-    # MS: Month Start, M: Month End
-    if offset.name == "MS" or offset.name == "M":
+    if "AS-" in offset.name or "A-" in offset.name or offset.name == "AS" or offset.name == "A":
+        time_idx = time_column.apply(lambda x: diff_year(x, start_time, offset.n))
+    elif "QS-" in offset.name or "Q-" in offset.name or offset.name == "QS" or offset.name == "Q":
+        time_idx = time_column.apply(lambda x: diff_quarter(x, start_time, offset.n))
+    elif "MS-" in offset.name or "M-" in offset.name or offset.name == "MS" or offset.name == "M":
         time_idx = time_column.apply(lambda x: diff_month(x, start_time, offset.n))
-    else:
-        time_idx = ((data - start_time) / offset).astype(int)
+    elif "W-" in offset.name:
+        time_idx = time_column.apply(lambda x: diff_week(x, start_time, offset.n))
+    elif "-" not in offset.name and offset.name[-1] == "H":
+        time_idx = time_column.apply(lambda x: diff_hour(x, start_time, offset.n))
+    elif "-" not in offset.name and offset.name[-1] == "T":
+        time_idx = time_column.apply(lambda x: diff_miniute(x, start_time, offset.n))
+    else:  # seconds, microseconds, nanosecongs, days, businiess-days, no-time column
+        time_idx = ((time_column - start_time) / offset).astype(int)
 
     return data.assign(**{time_idx_name: time_idx})
 

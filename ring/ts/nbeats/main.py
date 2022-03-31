@@ -8,13 +8,13 @@ from ring.common.cmd_parsers import get_predict_parser, get_train_parser, get_va
 from ring.common.data_config import DataConfig, dict_to_data_config
 from ring.common.serializer import loads
 from ring.common.nn_predictor import Predictor
-from ring.common.oss_utils import get_model_bucket
+from ring.common.oss_utils import get_bucket
 from ring.common.data_utils import read_csv
 from model import NbeatsNetwork
 
 
 def train(data_config: DataConfig, data_train: pd.DataFrame, data_val: pd.DataFrame, **kwargs):
-    model_bucket = get_model_bucket()
+    model_bucket = get_bucket()
     model_state = kwargs.get("model_state", None)
 
     is_load_from_model_state = model_state is not None and model_bucket.object_exists(model_state)
@@ -54,7 +54,7 @@ def validate(model_state: str, data_val: pd.DataFrame):
     """
     load a model and using this model to validate a given dataset
     """
-    model_bucket = get_model_bucket()
+    model_bucket = get_bucket()
 
     assert model_state is not None, "model_state is required when validate"
     assert model_bucket.object_exists(model_state), "model_state should exist in oss bucket"
