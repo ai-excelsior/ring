@@ -1,12 +1,8 @@
-import tempfile
 import pandas as pd
-import zipfile
-import os
 import shutil
 from argparse import ArgumentParser
 from ring.common.cmd_parsers import get_predict_parser, get_train_parser, get_validate_parser
-from ring.common.data_config import DataConfig, dict_to_data_config
-from ring.common.serializer import loads
+from ring.common.data_config import DataConfig, url_to_data_config
 from ring.common.nn_predictor import Predictor
 from ring.common.oss_utils import get_bucket
 from ring.common.data_utils import read_csv
@@ -54,16 +50,21 @@ def validate(model_state: str, data_val: pd.DataFrame):
     """
     load a model and using this model to validate a given dataset
     """
-    model_bucket = get_bucket()
-
     assert model_state is not None, "model_state is required when validate"
-    assert model_bucket.object_exists(model_state), "model_state should exist in oss bucket"
 
-    predictor = Predictor.load_from_oss_bucket(model_bucket, model_state, NbeatsNetwork)
+    predictor = Predictor.load(model_state, NbeatsNetwork)
     predictor.validate(data_val)
 
 
-def predict():
+def predict(model_state: str, data: pd.DataFrame):
+    """
+    load a model and predict with given dataset
+    """
+    assert model_state is not None, "model_state is required when validate"
+
+    predictor = Predictor.load(model_state, NbeatsNetwork)
+    pred_df = predictor.smoke_test(data, plot=True)
+    # TODO: save to influxdb
     pass
 
 
@@ -90,10 +91,8 @@ if __name__ == "__main__":
     command = kwargs.pop("command")
     if command == "train":
         assert 0 <= kwargs["dropout"] < 1, "dropout rate should be in the range of [0, 1)"
-        # TODO: refactor this to support oss
-        data_cfg_file = kwargs.pop("data_cfg")
-        with open(data_cfg_file, "r") as f:
-            data_config = dict_to_data_config(loads(f.read()))
+
+        data_config = url_to_data_config(kwargs.pop("data_cfg"))
 
         data_train = read_csv(
             kwargs.pop("data_train"),
@@ -104,10 +103,9 @@ if __name__ == "__main__":
             parse_dates=[] if data_config.time is None else [data_config.time],
         )
         train(data_config, data_train, data_val, **kwargs)
+
     elif command == "validate":
-        data_cfg_file = kwargs.pop("data_cfg")
-        with open(data_cfg_file, "r") as f:
-            data_config = dict_to_data_config(loads(f.read()))
+        data_config = url_to_data_config(kwargs.pop("data_cfg"))
 
         data_val = read_csv(
             kwargs.pop("data_val"),
@@ -116,6 +114,12 @@ if __name__ == "__main__":
         validate(kwargs.pop("model_state", None), data_val)
 
     elif command == "predict":
-        pass
+        data_config = url_to_data_config(kwargs.pop("data_cfg"))
+
+        data = read_csv(
+            kwargs.pop("data"),
+            parse_dates=[] if data_config.time is None else [data_config.time],
+        )
+        predict(kwargs.pop("model_state", None), data)
     elif command == "serve":
         pass
