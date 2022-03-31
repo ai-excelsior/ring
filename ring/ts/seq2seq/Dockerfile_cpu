@@ -1,0 +1,16 @@
+FROM python:3.8
+
+WORKDIR /home
+
+ADD requirements_cpu.txt requirements_cpu.txt
+ADD ring/ts/seq2seq/requirements.txt ring/ts/seq2seq/requirements.txt
+
+RUN --mount=type=cache,target=/root/.cache pip install -U pip -i https://mirrors.aliyun.com/pypi/simple/
+RUN --mount=type=cache,target=/root/.cache pip install -r requirements_cpu.txt -i https://mirrors.aliyun.com/pypi/simple/
+RUN --mount=type=cache,target=/root/.cache pip install -r ring/ts/seq2seq/requirements.txt -i https://mirrors.aliyun.com/pypi/simple/
+
+ADD ring/common ring/common
+ADD ring/ts/seq2seq ring/ts/seq2seq
+
+ENV PYTHONPATH=/home
+ENTRYPOINT ["python", "/home/ring/ts/seq2seq/main.py"]

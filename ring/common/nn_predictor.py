@@ -36,7 +36,7 @@ def get_last_updated_model(filepath: str):
 
 
 class Predictor:
-    DEFAULT_ROOT_DIR = "/tmp/ring/"
+    DEFAULT_ROOT_DIR = "/tmp/"
 
     def __init__(
         self,
@@ -55,6 +55,7 @@ class Predictor:
         model_params = deepcopy(model_params)
         model_params["output_size"] = sum([loss.n_parameters for loss in self._losses])
 
+        os.makedirs(self.DEFAULT_ROOT_DIR, exist_ok=True)
         if root_dir is None:
             self.root_dir = tempfile.mkdtemp(prefix=self.DEFAULT_ROOT_DIR)
         else:
