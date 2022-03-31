@@ -28,16 +28,6 @@ PREDICTION_COLORS = [
 ]
 
 
-def _decode_ignite_metric_update_args(
-    output: Sequence[Union[torch.Tensor, Dict]]
-) -> Tuple[torch.Tensor, torch.Tensor, Dict]:
-    if len(output) == 2:
-        y_pred, y = cast(Tuple[torch.Tensor, torch.Tensor], output)
-        return y_pred, y, {}
-    else:
-        return cast(Tuple[torch.Tensor, torch.Tensor, Dict], output)
-
-
 def _to_single_sequence(x: torch.Tensor):
     """
     Convert a 3d or 2d Tensor to 2d Tensor
@@ -118,7 +108,7 @@ class AbstractLoss:
         # plot prediction
         (prediction_line,) = ax.plot(
             data[x],
-            data[self.parameter_names[0]],
+            data[f"{target}_{self.parameter_names[0]}"],
             color=PREDICTION_COLORS[0],
             linestyle="--",
             label=target,
@@ -394,7 +384,9 @@ class NormalDistrubutionLoss(DistributionLoss):
 
         # plot confidence_interval
         confidence_interval = np.apply_along_axis(
-            lambda x: stats.norm.interval(alpha, loc=x[0], scale=x[1]), 1, data[self.parameter_names]
+            lambda x: stats.norm.interval(alpha, loc=x[0], scale=x[1]),
+            1,
+            data[[f"{target}_{name}" for name in self.parameter_names]],
         )
         ax.fill_between(
             data[x],
@@ -408,7 +400,7 @@ class NormalDistrubutionLoss(DistributionLoss):
         # plot prediction
         (prediction_line,) = ax.plot(
             data[x],
-            data[self.parameter_names[0]],
+            data[f"{target}_{self.parameter_names[0]}"],
             color=PREDICTION_COLORS[0],
             linestyle="--",
             label=target,
@@ -472,7 +464,7 @@ class NegativeBinomialDistrubutionLoss(DistributionLoss):
                 alpha, n=np.round(1.0 / x[1]), p=x[0] / (x[0] + x[1] * (x[0] ** 2))
             ),
             1,
-            data[self.parameter_names],
+            data[[f"{target}_{name}" for name in self.parameter_names]],
         )
         ax.fill_between(
             data[x],
@@ -486,7 +478,7 @@ class NegativeBinomialDistrubutionLoss(DistributionLoss):
         # plot prediction
         (prediction_line,) = ax.plot(
             data[x],
-            np.round(data[self.parameter_names[0]]),
+            np.round(data[f"{target}_{self.parameter_names[0]}"]),
             color=PREDICTION_COLORS[0],
             linestyle="--",
             label=target,

@@ -162,3 +162,7 @@ def add_time_idx(data: pd.DataFrame, time_column_name: str, freq: str = None, ti
         time_idx = ((data - start_time) / offset).astype(int)
 
     return data.assign(**{time_idx_name: time_idx})
+
+
+def remove_prefix(text: str, prefix: str):
+    return text[text.startswith(prefix) and len(prefix) :]

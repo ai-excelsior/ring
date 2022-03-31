@@ -6,6 +6,7 @@ import inspect
 import numpy as np
 import zipfile
 import tempfile
+import itertools
 from oss2 import Bucket
 from glob import glob
 from copy import deepcopy
@@ -18,10 +19,11 @@ from .loss import cfg_to_losses
 from .metrics import RMSE, SMAPE
 from .dataset import TimeSeriesDataset
 from .serializer import dumps, loads
-from .utils import add_time_idx, get_latest_updated_file
+from .utils import add_time_idx, get_latest_updated_file, remove_prefix
 from .trainer_utils import create_supervised_trainer, prepare_batch, create_supervised_evaluator
 from .data_config import DataConfig, dict_to_data_config
 from .base_model import BaseModel
+from .oss_utils import get_bucket
 
 
 def get_last_updated_model(filepath: str):
@@ -294,23 +296,26 @@ class Predictor:
         self,
         data: pd.DataFrame,
         model_filename=None,
+        plot=False,
     ):
         """Do smoke test on given dataset, take the last max sequence to do a prediction and plot"""
-
-        dataset = self.create_dataset(data)
+        data = add_time_idx(data, self._data_cfg.time, freq=self._data_cfg.freq)
+        dataset = self.create_dataset(data, predict_mode=True)
 
         # load model
         if model_filename is None:
             model_filename = get_last_updated_model(self.root_dir)
-        loss = self.create_loss()
-        model = self.create_model(dataset, loss)
+        model = self.create_model(dataset)
         Checkpoint.load_objects(
             to_load={"model": model}, checkpoint=torch.load(f"{self.root_dir}/{model_filename}")
         )
 
         # create predict mode dataset
-        dataset = self.create_dataset(data, predict_mode=True)
-        prediction_column_names = loss.parameter_names
+        prediction_column_names = [
+            f"{target_name}_{param_name}"
+            for i, target_name in enumerate(dataset.targets)
+            for param_name in self._losses[i].parameter_names
+        ]
 
         batch_size = len(dataset)
         if self.enable_gpu:
@@ -322,10 +327,23 @@ class Predictor:
 
         model.eval()
         df = []
+        n_parameters = [loss.n_parameters for loss in self._losses]
+        loss_end_indices = list(itertools.accumulate(n_parameters))
+        loss_start_indices = [i - loss_end_indices[0] for i in loss_end_indices]
         with torch.no_grad():
             batch = next(iter(dataloader))
             x, y = prepare_batch(batch, self._device)
             y_pred = model(x)
+
+            reverse_scale = lambda i, loss: loss.scale_prediction(
+                y_pred[..., loss_start_indices[i] : loss_end_indices[i]],
+                x["target_scales"][..., i],
+                dataset.target_normalizers[i],
+            )
+            y_pred_scaled = torch.stack(
+                [reverse_scale(i, loss_obj) for i, loss_obj in enumerate(self._losses)],
+                dim=-1,
+            )
 
             encoder_indices = x["encoder_idx"].detach().cpu().numpy().flatten().tolist()
             decoder_indices = x["decoder_idx"].detach().cpu().numpy().flatten().tolist()
@@ -333,15 +351,23 @@ class Predictor:
             raw_data = dataset.reflect(encoder_indices, decoder_indices)
             raw_data = raw_data.assign(**{name: np.nan for name in prediction_column_names})
             raw_data.loc[decoder_indices, prediction_column_names] = (
-                y_pred.reshape((-1, loss.n_parameters)).cpu().detach().numpy()
+                y_pred_scaled.reshape((-1, len(prediction_column_names))).cpu().detach().numpy()
             )
             df.append(raw_data)
         df = pd.concat(df)
 
         # plot
         # 这里需要的，根据不同的loss，绘制对应target, group_ids的图像
-        fig = loss.plot(raw_data, x=dataset._time_idx, target=dataset.targets, group_ids=dataset._group_ids)
-        fig.savefig(f"{self.root_dir}{os.sep}smoke_testing.png")
+        if plot:
+            for i, loss in enumerate(self._losses):
+                target_name = dataset.targets[i]
+                fig = loss.plot(
+                    raw_data, x=dataset._time_idx, target=target_name, group_ids=dataset._group_ids
+                )
+                fig.savefig(f"{self.root_dir}{os.sep}smoke_testing_{target_name}.png")
+            print(f"plotted figures saved at: {self.root_dir}")
+
+        return df
 
     @classmethod
     def from_parameters(cls, d: Dict, root_dir: str, model_cls: BaseModel) -> "Predictor":
@@ -360,7 +386,7 @@ class Predictor:
         pass
 
     @classmethod
-    def load(cls, root_dir: str, model_cls: BaseModel) -> "Predictor":
+    def load_from_dir(cls, root_dir: str, model_cls: BaseModel) -> "Predictor":
         """
         Load predictor from a dir
         """
@@ -380,7 +406,16 @@ class Predictor:
         zipfile.ZipFile(dest_zip_filepath).extractall(root_dir)
         os.remove(dest_zip_filepath)
 
-        return cls.load(root_dir, model_cls=model_cls)
+        return cls.load_from_dir(root_dir, model_cls=model_cls)
+
+    @classmethod
+    def load(cls, url: str, model_cls: BaseModel) -> "Predictor":
+        if url.startswith("file://"):
+            return Predictor.load_from_dir(remove_prefix(url, "file://"), model_cls)
+        else:
+            bucket = get_bucket()
+            assert bucket.object_exists(url), "model_state should exist in oss bucket"
+            return Predictor.load_from_oss_bucket(get_bucket(), url, model_cls)
 
     def save(self):
         """

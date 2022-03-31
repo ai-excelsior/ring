@@ -1,6 +1,10 @@
 from dataclasses import dataclass, field
 from typing import List, Dict
 
+from .oss_utils import get_bucket_from_oss_url
+from .serializer import loads
+from .utils import remove_prefix
+
 
 @dataclass
 class Categorical:
@@ -49,3 +53,14 @@ def dict_to_data_config(cfg: Dict) -> DataConfig:
         time_varying_unknown_reals=cfg.get("time_varying_unknown_reals", []),
     )
     return data_config
+
+
+def url_to_data_config(url: str) -> DataConfig:
+    if url.startswith("file://"):
+        with open(remove_prefix(url, "file://"), "r") as f:
+            return dict_to_data_config(loads(f.read()))
+    elif url.startswith("oss://"):
+        bucket, key = get_bucket_from_oss_url(url)
+        return dict_to_data_config(loads(bucket.get_object(key).read()))
+
+    raise "url should be one of file:// or oss://"
