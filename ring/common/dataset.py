@@ -384,7 +384,7 @@ class TimeSeriesDataset(Dataset):
             if self._time is None:
                 columns = [*self._group_ids, *self._targets]
             else:
-                columns = [self._time, *self._group_ids, *self._targets]
+                columns = [self._time, *self._group_ids, *self._targets, "_time_idx_"]
 
         data_to_return = self._data.loc[[*encoder_indices, *decoder_indices]][columns]
 

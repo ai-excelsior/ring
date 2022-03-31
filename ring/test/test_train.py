@@ -3,7 +3,7 @@ from ring.ts.seq2seq.model import RNNSeq2Seq
 from ring.common.nn_predictor import Predictor
 from ring.common.data_config import DataConfig, url_to_data_config, IndexerConfig
 from ring.common.data_utils import read_csv
-
+import shutil
 
 kwargs = {
     "data_train": "file://data/air_passengers_train.csv",
@@ -71,6 +71,8 @@ def test_train_function_Nbeats():
         parse_dates=[] if data_config.time is None else [data_config.time],
     )
     predictor.train(data_train, data_val)
+    print(f"Model successfully saved in local file path: {predictor.root_dir}, and will be deleted later")
+    shutil.rmtree(predictor.root_dir)
 
 
 def test_train_function_RNNseq2seq():
@@ -101,7 +103,9 @@ def test_train_function_RNNseq2seq():
         parse_dates=[] if data_config.time is None else [data_config.time],
     )
     predictor.train(data_train, data_val)
+    print(f"Model successfully saved in local file path: {predictor.root_dir}, and will be deleted later")
+    shutil.rmtree(predictor.root_dir)
 
 
 # if __name__ == "__main__":
-#     test_train_function_RNNseq2seq()
+#     test_train_function_Nbeats()

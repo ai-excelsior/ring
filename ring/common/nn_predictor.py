@@ -340,6 +340,13 @@ class Predictor:
             x, y = prepare_batch(batch, self._device)
             y_pred = model(x)
 
+            if isinstance(y_pred, Dict):
+                try:
+                    y_pred = y_pred["prediction"]
+                except:
+                    raise ValueError("output should have both `prediction` and `backcast`")
+            elif not isinstance(y_pred, torch.Tensor):
+                raise TypeError("output of model must be one of torch.tensor or Dict")
             reverse_scale = lambda i, loss: loss.scale_prediction(
                 y_pred[..., loss_start_indices[i] : loss_end_indices[i]],
                 x["target_scales"][..., i],
@@ -366,9 +373,7 @@ class Predictor:
         if plot:
             for i, loss in enumerate(self._losses):
                 target_name = dataset.targets[i]
-                fig = loss.plot(
-                    raw_data, x=dataset._time_idx, target=target_name, group_ids=dataset._group_ids
-                )
+                fig = loss.plot(raw_data, x="_time_idx_", target=target_name, group_ids=dataset._group_ids)
                 fig.savefig(f"{self.root_dir}{os.sep}smoke_testing_{target_name}.png")
             print(f"plotted figures saved at: {self.root_dir}")
 
