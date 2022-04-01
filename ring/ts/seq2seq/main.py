@@ -61,7 +61,7 @@ def predict(model_state: str, data: pd.DataFrame):
     assert model_state is not None, "model_state is required when validate"
 
     predictor = Predictor.load(model_state, RNNSeq2Seq)
-    pred_df = predictor.smoke_test(data, plot=True)
+    pred_df = predictor.predict(data, plot=True)
     # TODO: save to influxdb
     pass
 

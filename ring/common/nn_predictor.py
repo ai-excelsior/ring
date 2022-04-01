@@ -301,7 +301,7 @@ class Predictor:
 
         return reporter.state.metrics
 
-    def smoke_test(
+    def predict(
         self,
         data: pd.DataFrame,
         model_filename=None,
