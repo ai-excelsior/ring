@@ -76,6 +76,8 @@ class Predictor:
             self._device = device
 
         self._dataset_parameters = None
+        # TODO: test
+        print(f"Using device {self._device}")
 
     @property
     def trainer_cfg(self):
