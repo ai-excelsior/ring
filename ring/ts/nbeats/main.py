@@ -4,18 +4,22 @@ from argparse import ArgumentParser
 from ring.common.cmd_parsers import get_predict_parser, get_train_parser, get_validate_parser
 from ring.common.data_config import DataConfig, url_to_data_config
 from ring.common.nn_predictor import Predictor
-from ring.common.oss_utils import get_bucket
 from ring.common.data_utils import read_csv
 from model import NbeatsNetwork
 
 
 def train(data_config: DataConfig, data_train: pd.DataFrame, data_val: pd.DataFrame, **kwargs):
-    model_bucket = get_bucket()
     model_state = kwargs.get("model_state", None)
 
-    is_load_from_model_state = model_state is not None and model_bucket.object_exists(model_state)
-    if is_load_from_model_state:
-        predictor = Predictor.load_from_oss_bucket(model_bucket, model_state, NbeatsNetwork)
+    trainer_cfg = {
+        "batch_size": kwargs["batch_size"],
+        "lr": kwargs["lr"],
+        "early_stopping_patience": kwargs["early_stopping_patience"],
+        "max_epochs": kwargs["max_epochs"],
+    }
+    if model_state is not None:
+        predictor = Predictor.load(model_state, NbeatsNetwork)
+        predictor.trainer_cfg = trainer_cfg
         predictor.train(data_train, data_val, load=True)
     else:
         predictor = Predictor(
@@ -30,20 +34,14 @@ def train(data_config: DataConfig, data_train: pd.DataFrame, data_val: pd.DataFr
                 "backcast_loss_ratio": kwargs["backcast_loss_ratio"],
             },
             loss_cfg=kwargs.get("loss", None),
-            trainer_cfg={
-                "batch_size": kwargs["batch_size"],
-                "lr": kwargs["lr"],
-                "early_stopping_patience": kwargs["early_stopping_patience"],
-                "max_epochs": kwargs["max_epochs"],
-            },
+            trainer_cfg=trainer_cfg,
         )
         predictor.train(data_train, data_val)
+
     if model_state is None:
         print(f"Model saved in local file path: {predictor.root_dir}")
     else:
-        zipfilepath = predictor.zip()
-        model_bucket.put_object_from_file(model_state, zipfilepath)
-        shutil.rmtree(predictor.root_dir)
+        predictor.upload(model_state)
 
 
 def validate(model_state: str, data_val: pd.DataFrame):

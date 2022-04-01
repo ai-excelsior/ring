@@ -1,0 +1,16 @@
+FROM pytorch/pytorch:1.9.1-cuda11.1-cudnn8-runtime
+
+WORKDIR /home
+
+ADD requirements_no_torch.txt requirements_no_torch.txt
+ADD ring/ts/nbeats/requirements.txt ring/ts/nbeats/requirements.txt
+
+RUN --mount=type=cache,target=/root/.cache pip install -U pip -i https://mirrors.aliyun.com/pypi/simple/
+RUN --mount=type=cache,target=/root/.cache pip install -r requirements_no_torch.txt -i https://mirrors.aliyun.com/pypi/simple/
+RUN --mount=type=cache,target=/root/.cache pip install -r ring/ts/nbeats/requirements.txt -i https://mirrors.aliyun.com/pypi/simple/
+
+ADD ring/common ring/common
+ADD ring/ts/nbeats ring/ts/nbeats
+
+ENV PYTHONPATH=/home
+ENTRYPOINT ["python", "/home/ring/ts/nbeats/main.py"]

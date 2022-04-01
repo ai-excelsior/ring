@@ -7,6 +7,7 @@ import numpy as np
 import zipfile
 import tempfile
 import itertools
+import shutil
 from math import inf
 from oss2 import Bucket
 from glob import glob
@@ -24,7 +25,7 @@ from .utils import get_latest_updated_file, remove_prefix
 from .trainer_utils import create_supervised_trainer, prepare_batch, create_supervised_evaluator
 from .data_config import DataConfig, dict_to_data_config
 from .base_model import BaseModel
-from .oss_utils import get_bucket
+from .oss_utils import get_bucket_from_oss_url
 
 
 def get_last_updated_model(filepath: str):
@@ -425,9 +426,18 @@ class Predictor:
         if url.startswith("file://"):
             return Predictor.load_from_dir(remove_prefix(url, "file://"), model_cls)
         else:
-            bucket = get_bucket()
-            assert bucket.object_exists(url), "model_state should exist in oss bucket"
-            return Predictor.load_from_oss_bucket(get_bucket(), url, model_cls)
+            bucket, key = get_bucket_from_oss_url(url)
+            assert bucket.object_exists(key), "model_state should exist in oss bucket"
+            return Predictor.load_from_oss_bucket(bucket, key, model_cls)
+
+    @classmethod
+    def upload(self, url: str):
+        """upload model state to oss if given url is an oss file, else do nothing"""
+        if url.startswith("oss://"):
+            bucket, key = get_bucket_from_oss_url(url)
+            zipfilepath = self.zip()
+            bucket.put_object_from_file(key, zipfilepath)
+            shutil.rmtree(self.root_dir)
 
     def save(self):
         """

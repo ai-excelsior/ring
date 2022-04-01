@@ -1,9 +1,8 @@
 from ring.ts.nbeats.model import NbeatsNetwork
 from ring.ts.seq2seq.model import RNNSeq2Seq
 from ring.common.nn_predictor import Predictor
-from ring.common.data_config import DataConfig, url_to_data_config, IndexerConfig
+from ring.common.data_config import DataConfig, IndexerConfig
 from ring.common.data_utils import read_csv
-import shutil
 
 
 kwargs = {
@@ -75,4 +74,4 @@ def test_predict_function_RNNseq2seq():
 
 
 if __name__ == "__main__":
-    test_predict_function_Nbeats()
+    test_predict_function_RNNseq2seq()
