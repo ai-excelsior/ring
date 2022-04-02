@@ -1,10 +1,11 @@
 import shutil
 from glob import glob
-from ring.ts.nbeats.model import NbeatsNetwork
-from ring.common.nn_predictor import Predictor
-from ring.common.data_config import DataConfig, IndexerConfig
-from ring.common.data_utils import read_csv
-
+from ts.nbeats.model import NbeatsNetwork
+from common.nn_predictor import Predictor
+from common.data_config import DataConfig, IndexerConfig
+from common.data_utils import read_csv
+import pandas as pd
+from influxdb_client import InfluxDBClient
 
 kwargs = {
     "data_train": "file://data/air_passengers_train.csv",
@@ -93,4 +94,28 @@ def test_nbeats():
     assert ~result[result["is_prediction"]]["y_pred"].isnull().any()
     assert result[result["is_prediction"]]["y_pred"].count() == 5
 
+    result.set_index("ds", inplace=True)
+    result.index = pd.to_datetime(result.index)
+    result["model"] = "Nbeats"
+
+    with InfluxDBClient(
+        url="http://localhost:8086",
+        token="m9nBYCOJ70_sSn5wDt9EyQfSSWDX4mjAGMt27-d2cF0d_BJsnRML5czj40_IOSW6IS1Uahm5eg0C2Io2QAmENw==",
+        org="unianalysis",
+        debug=True,
+    ) as client:
+
+        with client.write_api() as write_api:
+            write_api.write(
+                bucket="sample_result",
+                record=result,
+                data_frame_measurement_name="air_passenger_result",
+                data_frame_tag_columns=["model"],
+            )
+            print("Wait to finishing ingesting DataFrame...")
+
     shutil.rmtree(predictor.root_dir)
+
+
+if __name__ == "__main__":
+    test_nbeats()
