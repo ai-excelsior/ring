@@ -112,13 +112,23 @@ def test_seq2seq():
                 data_frame_tag_columns=["model"],
             )
             print("Wait to finishing ingesting DataFrame...")
+        query = (
+            'from(bucket:"sample_result")'
+            " |> range(start: 0, stop: now())"
+            ' |> filter(fn: (r) => r._measurement == "air_passenger_result")'
+            ' |> filter(fn: (r) => r._field == "y_pred")'
+        )
+        result = client.query_api().query(query=query)
+
+        client.delete_api().delete(
+            bucket="sample_result",
+            org="unianalysis",
+            start="1900-01-02T23:00:00Z",
+            stop="2022-01-02T23:00:00Z",
+            predicate=' _measurement = "air_passenger_result" and model= "seq2seq"',
+        )
     shutil.rmtree(predictor.root_dir)
 
 
-if __name__ == "__main__":
-    test_seq2seq()
-    """
-    influx delete --bucket sample_result \
---start 1930-03-01T00:00:00Z \
---stop 2020-03-01T00:00:00Z \
---predicate '_measurement="air_passenger_result"' """
+# if __name__ == "__main__":
+#     test_seq2seq()
