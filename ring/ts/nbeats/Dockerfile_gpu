@@ -1,4 +1,4 @@
-FROM pytorch/pytorch:1.9.1-cuda11.1-cudnn8-runtime
+FROM code.unianalysis.com:5050/unianalysis/ring/cuda11.3-py3.8:latest
 
 WORKDIR /home
 

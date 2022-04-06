@@ -15,3 +15,7 @@ build-docker-nbeats:
 build-docker-nbeats-gpu:
 	docker build -f ring/ts/nbeats/Dockerfile_gpu -t code.unianalysis.com:5050/unianalysis/ring/nbeats-gpu:$(VERSION) --network=host .
 	docker push code.unianalysis.com:5050/unianalysis/ring/nbeats-gpu:$(VERSION)
+
+build-cuda:
+	docker build -f dockerfiles/cuda11.3/py3.8/Dockerfile -t code.unianalysis.com:5050/unianalysis/ring/cuda11.3-py3.8 dockerfiles/cuda11.3/py3.8
+	docker push code.unianalysis.com:5050/unianalysis/ring/cuda11.3-py3.8:latest
