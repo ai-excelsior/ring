@@ -1,5 +1,20 @@
 # ring
 
+## Environment Variable
+
+阿里 OSS 相关，用于保存训练结果:
+
+- OSS_ACCESS_KEY_ID
+- OSS_ACCESS_KEY_SECRET
+- OSS_ENDPOINT
+
+InfluxDB 相关，用于保存预测结果：
+
+- INFLUX_ENDPOINT
+- INFLUX_TOKEN
+- INFLUX_ORG
+- INFLUX_PREDICTION_BUCKET_NAME
+
 Using docker image to train on air-passengers dataset:
 
 ```bash

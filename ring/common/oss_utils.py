@@ -8,10 +8,9 @@ from ring.common.utils import remove_prefix
 
 
 @functools.lru_cache(maxsize=64)
-def get_bucket(bucket=None, endpoint=None):
+def get_bucket(bucket, endpoint=None):
     key_id = os.environ.get("OSS_ACCESS_KEY_ID")
     key_secret = os.environ.get("OSS_ACCESS_KEY_SECRET")
-    bucket = bucket or os.environ.get("OSS_BUCKET_NAME")
     endpoint = endpoint or os.environ.get("OSS_ENDPOINT")
 
     return oss2.Bucket(oss2.Auth(key_id, key_secret), endpoint, bucket)

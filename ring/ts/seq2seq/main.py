@@ -4,7 +4,7 @@ from argparse import ArgumentParser
 from ring.common.cmd_parsers import get_predict_parser, get_train_parser, get_validate_parser
 from ring.common.data_config import DataConfig, url_to_data_config
 from ring.common.nn_predictor import Predictor
-from ring.common.oss_utils import get_bucket
+from ring.common.influx_utils import predictions_to_influx
 from ring.common.data_utils import read_csv
 from model import RNNSeq2Seq
 
@@ -54,7 +54,12 @@ def validate(model_state: str, data_val: pd.DataFrame):
     predictor.validate(data_val)
 
 
-def predict(model_state: str, data: pd.DataFrame):
+def predict(
+    model_state: str,
+    data: pd.DataFrame,
+    measurement: str = "test_table",
+    task_id: str = None,
+):
     """
     load a model and predict with given dataset
     """
@@ -62,8 +67,13 @@ def predict(model_state: str, data: pd.DataFrame):
 
     predictor = Predictor.load(model_state, RNNSeq2Seq)
     pred_df = predictor.predict(data, plot=True)
-    # TODO: save to influxdb
-    pass
+    predictions_to_influx(
+        pred_df,
+        time_column=predictor._data_cfg.time,
+        model_name=predictor._model_cls.__module__,
+        measurement=measurement,
+        task_id=task_id,
+    )
 
 
 def serve():
@@ -120,6 +130,11 @@ if __name__ == "__main__":
             kwargs.pop("data"),
             parse_dates=[] if data_config.time is None else [data_config.time],
         )
-        predict(kwargs.pop("model_state", None), data)
+        predict(
+            kwargs.pop("model_state", None),
+            data,
+            measurement=kwargs.pop("measurement"),
+            task_id=kwargs.pop("task_id", None),
+        )
     elif command == "serve":
         pass

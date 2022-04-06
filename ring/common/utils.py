@@ -3,7 +3,6 @@ import pandas as pd
 import os
 import numpy as np
 
-from enum import Enum
 from typing import Any, Dict, List, Union
 from pandas.tseries.frequencies import to_offset
 

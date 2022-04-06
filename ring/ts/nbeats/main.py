@@ -1,12 +1,11 @@
 import pandas as pd
-import shutil
 from argparse import ArgumentParser
 from ring.common.cmd_parsers import get_predict_parser, get_train_parser, get_validate_parser
 from ring.common.data_config import DataConfig, url_to_data_config
 from ring.common.nn_predictor import Predictor
 from ring.common.data_utils import read_csv
 from model import NbeatsNetwork
-from influxdb_client import InfluxDBClient
+from ring.common.influx_utils import predictions_to_influx
 
 
 def train(data_config: DataConfig, data_train: pd.DataFrame, data_val: pd.DataFrame, **kwargs):
@@ -55,7 +54,12 @@ def validate(model_state: str, data_val: pd.DataFrame):
     predictor.validate(data_val)
 
 
-def predict(model_state: str, data: pd.DataFrame):
+def predict(
+    model_state: str,
+    data: pd.DataFrame,
+    measurement: str = "test_table",
+    task_id: str = None,
+):
     """
     load a model and predict with given dataset
     """
@@ -63,25 +67,13 @@ def predict(model_state: str, data: pd.DataFrame):
 
     predictor = Predictor.load(model_state, NbeatsNetwork)
     pred_df = predictor.predict(data, plot=True)
-    pred_df.set_index(predictor._data_cfg.time, inplace=True)
-    pred_df.index = pd.to_datetime(pred_df.index)
-    pred_df["model"] = predictor._model_cls.__module__
-    with InfluxDBClient(
-        url="http://localhost:8086",
-        token="m9nBYCOJ70_sSn5wDt9EyQfSSWDX4mjAGMt27-d2cF0d_BJsnRML5czj40_IOSW6IS1Uahm5eg0C2Io2QAmENw==",
-        org="unianalysis",
-        debug=True,
-    ) as client:
-
-        with client.write_api() as write_api:
-            write_api.write(
-                bucket="sample_result",
-                record=pred_df,
-                data_frame_measurement_name="test_table",
-                data_frame_tag_columns=["model"],
-            )
-            print("Wait to finishing ingesting DataFrame...")
-    pass
+    predictions_to_influx(
+        pred_df,
+        time_column=predictor._data_cfg.time,
+        model_name=predictor._model_cls.__module__,
+        measurement=measurement,
+        task_id=task_id,
+    )
 
 
 def serve():
@@ -136,6 +128,11 @@ if __name__ == "__main__":
             kwargs.pop("data"),
             parse_dates=[] if data_config.time is None else [data_config.time],
         )
-        predict(kwargs.pop("model_state", None), data)
+        predict(
+            kwargs.pop("model_state", None),
+            data,
+            measurement=kwargs.pop("measurement"),
+            task_id=kwargs.pop("task_id", None),
+        )
     elif command == "serve":
         pass

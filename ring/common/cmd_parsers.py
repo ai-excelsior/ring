@@ -48,4 +48,17 @@ def get_predict_parser(subparsers):
         help="The base model state, useful when refine a model, s3 address",
     )
 
+    parser.add_argument(
+        "--measurement",
+        type=str,
+        required=True,
+        help="The measurement name when saving predictions result to influxdb",
+    )
+    parser.add_argument(
+        "--task_id",
+        type=str,
+        required=True,
+        help="The identicator of the specific prediction task",
+    )
+
     return parser
