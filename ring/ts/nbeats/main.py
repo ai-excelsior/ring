@@ -57,7 +57,7 @@ def validate(model_state: str, data_val: pd.DataFrame):
 def predict(
     model_state: str,
     data: pd.DataFrame,
-    measurement: str = "test_table",
+    measurement: str = "prediction-dev",
     task_id: str = None,
 ):
     """

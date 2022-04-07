@@ -1,5 +1,5 @@
 import torch
-from typing import Sequence, Union, Callable, Dict
+from typing import Sequence, Union, Callable
 from ignite.exceptions import NotComputableError
 from ignite.metrics.metric import Metric, reinit__is_reduced, sync_all_reduce
 
