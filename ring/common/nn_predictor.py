@@ -12,7 +12,7 @@ from math import inf
 from oss2 import Bucket
 from glob import glob
 from copy import deepcopy
-from typing import Union, Dict, Any
+from typing import Optional, Union, Dict, Any
 from ignite.engine import Events
 from ignite.contrib.handlers.tensorboard_logger import TensorboardLogger, global_step_from_engine
 from ignite.handlers import Checkpoint, EarlyStopping, DiskSaver
@@ -399,38 +399,39 @@ class Predictor:
         pass
 
     @classmethod
-    def load_from_dir(cls, root_dir: str, model_cls: BaseModel) -> "Predictor":
+    def load_from_dir(cls, root_dir: str, model_cls: BaseModel) -> Optional["Predictor"]:
         """
         Load predictor from a dir
         """
         filepath = f"{root_dir}/state.json"
-        assert os.path.isfile(filepath)
 
-        with open(filepath, "rb") as f:
-            state_dict = loads(f.read())
-            state_dict["params"]["data_cfg"] = dict_to_data_config(state_dict["params"]["data_cfg"])
-            return Predictor.from_parameters(state_dict, root_dir, model_cls)
-
-    @classmethod
-    def load_from_oss_bucket(cls, bucket: Bucket, key: str, model_cls: BaseModel) -> "Predictor":
-        root_dir = tempfile.mkdtemp(prefix=Predictor.DEFAULT_ROOT_DIR)
-        dest_zip_filepath = f"{root_dir}{os.sep}{key}"
-        bucket.get_object_to_file(key, dest_zip_filepath)
-        zipfile.ZipFile(dest_zip_filepath).extractall(root_dir)
-        os.remove(dest_zip_filepath)
-
-        return cls.load_from_dir(root_dir, model_cls=model_cls)
+        if os.path.isfile(filepath):
+            with open(filepath, "rb") as f:
+                state_dict = loads(f.read())
+                state_dict["params"]["data_cfg"] = dict_to_data_config(state_dict["params"]["data_cfg"])
+                return Predictor.from_parameters(state_dict, root_dir, model_cls)
 
     @classmethod
-    def load(cls, url: str, model_cls: BaseModel) -> "Predictor":
+    def load_from_oss_bucket(cls, bucket: Bucket, key: str, model_cls: BaseModel) -> Optional["Predictor"]:
+        if bucket.object_exists(key):
+            root_dir = tempfile.mkdtemp(prefix=Predictor.DEFAULT_ROOT_DIR)
+            dest_zip_filepath = f"{root_dir}{os.sep}{key}"
+            dirpath = os.path.dirname(dest_zip_filepath)
+            os.makedirs(dirpath, exist_ok=True)
+            bucket.get_object_to_file(key, dest_zip_filepath)
+            zipfile.ZipFile(dest_zip_filepath).extractall(root_dir)
+            os.remove(dest_zip_filepath)
+
+            return cls.load_from_dir(root_dir, model_cls=model_cls)
+
+    @classmethod
+    def load(cls, url: str, model_cls: BaseModel) -> Optional["Predictor"]:
         if url.startswith("file://"):
             return Predictor.load_from_dir(remove_prefix(url, "file://"), model_cls)
         else:
             bucket, key = get_bucket_from_oss_url(url)
-            assert bucket.object_exists(key), "model_state should exist in oss bucket"
             return Predictor.load_from_oss_bucket(bucket, key, model_cls)
 
-    @classmethod
     def upload(self, url: str):
         """upload model state to oss if given url is an oss file, else do nothing"""
         if url.startswith("oss://"):

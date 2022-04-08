@@ -156,14 +156,6 @@ def diff_week(d1, d2, n=1):
     return (d1 - d2).days // (n * 7)
 
 
-def diff_hour(d1, d2, n=1):
-    return (d1 - d2).seconds // (n * 3600)
-
-
-def diff_miniute(d1, d2, n=1):
-    return (d1 - d2).seconds // (n * 60)
-
-
 def add_time_idx(data: pd.DataFrame, time_column_name: str, freq: str = None, time_idx_name="_time_idx_"):
     if time_column_name is not None:
         time_column = pd.to_datetime(data[time_column_name]).dt.tz_localize(None)
@@ -186,10 +178,6 @@ def add_time_idx(data: pd.DataFrame, time_column_name: str, freq: str = None, ti
         time_idx = time_column.apply(lambda x: diff_month(x, start_time, offset.n))
     elif "W-" in offset.name:
         time_idx = time_column.apply(lambda x: diff_week(x, start_time, offset.n))
-    elif "-" not in offset.name and offset.name[-1] == "H":
-        time_idx = time_column.apply(lambda x: diff_hour(x, start_time, offset.n))
-    elif "-" not in offset.name and offset.name[-1] == "T":
-        time_idx = time_column.apply(lambda x: diff_miniute(x, start_time, offset.n))
     else:  # seconds, microseconds, nanosecongs, days, businiess-days, no-time column
         time_idx = ((time_column - start_time) / offset).astype(int)
 

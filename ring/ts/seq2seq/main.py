@@ -18,8 +18,11 @@ def train(data_config: DataConfig, data_train: pd.DataFrame, data_val: pd.DataFr
         "early_stopping_patience": kwargs["early_stopping_patience"],
         "max_epochs": kwargs["max_epochs"],
     }
+
     if model_state is not None:
         predictor = Predictor.load(model_state, RNNSeq2Seq)
+
+    if predictor is not None:
         predictor.trainer_cfg = trainer_cfg
         predictor.train(data_train, data_val, load=True)
     else:

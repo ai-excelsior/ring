@@ -6,13 +6,13 @@ from influxdb_client import InfluxDBClient
 
 @contextmanager
 def get_influx_client():
-    endpoint = os.environ.get("INFLUX_ENDPOINT")
+    url = os.environ.get("INFLUX_ENDPOINT")
     token = os.environ.get("INFLUX_TOKEN")
     org = os.environ.get("INFLUX_ORG")
 
     try:
         client = InfluxDBClient(
-            url=endpoint,
+            url=url,
             token=token,
             org=org,
         )
