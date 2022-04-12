@@ -7,7 +7,6 @@ from typing import Any, Dict, List, Tuple, Union
 from torch.utils.data import Dataset, DataLoader
 
 from ring.common.data_config import DataConfig
-
 from .indexer import BaseIndexer, create_indexer_from_cfg, serialize_indexer, deserialize_indexer
 from .normalizers import (
     AbstractNormalizer,
@@ -17,7 +16,22 @@ from .normalizers import (
     serialize_normalizer,
     deserialize_normalizer,
 )
+from .encoder import AbstractEncoder, LabelEncoder, OrdinalEncoder, deserialize_encoder, serialize_encoder
+
+from .scalar import AbstractScaler, serialize_scaler, deserialize_scaler
+
+
+from sklearn.preprocessing import (
+    MinMaxScaler,
+    Normalizer as Normalizers,  # per sample / row
+    RobustScaler,
+    QuantileTransformer,
+    StandardScaler,  # per feature /column
+)
+
+from sklearn.utils.validation import check_is_fitted
 from .utils import get_default_embedding_size, add_time_idx
+from .encoder import create_encoder_from_cfg
 
 STATIC_UNKNOWN_REAL_NAME = "_ZERO_"
 TIME_IDX = "_time_idx_"
@@ -42,6 +56,8 @@ class TimeSeriesDataset(Dataset):
         embedding_sizes: Dict[str, Tuple[str, str]] = None,
         # normalizers
         target_normalizers: List[Normalizer] = [],
+        categorical_encoders: List[LabelEncoder] = [],
+        cont_scalars: List[StandardScaler] = [],
         # toggles
         predict_mode=False,  # using predict mode to index
         enable_static_as_covariant=True,
@@ -62,6 +78,8 @@ class TimeSeriesDataset(Dataset):
         self._enable_static_as_covariant = enable_static_as_covariant
         self._add_static_known_real = add_static_known_real
         self._target_normalizers = target_normalizers
+        self._categorical_encoders = categorical_encoders
+        self._cont_scalars = cont_scalars
 
         if len(self._target_normalizers) == 0:
             for _ in self.targets:
@@ -69,6 +87,10 @@ class TimeSeriesDataset(Dataset):
                     self._target_normalizers.append(GroupStardardNormalizer(self._group_ids))
                 else:
                     self._target_normalizers.append(StandardNormalizer())
+
+        if len(self._categorical_encoders) == 0:
+            for cat in self.categoricals:
+                self._categorical_encoders.append(LabelEncoder(feature=cat))
 
         # 确保group_ids存在
         assert all(
@@ -111,6 +133,16 @@ class TimeSeriesDataset(Dataset):
             self._add_static_known_real = True
         if self._add_static_known_real == True:
             data[STATIC_UNKNOWN_REAL_NAME] = 0.0
+
+        # convert `categoricals`
+        for i, cat in enumerate(self.categoricals):
+            encoder = self._categorical_encoders[i]
+            if not encoder.fitted:
+                # check_is_fitted(encoder)
+                data[cat] = encoder.fit_transform(data[cat].astype(str))
+
+            else:
+                data[cat] = encoder.transform(data[cat].astype(str), self.embedding_sizes)
 
         self._data = data
 
@@ -209,6 +241,8 @@ class TimeSeriesDataset(Dataset):
         kwargs.update(
             indexer=serialize_indexer(self._indexer),
             target_normalizers=[serialize_normalizer(normalizer) for normalizer in self._target_normalizers],
+            categorical_encoders=[serialize_encoder(encoder) for encoder in self._categorical_encoders],
+            # cont_scalars=[serialize_scaler(scalar) for scalar in self._cont_scalars],
         )
         return kwargs
 
@@ -220,6 +254,10 @@ class TimeSeriesDataset(Dataset):
             target_normalizers=[
                 deserialize_normalizer(params) for params in parameters["target_normalizers"]
             ],
+            categorical_encoders=[
+                deserialize_encoder(encoder) for encoder in parameters["categorical_encoders"]
+            ],
+            # cont_scalers=[deserialize_scaler(scalar) for scalar in parameters["cont_scalers"]],
             **kwargs,
         )
         return cls(data=data, **parameters)
@@ -231,7 +269,7 @@ class TimeSeriesDataset(Dataset):
     @classmethod
     def from_data_cfg(cls, data_cfg: DataConfig, data: pd.DataFrame, **kwargs):
         indexer = create_indexer_from_cfg(data_cfg.indexer, data_cfg.group_ids)
-
+        embedding_sizes = create_encoder_from_cfg(data_cfg.categoricals)
         return cls(
             data,
             time=data_cfg.time,
@@ -245,6 +283,7 @@ class TimeSeriesDataset(Dataset):
             time_varying_known_reals=data_cfg.time_varying_known_reals,
             time_varying_unknown_categoricals=data_cfg.time_varying_unknown_categoricals,
             time_varying_unknown_reals=data_cfg.time_varying_unknown_reals,
+            embedding_sizes=embedding_sizes,
             **kwargs,
         )
 

@@ -5,6 +5,8 @@ import numpy as np
 
 from typing import Any, Dict, List, Union
 from pandas.tseries.frequencies import to_offset
+import warnings
+import numbers
 
 
 def to_prediction(y_pred: torch.Tensor, quantiles: List[float] = None):
@@ -186,3 +188,53 @@ def add_time_idx(data: pd.DataFrame, time_column_name: str, freq: str = None, ti
 
 def remove_prefix(text: str, prefix: str):
     return text[text.startswith(prefix) and len(prefix) :]
+
+
+def column_or_1d(y, warn):
+    y = np.asarray(y)
+    shape = np.shape(y)
+    if len(shape) == 1:
+        return np.ravel(y)
+    elif len(shape) == 2 and shape[1] == 1:
+        if warn:
+            warnings.warn(
+                "A column-vector y was passed when a 1d array was"
+                " expected. Please change the shape of y to "
+                "(n_samples, ), for example using ravel()."
+            )
+        return np.ravel(y)
+
+    raise ValueError("y should be a 1d array, got an array of shape {} instead.".format(shape))
+
+
+def _num_samples(x):
+    """Return number of samples in array-like x."""
+    message = "Expected sequence or array-like, got %s" % type(x)
+    if hasattr(x, "fit") and callable(x.fit):
+        # Don't get num_samples from an ensembles length!
+        raise TypeError(message)
+
+    if not hasattr(x, "__len__") and not hasattr(x, "shape"):
+        if hasattr(x, "__array__"):
+            x = np.asarray(x)
+        else:
+            raise TypeError(message)
+
+    if hasattr(x, "shape") and x.shape is not None:
+        if len(x.shape) == 0:
+            raise TypeError("Singleton array %r cannot be considered a valid collection." % x)
+        # Check that shape is returning an integer or default to len
+        # Dask dataframes may not return numeric shape[0] value
+        if isinstance(x.shape[0], numbers.Integral):
+            return x.shape[0]
+
+    try:
+        return len(x)
+    except TypeError as type_error:
+        raise TypeError(message) from type_error
+
+
+def _map_to_integer(values, uniques):
+    """Map values based on its position in uniques."""
+    table = {val: i for i, val in enumerate(uniques)}
+    return np.array([table[v] if v in table else table["UNKNOWN"] for v in values])

@@ -2,7 +2,7 @@ import shutil
 from glob import glob
 from ts.nbeats.model import NbeatsNetwork
 from common.nn_predictor import Predictor
-from common.data_config import DataConfig, IndexerConfig
+from common.data_config import Categorical, DataConfig, IndexerConfig
 from common.data_utils import read_csv
 import pandas as pd
 from influxdb_client import InfluxDBClient
@@ -35,8 +35,10 @@ data_config = DataConfig(
     static_reals=[],
     time_varying_known_categoricals=[],
     time_varying_known_reals=[],
-    time_varying_unknown_categoricals=[],
+    time_varying_unknown_categoricals=["cat", "cc"],
     time_varying_unknown_reals=[],
+    categoricals=Categorical(name=["cat"], choices=[["A", "B", "C", "D"]]),
+    # `unknown` will be added in dataset
 )
 
 
@@ -65,10 +67,12 @@ def test_nbeats():
         kwargs.pop("data_train"),
         parse_dates=[] if data_config.time is None else [data_config.time],
     )
+
     data_val = read_csv(
         kwargs.get("data_val"),
         parse_dates=[] if data_config.time is None else [data_config.time],
     )
+
     predictor.train(data_train, data_val)
     assert len(glob(f"{predictor.root_dir}/*.pt")) > 0
     assert len(glob(f"{predictor.root_dir}/state.json")) > 0
@@ -78,6 +82,7 @@ def test_nbeats():
         kwargs.get("data_val"),
         parse_dates=[] if data_config.time is None else [data_config.time],
     )
+
     predictor = Predictor.load_from_dir(predictor.root_dir, NbeatsNetwork)
     metrics = predictor.validate(data_val)
     assert type(metrics) == dict
@@ -87,6 +92,7 @@ def test_nbeats():
         kwargs.get("data_val"),
         parse_dates=[] if data_config.time is None else [data_config.time],
     )
+
     predictor = Predictor.load_from_dir(predictor.root_dir, NbeatsNetwork)
     result = predictor.predict(data_pre, plot=False)
     assert all([item in result.columns for item in ["ds", "y", "_time_idx_", "is_prediction", "y_pred"]])
@@ -107,14 +113,14 @@ def test_nbeats():
 
         with client.write_api() as write_api:
             write_api.write(
-                bucket="sample_result",
+                bucket="prediction-dev",
                 record=result,
                 data_frame_measurement_name="air_passenger_result",
                 data_frame_tag_columns=["model"],
             )
             print("Wait to finishing ingesting DataFrame...")
         query = (
-            'from(bucket:"sample_result")'
+            'from(bucket:"prediction-dev")'
             " |> range(start: 0, stop: now())"
             ' |> filter(fn: (r) => r._measurement == "air_passenger_result")'
             ' |> filter(fn: (r) => r._field == "y_pred")'
@@ -122,7 +128,7 @@ def test_nbeats():
         result = client.query_api().query(query=query)
 
         client.delete_api().delete(
-            bucket="sample_result",
+            bucket="prediction-dev",
             org="unianalysis",
             start="1900-01-02T23:00:00Z",
             stop="2022-01-02T23:00:00Z",
@@ -131,5 +137,5 @@ def test_nbeats():
     shutil.rmtree(predictor.root_dir)
 
 
-# if __name__ == "__main__":
-#     test_nbeats()
+if __name__ == "__main__":
+    test_nbeats()

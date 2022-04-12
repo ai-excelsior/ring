@@ -1,13 +1,33 @@
 {
   "time": "ds",
   "freq": "1MS",
-  "targets": ["y"],
+  "targets": [
+    "y"
+  ],
   "group_ids": [],
   "static_categoricals": [],
   "static_reals": [],
   "time_varying_known_categoricals": [],
   "time_varying_known_reals": [],
-  "time_varying_unknown_categoricals": [],
+  "time_varying_unknown_categoricals": [
+    "cat"
+  ],
   "time_varying_unknown_reals": [],
-  "indexer": { "name": "slide_window", "look_back": 24, "look_forward": 12 }
+  "indexer": {
+    "name": "slide_window",
+    "look_back": 24,
+    "look_forward": 12
+  },
+  "categoricals": {
+    "cat": {
+      "enums": [
+        "UKN",
+        "A",
+        "B",
+        "C",
+        "D"
+      ],
+      "embedding_size": 2
+    }
+  }
 }

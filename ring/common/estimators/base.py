@@ -86,3 +86,9 @@ class BypassEstimator(BaseEstimator):
     @classmethod
     def deserialize(cls, *args, **kwargs):
         return cls()
+
+    """
+    Base class for encoders that includes the code to categorize and
+    transform the input features.
+
+    """
