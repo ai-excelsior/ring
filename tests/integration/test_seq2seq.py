@@ -106,14 +106,14 @@ def test_seq2seq():
 
         with client.write_api() as write_api:
             write_api.write(
-                bucket="sample_result",
+                bucket="prediction-dev",
                 record=result,
                 data_frame_measurement_name="air_passenger_result",
                 data_frame_tag_columns=["model"],
             )
             print("Wait to finishing ingesting DataFrame...")
         query = (
-            'from(bucket:"sample_result")'
+            'from(bucket:"prediction-dev")'
             " |> range(start: 0, stop: now())"
             ' |> filter(fn: (r) => r._measurement == "air_passenger_result")'
             ' |> filter(fn: (r) => r._field == "y_pred")'
@@ -121,7 +121,7 @@ def test_seq2seq():
         result = client.query_api().query(query=query)
 
         client.delete_api().delete(
-            bucket="sample_result",
+            bucket="prediction-dev",
             org="unianalysis",
             start="1900-01-02T23:00:00Z",
             stop="2022-01-02T23:00:00Z",

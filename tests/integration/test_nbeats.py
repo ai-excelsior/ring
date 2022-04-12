@@ -36,7 +36,7 @@ data_config = DataConfig(
     time_varying_known_categoricals=[],
     time_varying_known_reals=[],
     time_varying_unknown_categoricals=["cat"],
-    time_varying_unknown_reals=[],
+    time_varying_unknown_reals=["bbb"],
     categoricals=Categorical(name=["cat"], choices=[["A", "B", "C", "D"]]),
     # `unknown` will be added in dataset
 )
@@ -67,12 +67,13 @@ def test_nbeats():
         kwargs.pop("data_train"),
         parse_dates=[] if data_config.time is None else [data_config.time],
     )
+    data_train["bbb"] = data_train.index.values
 
     data_val = read_csv(
         kwargs.get("data_val"),
         parse_dates=[] if data_config.time is None else [data_config.time],
     )
-
+    data_val["bbb"] = data_val["y"].index.values
     predictor.train(data_train, data_val)
     assert len(glob(f"{predictor.root_dir}/*.pt")) > 0
     assert len(glob(f"{predictor.root_dir}/state.json")) > 0

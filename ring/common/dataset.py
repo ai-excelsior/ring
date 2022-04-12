@@ -139,7 +139,7 @@ class TimeSeriesDataset(Dataset):
             else:
                 data[cat] = encoder.transform(data[cat].astype(str), self.embedding_sizes)
 
-        for i, cont in enumerate(self.encoder_cont):
+        for i, cont in enumerate(list(set(self.encoder_cont).difference(set(self.targets)))):
             scalar = self._cont_scalars[i]
             if not scalar.fitted:
                 data[cont] = scalar.fit_transform(data[cont], data)
