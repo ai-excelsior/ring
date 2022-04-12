@@ -18,18 +18,6 @@ from .normalizers import (
 )
 from .encoder import AbstractEncoder, LabelEncoder, OrdinalEncoder, deserialize_encoder, serialize_encoder
 
-from .scalar import AbstractScaler, serialize_scaler, deserialize_scaler
-
-
-from sklearn.preprocessing import (
-    MinMaxScaler,
-    Normalizer as Normalizers,  # per sample / row
-    RobustScaler,
-    QuantileTransformer,
-    StandardScaler,  # per feature /column
-)
-
-from sklearn.utils.validation import check_is_fitted
 from .utils import get_default_embedding_size, add_time_idx
 from .encoder import create_encoder_from_cfg
 
@@ -57,7 +45,7 @@ class TimeSeriesDataset(Dataset):
         # normalizers
         target_normalizers: List[Normalizer] = [],
         categorical_encoders: List[LabelEncoder] = [],
-        cont_scalars: List[StandardScaler] = [],
+        cont_scalars: List[StandardNormalizer] = [],
         # toggles
         predict_mode=False,  # using predict mode to index
         enable_static_as_covariant=True,
@@ -80,17 +68,28 @@ class TimeSeriesDataset(Dataset):
         self._target_normalizers = target_normalizers
         self._categorical_encoders = categorical_encoders
         self._cont_scalars = cont_scalars
-
+        # target normalizer
         if len(self._target_normalizers) == 0:
             for _ in self.targets:
                 if len(self._group_ids) > 0:
-                    self._target_normalizers.append(GroupStardardNormalizer(self._group_ids))
+                    self._target_normalizers.append(
+                        GroupStardardNormalizer(group_ids=self._group_ids, feature_name=_)
+                    )
                 else:
-                    self._target_normalizers.append(StandardNormalizer())
-
+                    self._target_normalizers.append(StandardNormalizer(feature_name=_))
+        # categorical encoder
         if len(self._categorical_encoders) == 0:
             for cat in self.categoricals:
-                self._categorical_encoders.append(LabelEncoder(feature=cat))
+                self._categorical_encoders.append(LabelEncoder(feature_name=cat))
+        # cont scalar
+        if len(self._cont_scalars) == 0:
+            for cont in self.encoder_cont:
+                if len(self._group_ids) > 0:
+                    self._cont_scalars.append(
+                        GroupStardardNormalizer(group_ids=self._group_ids, feature_name=cont)
+                    )
+                else:
+                    self._cont_scalars.append(StandardNormalizer(feature_name=cont))
 
         # 确保group_ids存在
         assert all(
@@ -109,10 +108,8 @@ class TimeSeriesDataset(Dataset):
         for categorical_name in self.categoricals:
             if categorical_name not in self._embedding_sizes:
                 cat_size = len(data[categorical_name].unique())
-                self._embedding_sizes[categorical_name] = (
-                    cat_size + 1,
-                    get_default_embedding_size(cat_size),
-                )  # with unknow capacity
+                self._embedding_sizes[categorical_name] = (cat_size + 1, get_default_embedding_size(cat_size))
+                # with unknow capacity
 
         # 初始化indexer
         data = add_time_idx(data, time_column_name=time, freq=freq)
@@ -123,7 +120,6 @@ class TimeSeriesDataset(Dataset):
         # fit target normalizers
         for i, target_name in enumerate(self._targets):
             normalizer = self._target_normalizers[i]
-
             if not normalizer.fitted:
                 data[target_name] = normalizer.fit_transform(data[target_name], data)
             else:
@@ -138,11 +134,17 @@ class TimeSeriesDataset(Dataset):
         for i, cat in enumerate(self.categoricals):
             encoder = self._categorical_encoders[i]
             if not encoder.fitted:
-                # check_is_fitted(encoder)
                 data[cat] = encoder.fit_transform(data[cat].astype(str))
 
             else:
                 data[cat] = encoder.transform(data[cat].astype(str), self.embedding_sizes)
+
+        for i, cont in enumerate(self.encoder_cont):
+            scalar = self._cont_scalars[i]
+            if not scalar.fitted:
+                data[cont] = scalar.fit_transform(data[cont], data)
+            else:
+                data[cont] = scalar.transform(data[cont], data)
 
         self._data = data
 
@@ -242,7 +244,7 @@ class TimeSeriesDataset(Dataset):
             indexer=serialize_indexer(self._indexer),
             target_normalizers=[serialize_normalizer(normalizer) for normalizer in self._target_normalizers],
             categorical_encoders=[serialize_encoder(encoder) for encoder in self._categorical_encoders],
-            # cont_scalars=[serialize_scaler(scalar) for scalar in self._cont_scalars],
+            cont_scalars=[serialize_normalizer(scalar) for scalar in self._cont_scalars],
         )
         return kwargs
 
@@ -257,7 +259,7 @@ class TimeSeriesDataset(Dataset):
             categorical_encoders=[
                 deserialize_encoder(encoder) for encoder in parameters["categorical_encoders"]
             ],
-            # cont_scalers=[deserialize_scaler(scalar) for scalar in parameters["cont_scalers"]],
+            cont_scalars=[deserialize_normalizer(scalar) for scalar in parameters["cont_scalars"]],
             **kwargs,
         )
         return cls(data=data, **parameters)

@@ -153,10 +153,15 @@ class Normalizer(AbstractNormalizer):
     """
 
     def __init__(
-        self, center=True, transformation: Union[str, Tuple[Callable, Callable]] = None, eps: float = 1e-8
+        self,
+        feature_name=None,
+        center=True,
+        transformation: Union[str, Tuple[Callable, Callable]] = None,
+        eps: float = 1e-8,
     ):
         super().__init__(transformation, eps)
         self._center = center
+        self.feature_name = feature_name
 
     def transform_self(self, data: pd.Series, source: pd.DataFrame = None, **kwargs) -> pd.Series:
         assert self._state is not None
@@ -227,6 +232,7 @@ class GroupNormalizer(AbstractNormalizer):
     def __init__(
         self,
         group_ids: List[str] = [],
+        feature_name: str = None,
         center=True,
         transformation: Union[str, Tuple[Callable, Callable]] = None,
         eps: float = 1e-8,
@@ -236,6 +242,7 @@ class GroupNormalizer(AbstractNormalizer):
 
         self._group_ids = group_ids
         self._center = center
+        self.feature_name = feature_name
 
     def transform_self(self, data: pd.Series, source: pd.DataFrame = None, **kwargs) -> pd.Series:
         assert self._state is not None
