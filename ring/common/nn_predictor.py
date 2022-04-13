@@ -18,7 +18,7 @@ from ignite.contrib.handlers.tensorboard_logger import TensorboardLogger, global
 from ignite.handlers import Checkpoint, EarlyStopping, DiskSaver
 from tabulate import tabulate
 from .loss import cfg_to_losses
-from .metrics import RMSE, SMAPE
+from .metrics import RMSE, SMAPE, MAE
 from .dataset import TimeSeriesDataset
 from .serializer import dumps, loads
 from .utils import get_latest_updated_file, remove_prefix
@@ -172,6 +172,7 @@ class Predictor:
         val_metrics = {
             "val_rmse": RMSE(device=self._device),
             "val_smape": SMAPE(device=self._device),
+            "val_mae": MAE(device=self._device),
         }
         evaluator = create_supervised_evaluator(
             model,
@@ -186,7 +187,8 @@ class Predictor:
             evaluator.run(val_dataloader)
             metrics = evaluator.state.metrics
             print(
-                f"Training Results - Epoch: {trainer.state.epoch}, Loss: {trainer.state.output:.2f} Val RMSE: {metrics['val_rmse']:.2f}"
+                f"Training Results - Epoch: {trainer.state.epoch}, Loss: {trainer.state.output:.2f}, \
+                 Val RMSE: {metrics['val_rmse']:.2f}, Val SMAPE: {metrics['val_smape']:.2f} Val MAE: {metrics['val_mae']:.2f}"
             )
 
         # checkpoint
@@ -279,6 +281,7 @@ class Predictor:
         metrics = {
             "RMSE": RMSE(device=self._device),
             "SMAPE": SMAPE(device=self._device),
+            "MAE": MAE(device=self._device),
         }
         if self.enable_gpu:
             test_dataloader = dataset.to_dataloader(
