@@ -170,9 +170,9 @@ class Predictor:
             model, optimizer, self._losses, normalizers=dataset_train.target_normalizers, device=self._device
         )
         val_metrics = {
-            "val_rmse": RMSE(device=self._device),
-            "val_smape": SMAPE(device=self._device),
-            "val_mae": MAE(device=self._device),
+            "val_RMSE": RMSE(device=self._device),
+            "val_SMAPE": SMAPE(device=self._device),
+            "val_MAE": MAE(device=self._device),
         }
         evaluator = create_supervised_evaluator(
             model,
@@ -188,7 +188,7 @@ class Predictor:
             metrics = evaluator.state.metrics
             print(
                 f"Training Results - Epoch: {trainer.state.epoch}, Loss: {trainer.state.output:.2f}, \
-                 Val RMSE: {metrics['val_rmse']:.2f}, Val SMAPE: {metrics['val_smape']:.2f} Val MAE: {metrics['val_mae']:.2f}"
+                 Val RMSE: {metrics['val_RMSE']:.2f}, Val SMAPE: {metrics['val_SMAPE']:.2f} Val MAE: {metrics['val_MAE']:.2f}"
             )
 
         # checkpoint
@@ -201,7 +201,7 @@ class Predictor:
                 require_empty=False,
             ),
             filename_prefix="best",
-            score_function=lambda x: -x.state.metrics["val_rmse"],
+            score_function=lambda x: -x.state.metrics["val_" + self._loss_cfg],
             global_step_transform=global_step_from_engine(trainer),
         )
         evaluator.add_event_handler(
@@ -212,7 +212,7 @@ class Predictor:
         # early stop
         early_stopping = EarlyStopping(
             patience=self._trainer_cfg.get("early_stopping_patience", 6),
-            score_function=lambda engine: -engine.state.metrics["val_rmse"],
+            score_function=lambda engine: -engine.state.metrics["val_" + self._loss_cfg],
             min_delta=1e-8,
             trainer=trainer,
         )
