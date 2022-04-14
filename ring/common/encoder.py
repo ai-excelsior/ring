@@ -25,6 +25,8 @@ def deserialize_encoder(d: Dict[str, Any]):
 
 
 def create_encoder_from_cfg(cfg: Categorical) -> Dict:
+    if cfg is None:
+        return {}
     # `embedding_sizes` not provided, then it can be deduced
     if len(cfg.embedding_sizes) == 0 and len(cfg.name) != len(cfg.choices):
         raise ValueError("Number of categoricals and list of choices must be the same")

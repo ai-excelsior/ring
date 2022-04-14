@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 from email.errors import CloseBoundaryNotFoundDefect
-from typing import List, Dict
+from typing import List, Dict, Union
 
 from torch import embedding
 
@@ -29,7 +29,8 @@ class DataConfig:
     freq: str
     targets: List[str]
     indexer: IndexerConfig
-    categoricals: Categorical
+    categoricals: Union[Categorical, None] = None
+    lags: Dict = field(default_factory=dict)
     group_ids: List[str] = field(default_factory=list)
     static_categoricals: List[str] = field(default_factory=list)
     static_reals: List[str] = field(default_factory=list)
@@ -45,10 +46,14 @@ def dict_to_data_config(cfg: Dict) -> DataConfig:
         look_back=cfg["indexer"]["look_back"],
         look_forward=cfg["indexer"]["look_forward"],
     )
-    cats = Categorical(
-        name=cfg["categoricals"]["name"],
-        embedding_sizes=cfg["categoricals"]["embedding_sizes"],
-        choices=cfg["categoricals"]["choices"],
+    cats = (
+        Categorical(
+            name=cfg["categoricals"]["name"],
+            embedding_sizes=cfg["categoricals"]["embedding_sizes"],
+            choices=cfg["categoricals"]["choices"],
+        )
+        if cfg.get("categoricals") is not None
+        else None
     )
     data_config = DataConfig(
         time=cfg["time"],
@@ -63,6 +68,7 @@ def dict_to_data_config(cfg: Dict) -> DataConfig:
         time_varying_unknown_categoricals=cfg.get("time_varying_unknown_categoricals", []),
         time_varying_unknown_reals=cfg.get("time_varying_unknown_reals", []),
         categoricals=cats,
+        lags=cfg.get("lags", {}),
     )
     return data_config
 

@@ -50,6 +50,8 @@ class TimeSeriesDataset(Dataset):
         predict_mode=False,  # using predict mode to index
         enable_static_as_covariant=True,
         add_static_known_real=None,  # add zero to time varying known (decoder part) field
+        # seasonality
+        lags: Dict = {},
     ) -> None:
         self._time = time
         self._freq = freq
@@ -68,6 +70,7 @@ class TimeSeriesDataset(Dataset):
         self._target_normalizers = target_normalizers
         self._categorical_encoders = categorical_encoders
         self._cont_scalars = cont_scalars
+        self._lags = lags
         # target normalizer
         if len(self._target_normalizers) == 0:
             for _ in self.targets:
@@ -231,6 +234,10 @@ class TimeSeriesDataset(Dataset):
     def max_sequence_length(self):
         return self._indexer.max_sequence_length
 
+    @property
+    def lags(self):
+        return self._lags
+
     def get_parameters(self) -> Dict[str, Any]:
         """
         Get parameters that can be used with :py:meth:`~from_parameters` to create a new dataset with the same scalers.
@@ -286,6 +293,7 @@ class TimeSeriesDataset(Dataset):
             time_varying_unknown_categoricals=data_cfg.time_varying_unknown_categoricals,
             time_varying_unknown_reals=data_cfg.time_varying_unknown_reals,
             embedding_sizes=embedding_sizes,
+            lags=data_cfg.lags,
             **kwargs,
         )
 
