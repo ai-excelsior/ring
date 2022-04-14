@@ -100,7 +100,7 @@ class RNNSeq2Seq(BaseModel):
     def target_positions(self):
         return [self._encoder_cont.index(tar) for tar in self._targets]
 
-    def forward(self, x: Dict[str, torch.Tensor]):
+    def forward(self, x: Dict[str, torch.Tensor], **kwargs):
         encoder_cat = x["encoder_cat"]
         encoder_cont = x["encoder_cont"]
         decoder_cat = x["decoder_cat"]

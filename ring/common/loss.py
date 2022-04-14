@@ -77,7 +77,7 @@ class AbstractLoss:
 
         return y_scaled
 
-    def to_prediction(self, y_pred: torch.Tensor):
+    def to_prediction(self, y_pred: torch.Tensor, **kwargs):
         """
         Return single dimension prediction result
 
@@ -250,7 +250,7 @@ class QuantileLoss(AbstractLoss):
 
         return y_scaled
 
-    def to_prediction(self, y_pred: torch.Tensor):
+    def to_prediction(self, y_pred: torch.Tensor, **kwargs):
         return y_pred[..., self._quantiles.index(0.5)]
 
     def plot_one(
@@ -339,8 +339,11 @@ class DistributionLoss(AbstractLoss):
     ):
         raise NotImplementedError("implement this method")
 
-    def to_prediction(self, y_pred: torch.Tensor):
-        return self.to_distribution(y_pred).mean
+    def to_prediction(self, y_pred: torch.Tensor, use_metrics=True):
+        if use_metrics:
+            return self.to_distribution(y_pred).mean
+        else:
+            return y_pred.mean(-1)
 
 
 @register(LOSSES)

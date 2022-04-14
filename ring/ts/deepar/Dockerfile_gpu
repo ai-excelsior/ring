@@ -1,0 +1,16 @@
+FROM code.unianalysis.com:5050/unianalysis/ring/cuda11.3-py3.8:latest
+
+WORKDIR /home
+
+ADD requirements_no_torch.txt requirements_no_torch.txt
+ADD ring/ts/deepar/requirements.txt ring/ts/deepar/requirements.txt
+
+RUN --mount=type=cache,target=/root/.cache pip install -U pip -i https://mirrors.aliyun.com/pypi/simple/
+RUN --mount=type=cache,target=/root/.cache pip install -r requirements_no_torch.txt -i https://mirrors.aliyun.com/pypi/simple/
+RUN --mount=type=cache,target=/root/.cache pip install -r ring/ts/deepar/requirements.txt -i https://mirrors.aliyun.com/pypi/simple/
+
+ADD ring/common ring/common
+ADD ring/ts/deepar ring/ts/deepar
+
+ENV PYTHONPATH=/home
+ENTRYPOINT ["python", "/home/ring/ts/deepar/main.py"]

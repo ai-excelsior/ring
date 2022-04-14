@@ -201,7 +201,9 @@ class Predictor:
                 require_empty=False,
             ),
             filename_prefix="best",
-            score_function=lambda x: -x.state.metrics["val_" + self._loss_cfg],
+            score_function=lambda x: -x.state.metrics["val_" + self._loss_cfg]
+            if "val_" + self._loss_cfg in x.state.metrics
+            else -x.state.metrics["val_SMAPE"],
             global_step_transform=global_step_from_engine(trainer),
         )
         evaluator.add_event_handler(
@@ -212,7 +214,9 @@ class Predictor:
         # early stop
         early_stopping = EarlyStopping(
             patience=self._trainer_cfg.get("early_stopping_patience", 6),
-            score_function=lambda engine: -engine.state.metrics["val_" + self._loss_cfg],
+            score_function=lambda engine: -engine.state.metrics["val_" + self._loss_cfg]
+            if "val_" + self._loss_cfg in engine.state.metrics
+            else -engine.state.metrics["val_SMAPE"],
             min_delta=1e-8,
             trainer=trainer,
         )
@@ -344,7 +348,7 @@ class Predictor:
         with torch.no_grad():
             batch = next(iter(dataloader))
             x, y = prepare_batch(batch, self._device)
-            y_pred = model(x)
+            y_pred = model(x, mode="predict")
 
             if isinstance(y_pred, Dict):
                 try:
@@ -371,6 +375,22 @@ class Predictor:
             raw_data.loc[decoder_indices, prediction_column_names] = (
                 y_pred_scaled.reshape((-1, len(prediction_column_names))).cpu().detach().numpy()
             )
+            if "pred" not in prediction_column_names:
+                for i, target_name in enumerate(dataset.targets):
+                    raw_data[target_name + "_pred"] = raw_data[prediction_column_names[0]].copy()
+                    raw_data.loc[decoder_indices, target_name + "_pred"] = (
+                        torch.stack(
+                            [
+                                loss_obj.to_prediction(reverse_scale(i, loss_obj), use_metrics=False)
+                                for i, loss_obj in enumerate(self._losses)
+                            ],
+                            dim=-1,
+                        )
+                        .reshape(-1, 1)
+                        .cpu()
+                        .detach()
+                        .numpy()
+                    )
             df.append(raw_data)
         df = pd.concat(df)
 

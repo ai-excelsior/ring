@@ -1,6 +1,6 @@
 import shutil
 from glob import glob
-from ring.ts.rnn.model import ReccurentNetwork
+from ring.ts.deepar.model import DeepAR
 from ring.common.nn_predictor import Predictor
 from ring.common.data_config import DataConfig, IndexerConfig
 from ring.common.data_utils import read_csv
@@ -11,7 +11,7 @@ kwargs = {
     "data_train": "file://data/air_passengers_train.csv",
     "data_val": "file://data/air_passengers_train.csv",
     "model_state": None,
-    "loss": "SMAPE",
+    "loss": "NormalDistrubution",
     "lr": 0.05,
     "batch_size": 8,
     "early_stopping_patience": 10,
@@ -41,11 +41,11 @@ data_config = DataConfig(
 )
 
 
-def test_rnn():
+def test_deepar():
     # train
     predictor = Predictor(
         data_cfg=data_config,
-        model_cls=ReccurentNetwork,
+        model_cls=DeepAR,
         model_params={
             "cell_type": kwargs["cell_type"],
             "hidden_size": kwargs["hidden_size"],
@@ -77,7 +77,7 @@ def test_rnn():
         kwargs.get("data_val"),
         parse_dates=[] if data_config.time is None else [data_config.time],
     )
-    predictor = Predictor.load_from_dir(predictor.root_dir, ReccurentNetwork)
+    predictor = Predictor.load_from_dir(predictor.root_dir, DeepAR)
     predictor.validate(data_val)
 
     # predict
@@ -85,7 +85,7 @@ def test_rnn():
         kwargs.get("data_val"),
         parse_dates=[] if data_config.time is None else [data_config.time],
     )
-    predictor = Predictor.load_from_dir(predictor.root_dir, ReccurentNetwork)
+    predictor = Predictor.load_from_dir(predictor.root_dir, DeepAR)
     result = predictor.predict(data_pre, plot=False)
     assert [item in result.columns for item in ["ds", "y", "_time_idx_", "is_prediction", "y_pred"]]
     assert result[~result["is_prediction"]]["y_pred"].isnull().all()
@@ -94,7 +94,7 @@ def test_rnn():
 
     result.set_index("ds", inplace=True)
     result.index = pd.to_datetime(result.index)
-    result["model"] = "RNN"
+    result["model"] = "deepar"
 
     with InfluxDBClient(
         url="http://localhost:8086",
@@ -124,10 +124,10 @@ def test_rnn():
             org="unianalysis",
             start="1900-01-02T23:00:00Z",
             stop="2022-01-02T23:00:00Z",
-            predicate=' _measurement = "air_passenger_result" and model= "RNN"',
+            predicate=' _measurement = "air_passenger_result" and model= "deepar"',
         )
     shutil.rmtree(predictor.root_dir)
 
 
 if __name__ == "__main__":
-    test_rnn()
+    test_deepar()

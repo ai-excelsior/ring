@@ -1,12 +1,14 @@
 import torch
 from torch import nn
-from typing import List, Dict, Tuple
+from typing import List, Dict, Tuple, Union
 from copy import deepcopy
 from ring.common.base_model import AutoRegressiveBaseModelWithCovariates
 from ring.common.dataset import TimeSeriesDataset
 
+HIDDENSTATE = Union[Tuple[torch.Tensor, torch.Tensor], torch.Tensor]
 
-class ReccurentNetwork(AutoRegressiveBaseModelWithCovariates):
+
+class DeepAR(AutoRegressiveBaseModelWithCovariates):
     def __init__(
         self,
         targets: str,
@@ -41,24 +43,58 @@ class ReccurentNetwork(AutoRegressiveBaseModelWithCovariates):
             target_lags=target_lags,
             output_size=output_size,
         )
+
         self.output_projector_decoder = (
-            nn.Linear(hidden_size, output_size)
+            nn.Linear(hidden_size, 2)
             if len(self._targets) == 1
-            else nn.ModuleList([nn.Linear(hidden_size, size) for size in output_size])
+            else [nn.Linear(hidden_size, 2) for _ in len(self._targets)]
         )
 
-    def forward(self, x: Dict[str, torch.Tensor], **kwargs):
+    def decode(
+        self,
+        x: Dict[str, torch.Tensor],
+        hidden_state: HIDDENSTATE,
+        first_target: torch.Tensor,
+        n_samples: int = None,
+        **_,
+    ) -> torch.Tensor:
+
+        self._phase = "decode"
+        decoder_cat, decoder_cont = x["decoder_cat"], x["decoder_cont"]
+        input_vector = self.construct_input_vector(decoder_cat, decoder_cont, first_target)
+        if n_samples is None:  # the training mode where the target values are actually known
+            output = self._decode(
+                input_vector=input_vector, hidden_state=hidden_state, lengths=x["decoder_length"]
+            )
+        else:  # the prediction mode, in which the target values are unknown
+            input_vector = input_vector.repeat_interleave(n_samples, 0)
+            hidden_state = self.decoder.repeat_interleave(hidden_state, n_samples)
+            output = self.decode_autoregressive(
+                self._decode,
+                input_vector=input_vector,
+                hidden_state=hidden_state,
+                n_decoder_steps=x["decoder_length"][0],
+            )
+        return output
+
+    def forward(self, x: Dict[str, torch.Tensor], n_samples: int = None, mode=None):
         hidden_state = self.encode(x)
         first_target = x["encoder_cont"][
             torch.arange(x["encoder_cont"].shape[0], device=x["encoder_cont"].device),
             x["encoder_length"] - 1,
             self.target_positions.unsqueeze(-1),
         ].t()
-        prediction = self.decode(x, hidden_state=hidden_state, first_target=first_target)
-        return prediction
+
+        if mode == "prediction":
+            return self.decode(x, hidden_state=hidden_state, first_target=first_target, n_samples=100)
+
+        if self.training:
+            assert n_samples is None, "cannot sample from decoder when training"
+
+        return self.decode(x, hidden_state=hidden_state, first_target=first_target)
 
     @classmethod
-    def from_dataset(cls, dataset: TimeSeriesDataset, **kwargs) -> "ReccurentNetwork":
+    def from_dataset(cls, dataset: TimeSeriesDataset, **kwargs) -> "DeepAR":
         # update embedding sizes from kwargs
         desired_embedding_sizes = kwargs.pop("embedding_sizes", {})
         embedding_sizes = deepcopy(dataset.embedding_sizes)

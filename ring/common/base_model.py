@@ -94,12 +94,6 @@ class AutoRegressiveBaseModelWithCovariates(BaseModel):
             else rnn_class(input_size=self._decoder_input_size, **rnn_kwargs)
         )
 
-        self.output_projector_decoder = (
-            nn.Linear(hidden_size, output_size)
-            if len(self.target_positions) == 1
-            else nn.ModuleList([nn.Linear(hidden_size, size) for size in output_size])
-        )
-
     @property
     def categoricals_embedding(self) -> MultiEmbedding:
         return (

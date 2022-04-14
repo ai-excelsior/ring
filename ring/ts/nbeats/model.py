@@ -115,7 +115,7 @@ class NbeatsNetwork(BaseModel):
     def target_positions(self):
         return [self._encoder_cont.index(tar) for tar in self._targets]
 
-    def forward(self, x: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
+    def forward(self, x: Dict[str, torch.Tensor], **kwargs) -> Dict[str, torch.Tensor]:
         """
         Pass forward of network.
 
