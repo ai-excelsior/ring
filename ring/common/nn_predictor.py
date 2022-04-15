@@ -171,7 +171,7 @@ class Predictor:
         )
         val_metrics = {
             "val_RMSE": RMSE(device=self._device),
-            "val_SMAPE": SMAPE(device=self._device),
+            "val_SMAPE": SMAPE(device=self._device) * 100,  # percentage
             "val_MAE": MAE(device=self._device),
         }
         evaluator = create_supervised_evaluator(

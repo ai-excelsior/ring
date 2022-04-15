@@ -5,7 +5,7 @@ from ring.common.data_config import DataConfig, url_to_data_config
 from ring.common.nn_predictor import Predictor
 from ring.common.influx_utils import predictions_to_influx
 from ring.common.data_utils import read_csv
-from model import ReccurentNetwork
+from model import DeepAR
 
 
 def train(data_config: DataConfig, data_train: pd.DataFrame, data_val: pd.DataFrame, **kwargs):
@@ -19,7 +19,7 @@ def train(data_config: DataConfig, data_train: pd.DataFrame, data_val: pd.DataFr
     }
 
     if model_state is not None:
-        predictor = Predictor.load(model_state, ReccurentNetwork)
+        predictor = Predictor.load(model_state, DeepAR)
 
     if predictor is not None:
         predictor.trainer_cfg = trainer_cfg
@@ -27,7 +27,7 @@ def train(data_config: DataConfig, data_train: pd.DataFrame, data_val: pd.DataFr
     else:
         predictor = Predictor(
             data_cfg=data_config,
-            model_cls=ReccurentNetwork,
+            model_cls=DeepAR,
             model_params={
                 "cell_type": kwargs["cell_type"],
                 "hidden_size": kwargs["hidden_size"],
@@ -51,7 +51,7 @@ def validate(model_state: str, data_val: pd.DataFrame):
     """
     assert model_state is not None, "model_state is required when validate"
 
-    predictor = Predictor.load(model_state, ReccurentNetwork)
+    predictor = Predictor.load(model_state, DeepAR)
     predictor.validate(data_val)
 
 
@@ -66,7 +66,7 @@ def predict(
     """
     assert model_state is not None, "model_state is required when validate"
 
-    predictor = Predictor.load(model_state, ReccurentNetwork)
+    predictor = Predictor.load(model_state, DeepAR)
     pred_df = predictor.predict(data, plot=True)
     predictions_to_influx(
         pred_df,
