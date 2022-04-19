@@ -19,13 +19,8 @@ def train(data_config: DataConfig, data_train: pd.DataFrame, data_val: pd.DataFr
         "max_epochs": kwargs["max_epochs"],
     }
 
-    if model_state is not None:
-        predictor = Predictor.load(model_state, RNNSeq2Seq)
-
-    if predictor is not None:
-        predictor.trainer_cfg = trainer_cfg
-        predictor.train(data_train, data_val, load=True)
-    else:
+    predictor = None if model_state is None else Predictor.load(model_state, RNNSeq2Seq)
+    if predictor is None:
         predictor = Predictor(
             data_cfg=data_config,
             model_cls=RNNSeq2Seq,
@@ -40,6 +35,9 @@ def train(data_config: DataConfig, data_train: pd.DataFrame, data_val: pd.DataFr
             trainer_cfg=trainer_cfg,
         )
         predictor.train(data_train, data_val)
+    else:
+        predictor.trainer_cfg = trainer_cfg
+        predictor.train(data_train, data_val, load=True)
 
     if model_state is None:
         print(f"Model saved in local file path: {predictor.root_dir}")

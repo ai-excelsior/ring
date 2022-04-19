@@ -1,5 +1,7 @@
 import pandas as pd
 from argparse import ArgumentParser
+
+from pytorch_forecasting import NBeats
 from ring.common.cmd_parsers import get_predict_parser, get_train_parser, get_validate_parser
 from ring.common.data_config import DataConfig, url_to_data_config
 from ring.common.nn_predictor import Predictor
@@ -18,9 +20,7 @@ def train(data_config: DataConfig, data_train: pd.DataFrame, data_val: pd.DataFr
         "max_epochs": kwargs["max_epochs"],
     }
 
-    if model_state is not None:
-        predictor = Predictor.load(model_state, NbeatsNetwork)
-
+    predictor = None if model_state is None else Predictor.load(model_state, NBeats)
     if predictor is not None:
         predictor.trainer_cfg = trainer_cfg
         predictor.train(data_train, data_val, load=True)
