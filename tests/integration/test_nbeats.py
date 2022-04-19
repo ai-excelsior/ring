@@ -39,7 +39,7 @@ data_config = DataConfig(
     time_varying_known_reals=[],
     time_varying_unknown_categoricals=["cat"],
     time_varying_unknown_reals=["cont"],
-    categoricals=Categorical(name=["cat"], choices=[["A", "B", "C", "D"]]),
+    categoricals=[{"name": "cat", "choices": ["A", "B", "C", "D"]}]
     # `unknown` will be added in dataset
 )
 

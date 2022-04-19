@@ -7,7 +7,6 @@ from ring.common.base_model import BaseModel
 from ring.common.ml.rnn import get_rnn
 from ring.common.ml.embeddings import MultiEmbedding
 from ring.common.dataset import TimeSeriesDataset
-from ring.common.normalizers import AbstractNormalizer
 from ring.ts.nbeats.submodules import NBEATSBlock, NBEATSGenericBlock, NBEATSSeasonalBlock, NBEATSTrendBlock
 
 

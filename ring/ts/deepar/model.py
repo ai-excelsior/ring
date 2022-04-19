@@ -107,7 +107,7 @@ class DeepAR(AutoRegressiveBaseModelWithCovariates):
             {name: {f"{name}_lagged_by_{lag}": lag for lag in lags.get(name, [])} for name in lags},
         )
         return cls(
-            dataset.targets,
+            targets=dataset.targets,
             encoder_cat=dataset.encoder_cat,
             encoder_cont=dataset.encoder_cont,
             decoder_cat=dataset.decoder_cat,

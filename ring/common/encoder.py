@@ -24,23 +24,23 @@ def deserialize_encoder(d: Dict[str, Any]):
     return cls.deserialize(d)
 
 
-def create_encoder_from_cfg(cfg: Categorical) -> Dict:
-    if cfg is None:
+def create_encoder_from_cfg(cfg: Dict) -> Dict:
+    if len(cfg) == 0:
         return {}
-    # `embedding_sizes` not provided, then it can be deduced
-    if len(cfg.embedding_sizes) == 0 and len(cfg.name) != len(cfg.choices):
-        raise ValueError("Number of categoricals and list of choices must be the same")
-    # if `embedding_sizes` provided, then it should match
-    if len(cfg.name) != len(cfg.choices) != len(cfg.embedding_sizes):
-        raise ValueError("Number of categoricals, embedding_sizes, list of choices must be the same")
+    # # `embedding_sizes` not provided, then it can be deduced
+    # if len(cfg.embedding_sizes) == 0 and len(cfg.name) != len(cfg.choices):
+    #     raise ValueError("Number of categoricals and list of choices must be the same")
+    # # if `embedding_sizes` provided, then it should match
+    # if len(cfg.name) != len(cfg.choices) != len(cfg.embedding_sizes):
+    #     raise ValueError("Number of categoricals, embedding_sizes, list of choices must be the same")
     cat_encoder = {}
     # match the form of parameter `embedding_sizes` in dataset
-    for i in range(len(cfg.name)):
-        cat_encoder[cfg.name[i]] = (
-            len(cfg.choices[i]) + 1,  # add `unknown`
-            cfg.embedding_sizes[i]
-            if len(cfg.embedding_sizes) != 0
-            else get_default_embedding_size(len(cfg.choices[i]) + 1),
+    for item in cfg:
+        cat_encoder[item["name"]] = (
+            len(item["choices"]) + 1,  # add `unknown`
+            item["embedding_sizes"]
+            if "embedding_sizes" in item and item["embedding_sizes"] is not None
+            else get_default_embedding_size(len(item["choices"]) + 1),
         )
 
     return cat_encoder

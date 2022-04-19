@@ -11,9 +11,9 @@ from .utils import remove_prefix
 
 @dataclass
 class Categorical:
-    name: List[str] = field(default_factory=list)
-    embedding_sizes: List[int] = field(default_factory=list)
-    choices: List[List[str]] = field(default_factory=list)
+    name: str = field(default_factory=list)
+    embedding_sizes: int = field(default_factory=int)
+    choices: List[str] = field(default_factory=list)
 
 
 @dataclass
@@ -29,7 +29,7 @@ class DataConfig:
     freq: str
     targets: List[str]
     indexer: IndexerConfig
-    categoricals: Union[Categorical, None] = None
+    categoricals: List = field(default_factory=list)
     lags: Dict = field(default_factory=dict)
     group_ids: List[str] = field(default_factory=list)
     static_categoricals: List[str] = field(default_factory=list)
@@ -46,15 +46,15 @@ def dict_to_data_config(cfg: Dict) -> DataConfig:
         look_back=cfg["indexer"]["look_back"],
         look_forward=cfg["indexer"]["look_forward"],
     )
-    cats = (
+    cats = [
         Categorical(
-            name=cfg["categoricals"]["name"],
-            embedding_sizes=cfg["categoricals"]["embedding_sizes"],
-            choices=cfg["categoricals"]["choices"],
+            name=item["name"],
+            embedding_sizes=item["embedding_sizes"] if "embedding_sizes" in item else None,
+            choices=item["choices"],
         )
+        for item in cfg["categoricals"]
         if cfg.get("categoricals") is not None
-        else None
-    )
+    ]
     data_config = DataConfig(
         time=cfg["time"],
         freq=cfg["freq"],
