@@ -207,7 +207,7 @@ def column_or_1d(y, warn):
     raise ValueError("y should be a 1d array, got an array of shape {} instead.".format(shape))
 
 
-def _num_samples(x):
+def num_samples(x):
     """Return number of samples in array-like x."""
     message = "Expected sequence or array-like, got %s" % type(x)
     if hasattr(x, "fit") and callable(x.fit):
@@ -234,7 +234,7 @@ def _num_samples(x):
         raise TypeError(message) from type_error
 
 
-def _map_to_integer(values, uniques):
+def map_to_integer(values, uniques):
     """Map values based on its position in uniques."""
     table = {val: i for i, val in enumerate(uniques)}
     return np.array([table[v] if v in table else table["UNKNOWN"] for v in values])

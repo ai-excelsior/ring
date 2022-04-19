@@ -7,7 +7,7 @@ from .estimators import Estimator
 from .utils import get_default_embedding_size
 import pandas as pd
 import abc
-from .utils import register, column_or_1d, _num_samples, _map_to_integer
+from .utils import register, column_or_1d, num_samples, map_to_integer
 import numpy as np
 
 ENCODERS: Dict[str, "AbstractEncoder"] = {}
@@ -94,14 +94,14 @@ class LabelEncoder(AbstractEncoder):
     def transform_self(self, y: pd.Series, **kwargs) -> pd.Series:
         y = column_or_1d(y, warn=True)
         # transform of empty array is empty array
-        if _num_samples(y) == 0:
+        if len(y) == 0:
             return np.array([])
-        y = _map_to_integer(y, self._state)
+        y = map_to_integer(y, self._state)
         return y
 
     def inverse_transform_self(self, y: pd.Series, **kwargs) -> pd.Series:
         y = column_or_1d(y, warn=True)
-        if _num_samples(y) == 0:
+        if len(y) == 0:
             return np.array([])
         diff = np.setdiff1d(y, np.arange(len(self.classes_)))
         if len(diff):
@@ -122,15 +122,15 @@ class OrdinalEncoder(AbstractEncoder):
         assert self._state is not None
         y = column_or_1d(y, warn=True)
         # transform of empty array is empty array
-        if _num_samples(y) == 0:
+        if len(y) == 0:
             return np.array([])
-        y = _map_to_integer(y, self._state)
+        y = map_to_integer(y, self._state)
         return y
 
     def inverse_transform_self(self, y: pd.Series, **kwargs) -> pd.Series:
         assert self._state is not None
         y = column_or_1d(y, warn=True)
-        if _num_samples(y) == 0:
+        if len(y) == 0:
             return np.array([])
         diff = np.setdiff1d(y, np.arange(len(self._state)))
         if len(diff):
