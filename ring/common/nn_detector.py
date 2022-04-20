@@ -23,8 +23,13 @@ from .metrics import RMSE, SMAPE, MAE
 from .dataset_ano import TimeSeriesDataset
 from .serializer import dumps, loads
 from .utils import get_latest_updated_file, remove_prefix
-from .trainer_utils import create_supervised_trainer, prepare_batch, create_supervised_evaluator
-from .data_config import DataConfig, dict_to_data_config
+from .trainer_utils import (
+    create_supervised_trainer,
+    prepare_batch,
+    create_supervised_evaluator,
+    create_parameter_evaluator,
+)
+from .data_config import DataConfig, dict_to_data_config_anomal
 from .base_model import BaseModel
 from .oss_utils import get_bucket_from_oss_url
 from scipy.stats import multivariate_normal
@@ -54,7 +59,7 @@ class Detector:
         """
         Initialize
         """
-        self._losses = cfg_to_losses(loss_cfg, len(data_cfg.targets))
+        self._losses = cfg_to_losses(loss_cfg, len(data_cfg.cont_features))
         model_params = deepcopy(model_params)
         model_params["output_size"] = sum([loss.n_parameters for loss in self._losses])
 
@@ -147,8 +152,7 @@ class Detector:
         else:
             dataset_val = self.create_dataset(data_val)
 
-        self.save()
-        sampler = self._trainer_cfg.get("sampler", False) or model._get_name() == "enc-dec-ad"
+        sampler = self._trainer_cfg.get("sampler", False) or self._model_cls.__name__ == "enc_dec_ad"
         batch_size = self._trainer_cfg.get("batch_size", 64)
         if self.enable_gpu:
             train_dataloader = dataset_train.to_dataloader(
@@ -156,15 +160,15 @@ class Detector:
                 num_workers=self.n_workers,
                 pin_memory=True,
                 sampler=SubsetRandomSampler if sampler else None,
-                ratio=self._model_params.get("train_gaussian_percentage") if sampler else None,
+                ratio=self._model_params.get("train_gaussian_percentage", 0.25) if sampler else None,
             )
-            if model._get_name() != "enc-dec-ad":
+            if self._model_cls.__name__ != "enc_dec_ad":
                 val_dataloader = dataset_val.to_dataloader(
                     batch_size,
                     train=False,
                     num_workers=self.n_workers,
                     sampler=SubsetRandomSampler if sampler else None,
-                    ratio=self._model_params.get("train_gaussian_percentage") if sampler else None,
+                    ratio=self._model_params.get("train_gaussian_percentage", 0.25) if sampler else None,
                     pin_memory=True,
                 )
             else:
@@ -172,7 +176,7 @@ class Detector:
                     batch_size,
                     train=False,
                     sampler=SubsetRandomSampler,
-                    ratio=self._model_params.get("train_gaussian_percentage"),
+                    ratio=self._model_params.get("train_gaussian_percentage", 0.25),
                     num_workers=self.n_workers,
                     pin_memory=True,
                 )
@@ -181,7 +185,7 @@ class Detector:
                     train=False,
                     num_workers=self.n_workers,
                     sampler=SubsetRandomSampler,
-                    ratio=self._model_params.get("train_gaussian_percentage"),
+                    ratio=self._model_params.get("train_gaussian_percentage", 0.25),
                     gaussian=True,
                 )
         else:
@@ -189,15 +193,15 @@ class Detector:
                 batch_size,
                 num_workers=self.n_workers,
                 sampler=SubsetRandomSampler if sampler else None,
-                ratio=self._model_params.get("train_gaussian_percentage") if sampler else None,
+                ratio=self._model_params.get("train_gaussian_percentage", 0.25) if sampler else None,
             )
-            if model._get_name() != "enc-dec-ad":
+            if self._model_cls.__name__ != "enc_dec_ad":
                 val_dataloader = dataset_val.to_dataloader(
                     batch_size,
                     train=False,
                     num_workers=self.n_workers,
                     sampler=SubsetRandomSampler if sampler else None,
-                    ratio=self._model_params.get("train_gaussian_percentage") if sampler else None,
+                    ratio=self._model_params.get("train_gaussian_percentage", 0.25) if sampler else None,
                 )
             else:
                 val_dataloader = dataset_val.to_dataloader(  # for early_stop
@@ -205,23 +209,18 @@ class Detector:
                     train=False,
                     num_workers=self.n_workers,
                     sampler=SubsetRandomSampler,
-                    ratio=self._model_params.get("train_gaussian_percentage"),
+                    ratio=self._model_params.get("train_gaussian_percentage", 0.25),
                 )
                 gaussian_loader = dataset_val.to_dataloader(  # for calculating parameters
                     batch_size,
                     train=False,
                     num_workers=self.n_workers,
                     sampler=SubsetRandomSampler,
-                    ratio=self._model_params.get("train_gaussian_percentage"),
+                    ratio=self._model_params.get("train_gaussian_percentage", 0.25),
                     gaussian=True,
                 )
 
-        model = self.create_model(
-            dataset_train,
-            batch_size=batch_size,
-            n_workers=self.n_workers,
-            ratio=self._model_params.get("train_gaussian_percentage"),
-        )
+        model = self.create_model(dataset_train)
         optimizer = torch.optim.Adam(
             model.parameters(),
             lr=self._trainer_cfg.get("lr", 1e-3),
@@ -229,7 +228,7 @@ class Detector:
         )
 
         trainer = create_supervised_trainer(
-            model, optimizer, self._losses, normalizers=dataset_train.target_normalizers, device=self._device
+            model, optimizer, self._losses, normalizers=dataset_train._cont_scalars, device=self._device
         )
         val_metrics = {
             "val_RMSE": RMSE(device=self._device),
@@ -239,8 +238,15 @@ class Detector:
         evaluator = create_supervised_evaluator(
             model,
             self._losses,
-            normalizers=dataset_train.target_normalizers,
+            normalizers=dataset_train._cont_scalars,
             metrics=val_metrics,
+            device=self._device,
+        )
+
+        gaussian_parameters = create_parameter_evaluator(
+            model,
+            loss_fns=self._losses,
+            normalizers=dataset_train._cont_scalars,
             device=self._device,
         )
 
@@ -286,6 +292,16 @@ class Detector:
             Events.COMPLETED,
             early_stopping,
         )
+        # estimate parameters for `enc_dec_ad`
+        @trainer.on(Events.COMPLETED)
+        def evalutate_parameter():
+            if self._model_cls.__name__ == "enc_dec_ad":
+                gaussian_parameters.run(gaussian_loader)
+                output = gaussian_parameters.state.output
+                mean = np.mean(output, axis=0)
+                cov = np.cov(output, rowvar=False)
+                self._model_params.update({"mean": mean, "cov": cov})
+                print(f"Parameters for model Enc_Dec_AD is mean={mean}, covariance={cov}")
 
         # load
         if isinstance(load, str):
@@ -311,21 +327,7 @@ class Detector:
 
             # evaluator.run(val_dataloader)
             trainer.run(train_dataloader, max_epochs=self._trainer_cfg.get("max_epochs", 200))
-
-        # calculate parametrs after training
-        if model._get_name() == "enc_dec_ad":
-            model.eval()
-            error_vectors = []
-            for ts_batch in gaussian_loader:
-                output = model(ts_batch.to(self._device))
-                error = MAELoss(reduce=False)(output, ts_batch.to(self._device))
-                error_vectors += list(
-                    error.view(-1, len(dataset_train.encoder_cat + dataset_train.encoder_cont))
-                    .data.cpu()
-                    .numpy()
-                )
-            model.mean = np.mean(error_vectors, axis=0)
-            model.cov = np.cov(error_vectors, rowvar=False)
+        self.save()
 
     def get_parameters(self) -> Dict[str, Any]:
         """
@@ -372,7 +374,7 @@ class Detector:
             test_dataloader = dataset.to_dataloader(batch_size, train=False, num_workers=self.n_workers)
 
         reporter = create_supervised_evaluator(
-            model, self._losses, dataset.target_normalizers, metrics=metrics, device=self._device
+            model, self._losses, dataset._cont_scalars, metrics=metrics, device=self._device
         )
         reporter.run(test_dataloader)
         headers = metrics.keys()  # metrics for simulating `look_forward` sequences
@@ -408,38 +410,48 @@ class Detector:
             )
         else:
             dataloader = dataset.to_dataloader(batch_size, train=False, num_workers=self.n_workers)
-
+        df = []
+        n_parameters = [loss.n_parameters for loss in self._losses]
+        loss_end_indices = list(itertools.accumulate(n_parameters))
+        loss_start_indices = [i - loss_end_indices[0] for i in loss_end_indices]
         model.eval()
         with torch.no_grad():
             batch = next(iter(dataloader))
-            ts, _ = prepare_batch(batch, self._device)
-            if model._get_name() == "enc_dec_ad":
-                if model.mean is None or model.cov is None:
-                    raise ValueError("Enc_Dec_AD model should be fitted first")
-                mvnormal = multivariate_normal(model.mean, model.cov, allow_singular=True)
-                scores = []
-                # len(dataloader) should be 1
-                output = model.lstmed(ts.to(self._device))  # simulated sequence
-                error = MAELoss(reduce=False)(output, ts.to(self._device))
-                score = -mvnormal.logpdf(
-                    error.view(-1, model._encoder_input_size.shape[1]).data.cpu().numpy()
-                )
-                # batch_size * look_forward
-                scores.append(score.reshape(ts.size(0), self._data_cfg.indexer.look_forward))
+            ts, y = prepare_batch(batch, self._device)
+            if self._model_cls.__name__ == "enc_dec_ad":
+                output, mean, cov = model(ts, mode="predict")  # simulated sequence
+            else:
+                output = model(ts, mode="predict")
+            reverse_scale = lambda i, loss: loss.scale_prediction(
+                output[..., loss_start_indices[i] : loss_end_indices[i]],
+                ts["target_scales"][..., i],
+                dataset._cont_scalars[i],
+            )
+            y_pred_scaled = torch.stack(
+                [reverse_scale(i, loss_obj) for i, loss_obj in enumerate(self._losses)],
+                dim=-1,
+            )
+            mvnormal = multivariate_normal(mean, cov, allow_singular=True)
+            error = MAELoss()(y_pred_scaled, y, reduce=None)
+            score = -mvnormal.logpdf(error.view(-1, model._encoder_input_size).data.cpu().numpy())
+            # batch_size * steps
+            # if all sequences are needed then the following logic is required
+            # scores.append(score.reshape(batch_size, self._data_cfg.indexer.steps))
 
-                # stores seq_len-many scores per timestamp and averages them
-                scores = np.concatenate(scores)
-                lattice = np.full((self._data_cfg.indexer.look_forward, data.shape[0]), np.nan)
-                for i, score in enumerate(scores):
-                    lattice[
-                        i % self._data_cfg.indexer.look_forward, i : i + self._data_cfg.indexer.look_forward
-                    ] = score
-                # combine all features to form `score` for this timestamps
-                scores = np.nanmean(lattice, axis=0)
+            # # stores seq_len-many scores per timestamp and averages them
+            # scores = np.concatenate(scores)
+            # lattice = np.full((self._data_cfg.indexer.steps, data.shape[0]), np.nan)
+            # for i, score in enumerate(scores):
+            #     lattice[i % self._data_cfg.indexer.steps, i : i + self._data_cfg.indexer.steps] = score
+            # # combine all features to form `score` for this timestamps
+            # scores = np.nanmean(lattice, axis=0)
 
-                decoder_indices = ts["decoder_idx"].detach().cpu().numpy().flatten().tolist()
-                raw_data = dataset.reflect(decoder_indices)
-                raw_data["Anomaly_Score"] = scores
+            decoder_indices = ts["encoder_idx"].detach().cpu().numpy().flatten().tolist()
+            raw_data = dataset.reflect(decoder_indices)
+            raw_data["Anomaly_Score"] = score
+            df.append(raw_data)
+        df = pd.concat(df)
+        return df
 
     @classmethod
     def from_parameters(cls, d: Dict, root_dir: str, model_cls: BaseModel) -> "Detector":
@@ -450,7 +462,7 @@ class Detector:
         return self
 
     @classmethod
-    def from_cfg(cls) -> "Predictor":
+    def from_cfg(cls) -> "Detector":
         """
         Construct a predictor from json config file.
         TODO
@@ -458,7 +470,7 @@ class Detector:
         pass
 
     @classmethod
-    def load_from_dir(cls, root_dir: str, model_cls: BaseModel) -> Optional["Predictor"]:
+    def load_from_dir(cls, root_dir: str, model_cls: BaseModel) -> Optional["Detector"]:
         """
         Load predictor from a dir
         """
@@ -467,13 +479,15 @@ class Detector:
         if os.path.isfile(filepath):
             with open(filepath, "rb") as f:
                 state_dict = loads(f.read())
-                state_dict["params"]["data_cfg"] = dict_to_data_config(state_dict["params"]["data_cfg"])
+                state_dict["params"]["data_cfg"] = dict_to_data_config_anomal(
+                    state_dict["params"]["data_cfg"]
+                )
                 return Detector.from_parameters(state_dict, root_dir, model_cls)
 
     @classmethod
-    def load_from_oss_bucket(cls, bucket: Bucket, key: str, model_cls: BaseModel) -> Optional["Predictor"]:
+    def load_from_oss_bucket(cls, bucket: Bucket, key: str, model_cls: BaseModel) -> Optional["Detector"]:
         if bucket.object_exists(key):
-            root_dir = tempfile.mkdtemp(prefix=Predictor.DEFAULT_ROOT_DIR)
+            root_dir = tempfile.mkdtemp(prefix=Detector.DEFAULT_ROOT_DIR)
             dest_zip_filepath = f"{root_dir}{os.sep}{key}"
             dirpath = os.path.dirname(dest_zip_filepath)
             os.makedirs(dirpath, exist_ok=True)
@@ -484,12 +498,12 @@ class Detector:
             return cls.load_from_dir(root_dir, model_cls=model_cls)
 
     @classmethod
-    def load(cls, url: str, model_cls: BaseModel) -> Optional["Predictor"]:
+    def load(cls, url: str, model_cls: BaseModel) -> Optional["Detector"]:
         if url.startswith("file://"):
-            return Predictor.load_from_dir(remove_prefix(url, "file://"), model_cls)
+            return Detector.load_from_dir(remove_prefix(url, "file://"), model_cls)
         else:
             bucket, key = get_bucket_from_oss_url(url)
-            return Predictor.load_from_oss_bucket(bucket, key, model_cls)
+            return Detector.load_from_oss_bucket(bucket, key, model_cls)
 
     def upload(self, url: str):
         """upload model state to oss if given url is an oss file, else do nothing"""

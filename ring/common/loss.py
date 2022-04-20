@@ -160,9 +160,14 @@ class MAPELoss(AbstractLoss):
 
 @register(LOSSES)
 class MAELoss(AbstractLoss):
-    def __call__(self, y_pred: torch.Tensor, y_true: torch.Tensor):
+    def __call__(self, y_pred: torch.Tensor, y_true: torch.Tensor, reduce="mean"):
         losses = (y_pred - y_true).abs()
-        return torch.mean(losses)
+        if reduce == "mean":
+            return torch.mean(losses)
+        elif reduce == "sum":
+            return torch.mean(losses)
+        else:
+            return losses
 
 
 @register(LOSSES)

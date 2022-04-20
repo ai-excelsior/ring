@@ -1,19 +1,25 @@
-from typing import Dict, Any, List
-from ..data_config import IndexerConfig
+from typing import Dict, Any, List, Union
+from ..data_config import IndexerConfig, AnomalIndexerConfig
 from .base import BaseIndexer
-from .slide_window import SlideWindowIndexer
+from .slide_window import SlideWindowIndexer, SlideWindowIndexer_fixed
 
-name_to_cls = {"slide_window": SlideWindowIndexer}
+name_to_cls = {"slide_window": SlideWindowIndexer, "slide_window_fixed": SlideWindowIndexer_fixed}
 
 
 def create_indexer_from_cfg(
-    cfg: IndexerConfig, group_ids: List[str] = [], time_idx="_time_idx_"
+    cfg: Union[IndexerConfig, AnomalIndexerConfig], group_ids: List[str] = [], time_idx="_time_idx_"
 ) -> BaseIndexer:
     if cfg.name == "slide_window":
         return SlideWindowIndexer(
             time_idx=time_idx,
             look_back=cfg.look_back,
             look_forward=cfg.look_forward,
+            group_ids=group_ids,
+        )
+    elif cfg.name == "slide_window_fixed":
+        return SlideWindowIndexer_fixed(
+            time_idx=time_idx,
+            steps=cfg.steps,
             group_ids=group_ids,
         )
 

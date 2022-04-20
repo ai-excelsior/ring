@@ -14,7 +14,7 @@ class ReccurentNetwork(AutoRegressiveBaseModelWithCovariates):
         # hpyerparameters
         cell_type: str = "GRU",
         hidden_size: int = 16,
-        n_layers: int = 1,
+        n_layers: int = 2,
         dropout: float = 0.1,
         # data types
         encoder_cont: List[str] = [],

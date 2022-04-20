@@ -85,7 +85,7 @@ class DeepAR(AutoRegressiveBaseModelWithCovariates):
             self.target_positions.unsqueeze(-1),
         ].t()
 
-        if mode == "prediction":
+        if mode == "predict":
             return self.decode(x, hidden_state=hidden_state, first_target=first_target, n_samples=100)
 
         if self.training:
