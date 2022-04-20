@@ -1,22 +1,35 @@
 import pandas as pd
+import tempfile
+import os
 from .oss_utils import get_bucket_from_oss_url
 from .utils import remove_prefix
 
 
-def read_csv(url: str, **config) -> pd.DataFrame:
+def is_parquet(s: str):
+    return s.endswith(".parq") or s.endswith(".parquet")
+
+
+def is_csv(s: str):
+    return s.endswith(".csv")
+
+
+def read_from_url(url: str, **config) -> pd.DataFrame:
+    if is_parquet(url):
+        config.pop("parse_dates")
+
     if url.startswith("oss://"):
+        tempdir = tempfile.mkdtemp()
         bucket, key = get_bucket_from_oss_url(url)
-        if bucket.get_object(key)[-4:] == ".csv":
-            return pd.read_csv(bucket.get_object(key), thousands=",")
-        elif bucket.get_object(key)[-5:] == ".parq":
-            return pd.read_parquet(bucket.get_object(key))
-        else:
-            raise TypeError("Only .csv or .parq can be accessed")
+        filename = f"{tempdir}/{key}"
+        dirpath = os.path.dirname(filename)
+        os.makedirs(dirpath, exist_ok=True)
+        bucket.get_object_to_file(key, filename=filename)
     else:
-        filepath = remove_prefix(url, "file://")
-        if filepath[-4:] == ".csv":
-            return pd.read_csv(filepath, thousands=",", **config)
-        elif filepath[-5:] == ".parq":
-            return pd.read_parquet(filepath)
-        else:
-            raise TypeError("Only .csv or .parq can be accessed")
+        filename = remove_prefix(url, "file://")
+
+    if is_csv(filename):
+        return pd.read_csv(filename, thousands=",", **config)
+    elif is_parquet(filename):
+        return pd.read_parquet(filename, **config)
+    else:
+        raise TypeError("Only .csv .parq or .parquet can be accessed")

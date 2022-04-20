@@ -3,7 +3,7 @@ from glob import glob
 from ring.ts.rnn.model import ReccurentNetwork
 from ring.common.nn_predictor import Predictor
 from ring.common.data_config import DataConfig, IndexerConfig
-from ring.common.data_utils import read_csv
+from ring.common.data_utils import read_from_url
 import pandas as pd
 from influxdb_client import InfluxDBClient
 import random
@@ -60,13 +60,11 @@ def test_rnn():
             "max_epochs": kwargs["max_epochs"],
         },
     )
-    data_train = read_csv(
+    data_train = read_from_url(
         kwargs.pop("data_train"),
         parse_dates=[] if data_config.time is None else [data_config.time],
     )
-    data_train["cont"] = data_train["y"].map(lambda x: x + random.random())
-
-    data_val = read_csv(
+    data_val = read_from_url(
         kwargs.get("data_val"),
         parse_dates=[] if data_config.time is None else [data_config.time],
     )
@@ -76,7 +74,7 @@ def test_rnn():
     assert len(glob(f"{predictor.root_dir}/state.json")) > 0
 
     # validate
-    data_val = read_csv(
+    data_val = read_from_url(
         kwargs.get("data_val"),
         parse_dates=[] if data_config.time is None else [data_config.time],
     )
@@ -85,7 +83,7 @@ def test_rnn():
     predictor.validate(data_val)
 
     # predict
-    data_pre = read_csv(
+    data_pre = read_from_url(
         kwargs.get("data_val"),
         parse_dates=[] if data_config.time is None else [data_config.time],
     )
