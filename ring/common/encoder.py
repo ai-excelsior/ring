@@ -24,7 +24,7 @@ def deserialize_encoder(d: Dict[str, Any]):
     return cls.deserialize(d)
 
 
-def create_encoder_from_cfg(cfg: Dict) -> Dict:
+def create_encoder_from_cfg(cfg: List[Categorical]) -> Dict:
     if len(cfg) == 0:
         return {}
     # # `embedding_sizes` not provided, then it can be deduced
@@ -36,11 +36,11 @@ def create_encoder_from_cfg(cfg: Dict) -> Dict:
     cat_encoder = {}
     # match the form of parameter `embedding_sizes` in dataset
     for item in cfg:
-        cat_encoder[item["name"]] = (
-            len(item["choices"]) + 1,  # add `unknown`
-            item["embedding_sizes"]
-            if "embedding_sizes" in item and item["embedding_sizes"] is not None
-            else get_default_embedding_size(len(item["choices"]) + 1),
+        cat_encoder[item.name] = (
+            len(item.choices) + 1,  # add `unknown`
+            item.embedding_sizes
+            if item.embedding_sizes > 0
+            else get_default_embedding_size(len(item.choices) + 1),
         )
 
     return cat_encoder
