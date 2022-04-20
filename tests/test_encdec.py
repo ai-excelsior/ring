@@ -128,7 +128,7 @@ def test_enc():
             stop="2022-01-02T23:00:00Z",
             predicate=' _measurement = "air_passenger_anomal" and model= "enc_dec_ad"',
         )
-        print("asdasda")
+
     shutil.rmtree(predictor.root_dir)
 
 
