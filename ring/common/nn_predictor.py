@@ -375,7 +375,7 @@ class Predictor:
             raw_data.loc[decoder_indices, prediction_column_names] = (
                 y_pred_scaled.reshape((-1, len(prediction_column_names))).cpu().detach().numpy()
             )
-            if "pred" not in prediction_column_names:
+            if ["pred"] not in [self._losses[i].parameter_names for i in range(len(dataset.targets))]:
                 for i, target_name in enumerate(dataset.targets):
                     raw_data[target_name + "_pred"] = raw_data[prediction_column_names[0]].copy()
                     raw_data.loc[decoder_indices, target_name + "_pred"] = (

@@ -9,8 +9,8 @@ from ring.common.dataset import TimeSeriesDataset
 class ReccurentNetwork(AutoRegressiveBaseModelWithCovariates):
     def __init__(
         self,
-        targets: str,
-        output_size: int,
+        targets: List[str] = [],
+        output_size: int = 1,
         # hpyerparameters
         cell_type: str = "GRU",
         hidden_size: int = 16,
@@ -44,7 +44,7 @@ class ReccurentNetwork(AutoRegressiveBaseModelWithCovariates):
         self.output_projector_decoder = (
             nn.Linear(hidden_size, output_size)
             if len(self._targets) == 1
-            else nn.ModuleList([nn.Linear(hidden_size, size) for size in output_size])
+            else nn.ModuleList([nn.Linear(hidden_size, 1) for _ in range(output_size)])
         )
 
     def forward(self, x: Dict[str, torch.Tensor], **kwargs):
@@ -77,5 +77,6 @@ class ReccurentNetwork(AutoRegressiveBaseModelWithCovariates):
             decoder_cat=dataset.decoder_cat,
             decoder_cont=dataset.decoder_cont,
             embedding_sizes=embedding_sizes,
+            x_categoricals=dataset.categoricals,
             **kwargs,
         )

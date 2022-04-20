@@ -1,3 +1,4 @@
+from lib2to3.pytree import Base
 from tkinter import HIDDEN
 from torch import nn
 import torch
@@ -7,6 +8,9 @@ from typing import Any, Callable, Dict, List, Tuple, Union
 from ring.common.ml.embeddings import MultiEmbedding
 from ring.common.ml.rnn import get_rnn
 from ring.common.ml.utils import to_list
+import numpy as np
+import random
+from torch.autograd import Variable
 
 HIDDENSTATE = Union[Tuple[torch.Tensor, torch.Tensor], torch.Tensor]
 
@@ -115,7 +119,7 @@ class AutoRegressiveBaseModelWithCovariates(BaseModel):
     @property
     def reals(self) -> List[str]:
         """lists of reals in the encoder or decoder sequence"""
-        return self._encoder_cont if self._phase == "encode" else self._decoder_cont + self._targets
+        return self._encoder_cont if self._phase == "encode" else self._decoder_cont
 
     @property
     def reals_indices(self) -> List[int]:
@@ -147,11 +151,13 @@ class AutoRegressiveBaseModelWithCovariates(BaseModel):
             #  device=self.device,
             dtype=torch.long,
         )
-        return torch.tensor(
+        a = torch.tensor(
             [i for i, p in enumerate(self.reals_indices) if p in pos],
             # device=self.device,
             dtype=torch.long,
         )
+        # device=self.device,
+        return a
 
     @property
     def lagged_target_positions(self) -> Dict[int, torch.LongTensor]:
@@ -226,7 +232,7 @@ class AutoRegressiveBaseModelWithCovariates(BaseModel):
 
         # the autoregression loop
         predictions = list()
-        # take the first target from the data
+        # take the first target from the data, the last one of `encoder_cont`
         normalized_target = [input_vector[:, 0, self.target_positions]]
         # the autoregression loop
         for idx in range(n_decoder_steps):
@@ -246,14 +252,7 @@ class AutoRegressiveBaseModelWithCovariates(BaseModel):
             output = [o.squeeze(1) for o in output] if isinstance(output, list) else output.squeeze(1)
             predictions.append(output)
 
-        return (
-            torch.stack(predictions, dim=1)
-            if len(self._targets) == 1
-            else [
-                torch.stack([out[idx] for out in predictions], dim=1)
-                for idx in range(len(self.target_positions))
-            ]
-        )
+        return torch.stack(predictions, dim=1)
 
     def construct_input_vector(
         self,
@@ -360,6 +359,219 @@ class AutoRegressiveBaseModelWithCovariates(BaseModel):
         output = (
             self.output_projector_decoder(output)  # single target
             if len(self._targets) == 1
-            else [projector(output) for projector in self.output_projector_decoder]
+            else torch.concat([projector(output) for projector in self.output_projector_decoder], dim=-1)
         )
         return output
+
+
+##########################
+class BaseAnormal(BaseModel):
+    def __init__(
+        self,
+        name: str = None,
+        targets: str = [],
+        # hpyerparameters
+        # data types
+        encoder_cont: List[str] = [],
+        encoder_cat: List[str] = [],
+        x_categoricals: List[str] = [],
+        embedding_sizes: Dict[str, Tuple[int, int]] = {},
+        target_lags: Dict = {},
+    ):
+        super().__init__()
+
+        self._encoder_cont = encoder_cont
+        self._encoder_cat = encoder_cat
+        self._x_categoricals = x_categoricals
+        self._targets_lags = target_lags
+
+        self.encoder_embeddings = MultiEmbedding(
+            embedding_sizes=embedding_sizes,
+            embedding_paddings=[],
+            categorical_groups={},
+            x_categoricals=x_categoricals,
+        )
+        # self.encoder = None
+        # self.decoder = None
+        # self.output_projector_decoder = None
+
+    @cached_property
+    def _encoder_input_size(self) -> int:
+        """the actual input size/dim of the encoder after the categorical embedding"""
+        return len(self._encoder_cont) + self.encoder_embeddings.total_embedding_size()
+
+    @property
+    def reals(self) -> List[str]:
+        """lists of reals in the encoder or decoder sequence"""
+        return self._encoder_cont
+
+    @property
+    def categoricals(self) -> List[str]:
+        """lists of categoricals in the encoder or decoder sequence"""
+        return self._encoder_cat
+
+    @property
+    def categoricals_embedding(self) -> MultiEmbedding:
+        return getattr(self, "encoder_embeddings", None)
+
+    @property
+    def lagged_target_positions(self) -> Dict[int, torch.LongTensor]:
+        """Lagged target positions in the encoder or decoder tensor
+
+        Note that when `time_varying_unknown_reals` is present, `lagged_target_positions` gives the indices
+        of lagged target columns after dropping `time_varying_unknown_reals` from `x["decoder_cont"]`
+
+        Returns:
+            Dict[int, torch.LongTensor]: dictionary mapping integer lags to tensor of variable positions.
+        """
+        # todo: expand for categorical targets
+        if len(self._targets_lags) == 0:
+            pos = {}
+        else:
+            # extract lags which are the same across all targets
+            lags = list(next(iter(self._targets_lags.values())).values())
+            lag_names = {l: [] for l in lags}
+            for targeti_lags in self._targets_lags.values():
+                for name, l in targeti_lags.items():
+                    lag_names[l].append(name)
+
+            pos = {
+                lag: torch.tensor(
+                    [self._encoder_cont.index(name) for name in to_list(names)],
+                    # device=self.device,
+                    dtype=torch.long,
+                )
+                for lag, names in lag_names.items()
+            }
+
+        return {
+            k: (
+                torch.tensor(
+                    self.reals_indices,
+                    # device=self.device
+                )
+                == v
+            ).nonzero(as_tuple=True)[0]
+            if len(v) == 1
+            else torch.stack(
+                [
+                    (
+                        torch.tensor(
+                            self.reals_indices,
+                            # device=self.device
+                        )
+                        == item
+                    ).nonzero(as_tuple=True)[0]
+                    for item in v
+                ]
+            ).nonzero(as_tuple=True)[0]
+            for k, v in pos.items()
+        }
+
+    def forward(self, X):
+        raise NotImplementedError()
+
+    def predict(self, X):
+        raise NotImplementedError()
+
+    def from_dataset(cls, dataset: TimeSeriesDataset, **kwargs) -> "BaseModel":
+        raise NotImplementedError()
+
+    def construct_input_vector(
+        self,
+        x_cat: torch.Tensor,
+        x_cont: torch.Tensor,
+        reverse: torch.Tensor = False,
+    ) -> torch.Tensor:
+        # create input vector
+        input_vector = []
+        # NOTE: the real-valued variables always come first in the input vector
+        if len(self.reals) > 0:
+            input_vector.append(x_cont.clone())
+
+        if len(self.categoricals) > 0:
+            embeddings = self.categoricals_embedding(x_cat, flat=True)
+            input_vector.append(embeddings)
+
+        input_vector = torch.cat(input_vector, dim=-1)
+        if reverse:  # predict from backward
+            input_vector_r = torch.stack(
+                [input_vector[:, i] for i in reversed(range(input_vector.shape[1]))],
+                dim=1,
+            )  # reverse the input_vector by row
+            return input_vector_r
+        else:
+            return input_vector
+
+    def encode(self, x: Dict[str, torch.Tensor]) -> Tuple[torch.Tensor, HIDDENSTATE]:
+        encoder_cat, encoder_cont, lengths = x["encoder_cat"], x["encoder_cont"], x["encoder_length"] - 1
+        assert lengths.min() > 0
+        input_vector = self.construct_input_vector(encoder_cat, encoder_cont)  # concat cat and cont
+        _, hidden_state = self.encoder(input_vector, lengths=lengths, enforce_sorted=False)
+        return hidden_state
+
+    def decode(
+        self,
+        x: Dict[str, torch.Tensor] = {},
+        hidden_state: HIDDENSTATE = None,
+        **_,
+    ) -> torch.Tensor:
+        encoder_cat, encoder_cont = x["encoder_cat"], x["encoder_cont"]
+        input_vector = self.construct_input_vector(encoder_cat, encoder_cont, reverse=True)
+        if self.training:  # the training mode where the target values are actually known
+            output = self._decode(
+                input_vector=input_vector, hidden_state=hidden_state, lengths=x["encoder_length"]
+            )
+        else:  # the prediction mode, in which the target values are unknown
+            output = self.decode_autoregressive(
+                self._decode,
+                input_vector=input_vector,
+                hidden_state=hidden_state,
+                n_decoder_steps=x["encoder_length"][0],
+            )
+        return output.flip(1)  # reverse order
+
+    def _decode(
+        self,
+        input_vector: torch.Tensor,
+        hidden_state: HIDDENSTATE,
+        lengths: torch.Tensor = None,
+    ) -> Tuple[torch.Tensor, HIDDENSTATE]:
+
+        output, _ = self.decoder(input_vector, hidden_state, lengths=lengths, enforce_sorted=False)
+        output = self.output_projector_decoder(output)
+
+        return output
+
+    def decode_autoregressive(
+        self,
+        decode_one_step: Callable,
+        input_vector: torch.Tensor,
+        hidden_state: HIDDENSTATE,
+        n_decoder_steps: int,
+        **kwargs,
+    ) -> Union[List[torch.Tensor], torch.Tensor]:
+
+        # the autoregression loop
+        predictions = list()
+        # take the first target from the data
+        normalized_target = [input_vector[:, 0, :]]
+        # the autoregression loop
+        for idx in range(n_decoder_steps):
+            _input_vector = input_vector[:, [idx]]
+            # take the last predicted target values as the input for the current prediction step
+            _input_vector[:, 0, :] = normalized_target[-1]
+            for lag, lag_positions in self.lagged_target_positions.items():
+                # lagged values are depleted: if the current prediction step is beyond the lag
+                if idx > lag and len(lag_positions) > 0:
+                    _input_vector[:, 0, lag_positions] = normalized_target[-lag]
+
+            output = decode_one_step(
+                input_vector=_input_vector,
+                hidden_state=hidden_state,
+                **kwargs,
+            )
+            output = [o.squeeze(1) for o in output] if isinstance(output, list) else output.squeeze(1)
+            predictions.append(output)
+
+        return torch.stack(predictions, dim=1)

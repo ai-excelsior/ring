@@ -6,6 +6,7 @@ from ring.common.data_config import DataConfig, IndexerConfig
 from ring.common.data_utils import read_csv
 import pandas as pd
 from influxdb_client import InfluxDBClient
+import random
 
 kwargs = {
     "data_train": "file://data/air_passengers_train.csv",
@@ -21,13 +22,12 @@ kwargs = {
     "cell_type": "GRU",
     "hidden_size": 32,
     "n_layers": 1,
-    "n_heads": 0,
     "dropout": 0.1,
 }
 data_config = DataConfig(
     time="ds",
     freq="MS",
-    targets=["y"],
+    targets=["y", "cont"],
     group_ids=[],
     static_categoricals=[],
     indexer=IndexerConfig(
@@ -64,10 +64,13 @@ def test_rnn():
         kwargs.pop("data_train"),
         parse_dates=[] if data_config.time is None else [data_config.time],
     )
+    data_train["cont"] = data_train["y"].map(lambda x: x + random.random())
+
     data_val = read_csv(
         kwargs.get("data_val"),
         parse_dates=[] if data_config.time is None else [data_config.time],
     )
+    data_val["cont"] = data_val["y"].map(lambda x: x + random.random())
     predictor.train(data_train, data_val)
     assert len(glob(f"{predictor.root_dir}/*.pt")) > 0
     assert len(glob(f"{predictor.root_dir}/state.json")) > 0
@@ -77,6 +80,7 @@ def test_rnn():
         kwargs.get("data_val"),
         parse_dates=[] if data_config.time is None else [data_config.time],
     )
+    data_val["cont"] = data_val["y"].map(lambda x: x + random.random())
     predictor = Predictor.load_from_dir(predictor.root_dir, ReccurentNetwork)
     predictor.validate(data_val)
 
@@ -86,6 +90,7 @@ def test_rnn():
         parse_dates=[] if data_config.time is None else [data_config.time],
     )
     predictor = Predictor.load_from_dir(predictor.root_dir, ReccurentNetwork)
+    data_pre["cont"] = data_pre["y"].map(lambda x: x + random.random())
     result = predictor.predict(data_pre, plot=False)
     assert [item in result.columns for item in ["ds", "y", "_time_idx_", "is_prediction", "y_pred"]]
     assert result[~result["is_prediction"]]["y_pred"].isnull().all()

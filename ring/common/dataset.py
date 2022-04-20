@@ -212,11 +212,13 @@ class TimeSeriesDataset(Dataset):
             return [
                 *self._time_varying_known_reals,
                 *self._static_reals,
+                *self.targets,
                 *([STATIC_UNKNOWN_REAL_NAME] if self._add_static_known_real == True else []),
             ]
 
         return [
             *self._time_varying_known_reals,
+            *self.targets,
             *([STATIC_UNKNOWN_REAL_NAME] if self._add_static_known_real == True else []),
         ]
 
