@@ -20,7 +20,9 @@ class SMAPE(Metric):
     def update(self, output: Sequence[torch.Tensor]) -> None:
         y_pred, y = output[0].detach(), output[1].detach()
 
-        absolute_percentage_errors = torch.mean(2 * (y_pred - y).abs() / (y_pred.abs() + y.abs() + self._eps))
+        absolute_percentage_errors = (
+            torch.mean(2 * (y_pred - y).abs() / (y_pred.abs() + y.abs() + self._eps)) * 100
+        )
 
         self._sum_of_errors += absolute_percentage_errors
         self._num_examples += 1

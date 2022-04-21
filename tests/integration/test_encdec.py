@@ -32,9 +32,9 @@ data_config = AnomalDataConfig(
     indexer=AnomalIndexerConfig(name="slide_window_fixed", steps=10),
     group_ids=[],
     # categoricals=[Categorical(name= "cat", choices=["A", "B", "C", "D"])],
-    # cat_features=["cat"],
-    cont_features=["cont", "y"]
     # `unknown` will be added in dataset
+    # cat_features=["cat"],
+    cont_features=["cont", "y"],
 )
 
 
