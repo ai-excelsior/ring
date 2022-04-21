@@ -153,7 +153,7 @@ class SlideWindowIndexer_fixed(BaseIndexer):
         self._group_ids = group_ids
         self._time_idx = time_idx
 
-    def index(self, data: pd.DataFrame, predict_mode: bool = False):
+    def index(self, data: pd.DataFrame, last_only: bool = False):
         if len(self._group_ids) > 0:
             g = data.groupby(self._group_ids, observed=True)
             group_ids = g.ngroup()
@@ -204,7 +204,8 @@ class SlideWindowIndexer_fixed(BaseIndexer):
 
         # keep longest element per series (i.e. the first element that spans to the end of the series)
         # filter all elements that are longer than the allowed maximum sequence length
-        if predict_mode:
+
+        if last_only:
             df_index = df_index[
                 lambda x: (x["time_idx_last"] - x["time_idx"] + 1 <= sequence_length)
                 & (x["sequence_length"] >= sequence_length)

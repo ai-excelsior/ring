@@ -41,7 +41,7 @@ class TimeSeriesDataset(Dataset):
         categorical_encoders: List[LabelEncoder] = [],
         cont_scalars: List[StandardNormalizer] = [],
         # toggles
-        predict_mode=False,  # using predict mode to index
+        last_only=False,  # using predict mode to index
         # seasonality
         lags: Dict = {},
     ) -> None:
@@ -90,7 +90,7 @@ class TimeSeriesDataset(Dataset):
         data = add_time_idx(data, time_column_name=time, freq=freq)
         data.sort_values([*self._group_ids, TIME_IDX], inplace=True)
         data.reset_index(drop=True, inplace=True)
-        self._indexer.index(data, predict_mode)
+        self._indexer.index(data, last_only)
 
         # convert `categoricals`
         for i, cat in enumerate(self.categoricals):
@@ -149,7 +149,7 @@ class TimeSeriesDataset(Dataset):
         kwargs = {
             name: getattr(self, f"_{name}")
             for name in inspect.signature(self.__class__.__init__).parameters.keys()
-            if name not in ["self", "data", "indexer", "predict_mode"]
+            if name not in ["self", "data", "indexer", "last_only"]
         }
         kwargs.update(
             indexer=serialize_indexer(self._indexer),
