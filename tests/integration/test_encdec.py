@@ -3,7 +3,7 @@ from glob import glob
 from anomal.enc_dec_ad.model import enc_dec_ad
 from common.nn_detector import Detector as Predictor
 from common.data_config import AnomalDataConfig, AnomalIndexerConfig
-from common.data_utils import read_csv
+from common.data_utils import read_from_url
 import pandas as pd
 from influxdb_client import InfluxDBClient
 import random
@@ -58,13 +58,13 @@ def test_enc():
             "sampler": kwargs["sampler"],
         },
     )
-    data_train = read_csv(
+    data_train = read_from_url(
         kwargs.pop("data_train"),
         parse_dates=[] if data_config.time is None else [data_config.time],
     )
     data_train["cont"] = data_train["y"].map(lambda x: x + random.random())
 
-    data_val = read_csv(
+    data_val = read_from_url(
         kwargs.get("data_val"),
         parse_dates=[] if data_config.time is None else [data_config.time],
     )
@@ -74,7 +74,7 @@ def test_enc():
     assert len(glob(f"{predictor.root_dir}/state.json")) > 0
 
     # validate
-    data_val = read_csv(
+    data_val = read_from_url(
         kwargs.get("data_val"),
         parse_dates=[] if data_config.time is None else [data_config.time],
     )
@@ -84,7 +84,7 @@ def test_enc():
     assert type(metrics) == dict
 
     # predict
-    data_pre = read_csv(
+    data_pre = read_from_url(
         kwargs.get("data_val"),
         parse_dates=[] if data_config.time is None else [data_config.time],
     )
@@ -92,7 +92,7 @@ def test_enc():
     predictor = Predictor.load_from_dir(predictor.root_dir, enc_dec_ad)
     result = predictor.predict(data_pre)
     assert [item in result.columns for item in ["ds", "y", "_time_idx_", "Anomaly_Score"]]
-    assert result["Anomaly_Score"].count() == 10
+    assert result["Anomaly_Score"].count() == len(data_pre)
 
     result.set_index("ds", inplace=True)
     result.index = pd.to_datetime(result.index)

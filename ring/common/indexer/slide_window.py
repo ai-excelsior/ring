@@ -153,7 +153,7 @@ class SlideWindowIndexer_fixed(BaseIndexer):
         self._group_ids = group_ids
         self._time_idx = time_idx
 
-    def index(self, data: pd.DataFrame, last_only: bool = False):
+    def index(self, data: pd.DataFrame, last_only: bool = False, start_index: int = None):
         if len(self._group_ids) > 0:
             g = data.groupby(self._group_ids, observed=True)
             group_ids = g.ngroup()
@@ -201,10 +201,10 @@ class SlideWindowIndexer_fixed(BaseIndexer):
         # filter too short sequences
         # sequence must be at least of minimal prediction length
         df_index = df_index[lambda x: (x["sequence_length"] >= sequence_length)]
+        if not (len(df_index)):
+            raise ValueError("The dataset given is not long enough to meet the steps assigned")
 
-        # keep longest element per series (i.e. the first element that spans to the end of the series)
-        # filter all elements that are longer than the allowed maximum sequence length
-
+        # only return the last `steps` length result, takes the priority of `start_index`
         if last_only:
             df_index = df_index[
                 lambda x: (x["time_idx_last"] - x["time_idx"] + 1 <= sequence_length)
@@ -215,6 +215,21 @@ class SlideWindowIndexer_fixed(BaseIndexer):
                 df_index = df_index.loc[df_index.groupby("group_id")["sequence_length"].idxmax()]
             else:
                 df_index = df_index.loc[[df_index["sequence_length"].idxmax()]]
+
+        # specify certain start point
+        elif start_index is not None:
+            df_index = df_index[
+                lambda x: (x["index_start"] >= start_index) & (x["sequence_length"] >= sequence_length)
+            ]
+
+            if not (len(df_index)):
+                raise ValueError("The start_index given is too large to fetch a batch")
+
+            if len(self._group_ids) > 0:
+                df_index = df_index.loc[df_index.groupby("group_id")["sequence_length"]]
+
+            if not (len(df_index)):
+                raise ValueError("The start_index given is too large to fetch a batch for each group")
 
         # check that all groups/series have at least one entry in the index
         if len(self._group_ids) and not group_ids.isin(df_index["group_id"]).all():

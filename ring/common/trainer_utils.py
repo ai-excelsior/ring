@@ -259,6 +259,42 @@ def parameter_evaluation_step(
     return evaluation_step
 
 
+def result_prediction_step(
+    model: torch.nn.Module,
+    loss_fns: List[AbstractLoss],
+    normalizers: List[AbstractNormalizer],
+    device: Optional[Union[str, torch.device]] = None,
+    non_blocking: bool = False,
+    prepare_batch: Callable = prepare_batch,
+):
+    n_parameters = [loss.n_parameters for loss in loss_fns]
+    loss_end_indices = list(itertools.accumulate(n_parameters))
+    loss_start_indices = [i - loss_end_indices[0] for i in loss_end_indices]
+
+    def prediction_step(engine: Engine, batch: Sequence[torch.Tensor]) -> Union[Any, Tuple[torch.Tensor]]:
+        model.eval()
+        with torch.no_grad():
+            x, y = prepare_batch(batch, device=device, non_blocking=non_blocking)
+            y_pred = model(x)
+            reverse_scale = lambda i, loss: loss.scale_prediction(
+                y_pred[..., loss_start_indices[i] : loss_end_indices[i]],
+                x["target_scales"][..., i],
+                normalizers[i],
+            )
+            y_pred_scaled = torch.stack(
+                [loss_obj.to_prediction(reverse_scale(i, loss_obj)) for i, loss_obj in enumerate(loss_fns)],
+                dim=-1,
+            )
+            error = MAELoss()(y_pred_scaled, y, reduce=None)
+            return error
+
+    return prediction_step
+
+
+###################
+###################
+
+
 def create_supervised_trainer(
     model: torch.nn.Module,
     optimizer: torch.optim.Optimizer,
@@ -325,3 +361,19 @@ def create_parameter_evaluator(
 
     evaluator = Engine(evaluation_step)
     return evaluator
+
+
+def create_supervised_predictor(
+    model: torch.nn.Module,
+    loss_fns: List[AbstractLoss],
+    normalizers: List[AbstractNormalizer],
+    device: Optional[Union[str, torch.device]] = None,
+    non_blocking: bool = False,
+    prepare_batch: Callable = prepare_batch,
+):
+    prediction_step = result_prediction_step(
+        model, loss_fns, normalizers, device, non_blocking, prepare_batch
+    )
+
+    predictor = Engine(prediction_step)
+    return predictor

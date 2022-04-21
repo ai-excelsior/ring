@@ -28,6 +28,7 @@ from .trainer_utils import (
     prepare_batch,
     create_supervised_evaluator,
     create_parameter_evaluator,
+    create_supervised_predictor,
 )
 from .data_config import DataConfig, dict_to_data_config_anomal
 from .base_model import BaseModel
@@ -389,11 +390,15 @@ class Detector:
 
     def predict(
         self,
-        data: pd.DataFrame,
-        model_filename=None,
+        data: pd.DataFrame = None,
+        model_filename: str = None,
+        last_only: bool = False,
+        start_index: int = None,
     ):
         """Do smoke test on given dataset, take the last max sequence to do a prediction and plot"""
-        dataset = self.create_dataset(data, predict_mode=True)
+        # use `last_only`=True to fetch only last `steps` result or `start_index` =  INT to assign detection start point
+        kwargs = {"last_only": last_only, "start_index": start_index}
+        dataset = self.create_dataset(data, **kwargs)
 
         # load model
         if model_filename is None:
@@ -403,55 +408,43 @@ class Detector:
             to_load={"model": model}, checkpoint=torch.load(f"{self.root_dir}/{model_filename}")
         )
 
-        batch_size = len(dataset)
+        batch_size = 1
         if self.enable_gpu:
             dataloader = dataset.to_dataloader(
                 batch_size, train=False, num_workers=self.n_workers, pin_memory=True
             )
         else:
             dataloader = dataset.to_dataloader(batch_size, train=False, num_workers=self.n_workers)
-        df = []
-        n_parameters = [loss.n_parameters for loss in self._losses]
-        loss_end_indices = list(itertools.accumulate(n_parameters))
-        loss_start_indices = [i - loss_end_indices[0] for i in loss_end_indices]
-        model.eval()
-        with torch.no_grad():
-            batch = next(iter(dataloader))
-            ts, y = prepare_batch(batch, self._device)
+
+        predictor = create_supervised_predictor(
+            model,
+            loss_fns=self._losses,
+            normalizers=dataset._cont_scalars,
+            device=self._device,
+        )
+        scores = []
+
+        @predictor.on(Events.ITERATION_COMPLETED)
+        def record_score():
             if self._model_cls.__name__ == "enc_dec_ad":
-                output, mean, cov = model(ts, mode="predict")  # simulated sequence
-            else:
-                output = model(ts, mode="predict")
-            reverse_scale = lambda i, loss: loss.scale_prediction(
-                output[..., loss_start_indices[i] : loss_end_indices[i]],
-                ts["target_scales"][..., i],
-                dataset._cont_scalars[i],
-            )
-            y_pred_scaled = torch.stack(
-                [reverse_scale(i, loss_obj) for i, loss_obj in enumerate(self._losses)],
-                dim=-1,
-            )
-            mvnormal = multivariate_normal(mean, cov, allow_singular=True)
-            error = MAELoss()(y_pred_scaled, y, reduce=None)
-            score = -mvnormal.logpdf(error.view(-1, model._encoder_input_size).data.cpu().numpy())
-            # batch_size * steps
-            # if all sequences are needed then the following logic is required
-            # scores.append(score.reshape(batch_size, self._data_cfg.indexer.steps))
+                mvnormal = multivariate_normal(model.mean, model.cov, allow_singular=True)
+                score = -mvnormal.logpdf(
+                    predictor.state.output.view(-1, model._encoder_input_size).data.cpu().numpy()
+                )
+                scores.append(score.reshape(batch_size, self._data_cfg.indexer.steps))
 
-            # # stores seq_len-many scores per timestamp and averages them
-            # scores = np.concatenate(scores)
-            # lattice = np.full((self._data_cfg.indexer.steps, data.shape[0]), np.nan)
-            # for i, score in enumerate(scores):
-            #     lattice[i % self._data_cfg.indexer.steps, i : i + self._data_cfg.indexer.steps] = score
-            # # combine all features to form `score` for this timestamps
-            # scores = np.nanmean(lattice, axis=0)
+        predictor.run(dataloader)
+        scores = np.concatenate(scores)
+        lattice = np.full((self._data_cfg.indexer.steps, data.shape[0]), np.nan)
+        for i, score in enumerate(scores):
+            lattice[i % self._data_cfg.indexer.steps, i : i + self._data_cfg.indexer.steps] = score
+        # combine all features to form `score` for this timestamps
+        scores = np.nanmean(lattice, axis=0)
 
-            decoder_indices = ts["encoder_idx"].detach().cpu().numpy().flatten().tolist()
-            raw_data = dataset.reflect(decoder_indices)
-            raw_data["Anomaly_Score"] = score
-            df.append(raw_data)
-        df = pd.concat(df)
-        return df
+        raw_data = dataset.reflect(dataset._data.index)
+        raw_data["Anomaly_Score"] = scores
+
+        return raw_data
 
     @classmethod
     def from_parameters(cls, d: Dict, root_dir: str, model_cls: BaseModel) -> "Detector":

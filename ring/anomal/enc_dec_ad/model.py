@@ -91,6 +91,5 @@ class enc_dec_ad(BaseAnormal):
         if mode == "predict":
             if self.cov is None or self.mean is None:
                 raise ValueError("Need to fit first")
-            return (simulation, self.mean, self.cov)
 
         return simulation
