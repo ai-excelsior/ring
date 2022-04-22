@@ -103,11 +103,11 @@ class LabelEncoder(AbstractEncoder):
         y = column_or_1d(y, warn=True)
         if len(y) == 0:
             return np.array([])
-        diff = np.setdiff1d(y, np.arange(len(self.classes_)))
+        diff = np.setdiff1d(y, np.arange(len(self._state)))
         if len(diff):
             raise ValueError("y contains previously unseen labels: %s" % str(diff))
         y = np.asarray(y)
-        return self._state[y]
+        return [self._state[i] for i in y]
 
 
 @register(ENCODERS)
@@ -136,4 +136,4 @@ class OrdinalEncoder(AbstractEncoder):
         if len(diff):
             raise ValueError("y contains previously unseen labels: %s" % str(diff))
         y = np.asarray(y)
-        return self._state[y]
+        return [self._state[i] for i in y]

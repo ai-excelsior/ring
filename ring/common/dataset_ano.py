@@ -277,6 +277,7 @@ class TimeSeriesDataset(Dataset):
     def to_dataloader(
         self, batch_size: int, train: bool = True, sampler=None, ratio=None, gaussian=False, **kwargs
     ) -> DataLoader:
+        np.random.seed(kwargs.get("seed", 46))
         if gaussian:
             default_kwargs = dict(
                 shuffle=train if not sampler else False,
@@ -307,13 +308,25 @@ class TimeSeriesDataset(Dataset):
         inverse_scale_target=True,
         columns: List[str] = None,
     ):
+        # group_ids = [
+        #     self._categorical_encoders[self.categoricals.index(i)].inverse_transform(i)
+        #     for i in self._group_ids
+        # ]
         if columns is None:
             if self._time is None:
-                columns = [*self._group_ids, *self.encoder_cont]
+                columns = [*self.encoder_cont]
             else:
-                columns = [self._time, *self._group_ids, *self.encoder_cont, "_time_idx_"]
+                columns = [self._time, *self.encoder_cont, "_time_idx_"]
 
         data_to_return = self._data.loc[[*decoder_indices]][columns]
+        # inverse `group_id` column
+        data_to_return = data_to_return.assign(
+            **{
+                group: self._categorical_encoders[i].inverse_transform(self._data[group], self._data)
+                for i, group in enumerate(self.categoricals)
+                if group in self._group_ids
+            }
+        )
         # only `cont_features` are considered
         if inverse_scale_target:
             data_to_return = data_to_return.assign(

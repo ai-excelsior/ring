@@ -178,6 +178,13 @@ class MSELoss(AbstractLoss):
 
 
 @register(LOSSES)
+class RMSELoss(AbstractLoss):
+    def __call__(self, y_pred: torch.Tensor, y_true: torch.Tensor):
+        losses = torch.pow(y_pred - y_true, 2)
+        return torch.sqrt(torch.mean(losses))
+
+
+@register(LOSSES)
 class DilateLoss(AbstractLoss):
     def __init__(self, gamma: float = 1, alpha: float = 0.5) -> None:
         super().__init__()

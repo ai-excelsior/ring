@@ -19,7 +19,7 @@ class enc_dec_ad(BaseAnormal):
         cell_type: str = "LSTM",
         hidden_size: int = 5,
         embedding_sizes: Dict[str, Tuple[int, int]] = {},
-        n_layers: tuple = (1, 1),
+        n_layers: int = 1,
         dropout: float = 0,
         output_size=1,
         x_categoricals: List[str] = [],

@@ -18,7 +18,7 @@ from ignite.engine import Events
 from ignite.contrib.handlers.tensorboard_logger import TensorboardLogger, global_step_from_engine
 from ignite.handlers import Checkpoint, EarlyStopping, DiskSaver
 from tabulate import tabulate
-from .loss import MAELoss, cfg_to_losses
+from .loss import MAELoss, SMAPELoss, RMSELoss, MAPELoss, MSELoss, cfg_to_losses
 from .metrics import RMSE, SMAPE, MAE
 from .dataset_ano import TimeSeriesDataset
 from .serializer import dumps, loads
@@ -160,8 +160,7 @@ class Detector:
                 batch_size,
                 num_workers=self.n_workers,
                 pin_memory=True,
-                sampler=SubsetRandomSampler if sampler else None,
-                ratio=self._model_params.get("train_gaussian_percentage", 0.25) if sampler else None,
+                sampler=None,
             )
             if self._model_cls.__name__ != "enc_dec_ad":
                 val_dataloader = dataset_val.to_dataloader(
@@ -193,8 +192,7 @@ class Detector:
             train_dataloader = dataset_train.to_dataloader(
                 batch_size,
                 num_workers=self.n_workers,
-                sampler=SubsetRandomSampler if sampler else None,
-                ratio=self._model_params.get("train_gaussian_percentage", 0.25) if sampler else None,
+                sampler=None,
             )
             if self._model_cls.__name__ != "enc_dec_ad":
                 val_dataloader = dataset_val.to_dataloader(
@@ -233,7 +231,7 @@ class Detector:
         )
         val_metrics = {
             "val_RMSE": RMSE(device=self._device),
-            "val_SMAPE": SMAPE(device=self._device) * 100,  # percentage
+            "val_SMAPE": SMAPE(device=self._device),  # percentage
             "val_MAE": MAE(device=self._device),
         }
         evaluator = create_supervised_evaluator(
@@ -300,7 +298,9 @@ class Detector:
                 gaussian_parameters.run(gaussian_loader)
                 output = gaussian_parameters.state.output
                 mean = np.mean(output, axis=0)
-                cov = np.cov(output, rowvar=False)
+                cov = np.cov(output, rowvar=False, dtype=mean.dtype)
+                if not cov.shape:
+                    cov = cov.reshape(1)
                 self._model_params.update({"mean": mean, "cov": cov})
                 print(f"Parameters for model Enc_Dec_AD is mean={mean}, covariance={cov}")
 
@@ -392,12 +392,11 @@ class Detector:
         self,
         data: pd.DataFrame = None,
         model_filename: str = None,
-        last_only: bool = False,
-        start_index: int = None,
+        **kwargs,
     ):
         """Do smoke test on given dataset, take the last max sequence to do a prediction and plot"""
         # use `last_only`=True to fetch only last `steps` result or `start_index` =  INT to assign detection start point
-        kwargs = {"last_only": last_only, "start_index": start_index}
+
         dataset = self.create_dataset(data, **kwargs)
 
         # load model
@@ -429,7 +428,7 @@ class Detector:
             if self._model_cls.__name__ == "enc_dec_ad":
                 mvnormal = multivariate_normal(model.mean, model.cov, allow_singular=True)
                 score = -mvnormal.logpdf(
-                    predictor.state.output.view(-1, model._encoder_input_size).data.cpu().numpy()
+                    predictor.state.output.view(-1, len(model._encoder_cont)).data.cpu().numpy()
                 )
                 scores.append(score.reshape(batch_size, self._data_cfg.indexer.steps))
 
