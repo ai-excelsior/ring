@@ -254,7 +254,7 @@ class Detector:
             evaluator.run(val_dataloader)
             metrics = evaluator.state.metrics
             print(
-                f"Training Results - Epoch: {trainer.state.epoch}, Loss: {trainer.state.output:.2f}, \
+                f"Training Results - Epoch: {trainer.state.epoch}, {self._loss_cfg} Loss: {trainer.state.output:.2f}, \
                  Val RMSE: {metrics['val_RMSE']:.2f}, Val SMAPE: {metrics['val_SMAPE']:.2f} Val MAE: {metrics['val_MAE']:.2f}"
             )
 

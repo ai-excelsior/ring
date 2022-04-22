@@ -142,16 +142,15 @@ def supervised_training_step(
                 x["target_scales_back"][..., i],
                 normalizers[i],
             )
-            loss_backward = (
-                functools.reduce(
-                    lambda a, b: a + b,
-                    [
-                        loss_fn(reverse_scale_backward(i, loss_fn), x["encoder_target"][..., i])
-                        for i, loss_fn in enumerate(loss_fns)
-                    ],
-                )
-                / len(loss_fns)
-            )
+            loss_backward = functools.reduce(
+                lambda a, b: a + b,
+                [
+                    loss_fn(reverse_scale_backward(i, loss_fn), x["encoder_target"][..., i])
+                    for i, loss_fn in enumerate(loss_fns)
+                ],
+            ) / len(
+                loss_fns
+            )  # mean loss of (target_i)
             loss = y_backcast_ratio * loss_backward + (1 - y_backcast_ratio) * loss_forward
 
         elif isinstance(y_pred, torch.Tensor):
