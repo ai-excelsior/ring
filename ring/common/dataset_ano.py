@@ -59,13 +59,13 @@ class TimeSeriesDataset(Dataset):
         self._cont_feature = cont_feature
 
         # add `groupd_ids` to _static_categoricals
-        for group_id in group_ids:
-            self._static_categoricals.append(group_id)
+        # for group_id in group_ids:
+        #     self._static_categoricals.append(group_id)
 
         # categorical encoder
-        if len(self._categorical_encoders) == 0:
-            for cat in self.categoricals:  # `group_id` already in
-                self._categorical_encoders.append(LabelEncoder(feature_name=cat))
+        # if len(self._categorical_encoders) == 0:
+        #     for cat in self.categoricals:  # `group_id` already in
+        #         self._categorical_encoders.append(LabelEncoder(feature_name=cat))
 
         # cont scalar
         if len(self._cont_scalars) == 0:

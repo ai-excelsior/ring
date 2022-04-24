@@ -1,5 +1,6 @@
 from lib2to3.pytree import Base
 from tkinter import HIDDEN
+from scipy.fftpack import shift
 from torch import nn
 import torch
 from .dataset import TimeSeriesDataset
@@ -260,7 +261,9 @@ class AutoRegressiveBaseModelWithCovariates(BaseModel):
         # shift the target variables by one time step into the future
         # when `encode`, this make sure the non-overlapping of `hidden_state` and `input_vector` used in `decode` lately
         # when `decode`, this make sure the first predict target is known thus can be directly taken from `input_vector`
-        input_vector[..., self.target_positions].roll(shifts=1, dims=1)
+        input_vector[..., self.target_positions] = input_vector[..., self.target_positions].roll(
+            shifts=1, dims=1
+        )
 
         if first_target is not None:  # set first target input (which is rolled over)
             input_vector[:, 0, self.target_positions] = first_target
@@ -308,7 +311,7 @@ class AutoRegressiveBaseModelWithCovariates(BaseModel):
         decoder_cat, decoder_cont = x["decoder_cat"], x["decoder_cont"]
         input_vector = self.construct_input_vector(decoder_cat, decoder_cont, first_target)
         if self.training:  # the training mode where the target values are actually known
-            output,_ = self._decode(
+            output, _ = self._decode(
                 input_vector=input_vector, hidden_state=hidden_state, lengths=x["decoder_length"]
             )
         else:  # the prediction mode, in which the target values are unknown
@@ -445,10 +448,7 @@ class BaseAnormal(BaseModel):
         raise NotImplementedError()
 
     def construct_input_vector(
-        self,
-        x_cat: torch.Tensor,
-        x_cont: torch.Tensor,
-        reverse: torch.Tensor = False,
+        self, x_cat: torch.Tensor, x_cont: torch.Tensor, reverse: bool = False
     ) -> torch.Tensor:
         # create input vector
         input_vector = []
@@ -457,7 +457,7 @@ class BaseAnormal(BaseModel):
             input_vector.append(x_cont.clone())
 
         if len(self.categoricals) > 0:
-            embeddings = self.categoricals_embedding(x_cat, flat=True)
+            embeddings = self.categoricals_embedding(x_cat.clone(), flat=True)
             input_vector.append(embeddings)
 
         input_vector = torch.cat(input_vector, dim=-1)
@@ -511,7 +511,7 @@ class BaseAnormal(BaseModel):
         )
         if self.training:
             # roll `ht+1` to p0 and adjust rest positions of `h`
-            output.roll(dims=1, shifts=1)
+            output = output.roll(dims=1, shifts=1)
             # replace p0:ht+1 with p0:h0
             output[:, 0] = last_value
 
@@ -549,8 +549,12 @@ class BaseAnormal(BaseModel):
                 hidden_state=hidden_state,
                 **kwargs,
             )
+
             output = [o.squeeze(1) for o in output_] if isinstance(output_, list) else output_.squeeze(1)
+
             normalized_target.append(output)
             predictions.append(output)
-
-        return torch.stack(predictions, dim=1)
+        pre = torch.stack(predictions, dim=1)  # row
+        pre = pre.roll(dims=1, shifts=1)
+        pre[:, 0] = normalized_target[0]
+        return pre
