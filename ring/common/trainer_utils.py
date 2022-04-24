@@ -285,7 +285,7 @@ def result_prediction_step(
                 dim=-1,
             )
             error = MAELoss()(y_pred_scaled, y, reduce=None)
-            return error
+            return error, y_pred_scaled
 
     return prediction_step
 

@@ -428,28 +428,44 @@ class Detector:
             normalizers=dataset._cont_scalars,
             device=self._device,
         )
+
         scores = []
+        y_pred = []
 
         @predictor.on(Events.ITERATION_COMPLETED)
         def record_score():
             if self._model_cls.__name__ == "enc_dec_ad":
                 mvnormal = multivariate_normal(model.mean, model.cov, allow_singular=True)
                 score = -mvnormal.logpdf(
-                    predictor.state.output.view(-1, len(model._encoder_cont)).data.cpu().numpy()
+                    predictor.state.output[0].view(-1, len(model._encoder_cont)).data.cpu().numpy()
                 )
                 scores.append(score.reshape(batch_size, self._data_cfg.indexer.steps))
+                y_pred.append(predictor.state.output[1].data.cpu().numpy())
 
         predictor.run(dataloader)
         scores = np.concatenate(scores)
+        y_pred = np.concatenate(y_pred)
         lattice = np.full((self._data_cfg.indexer.steps, data.shape[0]), np.nan)
+        lattice_ = np.full(
+            (self._data_cfg.indexer.steps, data.shape[0], len(self._dataset_parameters["cont_feature"])),
+            np.nan,
+        )
         for i, score in enumerate(scores):
             lattice[i % self._data_cfg.indexer.steps, i : i + self._data_cfg.indexer.steps] = score
         # combine all features to form `score` for this timestamps
         scores = np.nanmean(lattice, axis=0)
+        for i, out in enumerate(y_pred):
+            lattice_[i % self._data_cfg.indexer.steps, i : i + self._data_cfg.indexer.steps, :] = out
+        # combine all features to form `score` for this timestamps
+        y_pred = np.nanmean(lattice_, axis=0)
 
         raw_data = dataset.reflect(dataset._data.index)
         raw_data["Anomaly_Score"] = scores
-
+        prediction_column_names = [
+            f"{target_name}_reconstruction" for target_name in self._dataset_parameters["cont_feature"]
+        ]
+        raw_data = raw_data.assign(**{name: np.nan for name in prediction_column_names})
+        raw_data[prediction_column_names] = y_pred.reshape((-1, len(prediction_column_names)))
         return raw_data
 
     @classmethod
