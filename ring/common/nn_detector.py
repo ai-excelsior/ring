@@ -1,5 +1,6 @@
 import warnings
 import pandas as pd
+from sklearn.utils import shuffle
 import torch
 import os
 import inspect
@@ -19,7 +20,7 @@ from ignite.contrib.handlers.tensorboard_logger import TensorboardLogger, global
 from ignite.handlers import Checkpoint, EarlyStopping, DiskSaver
 from tabulate import tabulate
 from .loss import MAELoss, SMAPELoss, RMSELoss, MAPELoss, MSELoss, cfg_to_losses
-from .metrics import RMSE, SMAPE, MAE
+from .metrics import RMSE, SMAPE, MAE, MSE, MAPE
 from .dataset_ano import TimeSeriesDataset
 from .serializer import dumps, loads
 from .utils import get_latest_updated_file, remove_prefix
@@ -159,6 +160,7 @@ class Detector:
             train_dataloader = dataset_train.to_dataloader(
                 batch_size,
                 num_workers=self.n_workers,
+                shuffle=True,
                 pin_memory=True,
                 sampler=None,
             )
@@ -192,6 +194,7 @@ class Detector:
             train_dataloader = dataset_train.to_dataloader(
                 batch_size,
                 num_workers=self.n_workers,
+                shuffle=True,
                 sampler=None,
             )
             if self._model_cls.__name__ != "enc_dec_ad":
@@ -231,7 +234,9 @@ class Detector:
         )
         val_metrics = {
             "val_RMSE": RMSE(device=self._device),
+            "val_MSE": MSE(device=self._device),
             "val_SMAPE": SMAPE(device=self._device),  # percentage
+            "val_MAPE": MAPE(device=self._device),  # percentage
             "val_MAE": MAE(device=self._device),
         }
         evaluator = create_supervised_evaluator(
@@ -254,8 +259,10 @@ class Detector:
             evaluator.run(val_dataloader)
             metrics = evaluator.state.metrics
             print(
-                f"Training Results - Epoch: {trainer.state.epoch}, {self._loss_cfg} Loss: {trainer.state.output:.2f}, \
-                 Val RMSE: {metrics['val_RMSE']:.2f}, Val SMAPE: {metrics['val_SMAPE']:.2f} Val MAE: {metrics['val_MAE']:.2f}"
+                f"Training Results - Epoch: {trainer.state.epoch}, {self._loss_cfg} Loss: {trainer.state.output:.2f}"
+            )
+            print(
+                f"Val RMSE: {metrics['val_RMSE']:.2f},Val MSE: {metrics['val_MSE']:.2f},Val SMAPE: {metrics['val_SMAPE']:.2f},Val MAPE: {metrics['val_MAPE']:.2f},Val MAE: {metrics['val_MAE']:.2f}"
             )
 
         # checkpoint
@@ -283,7 +290,7 @@ class Detector:
             patience=self._trainer_cfg.get("early_stopping_patience", 6),
             score_function=lambda engine: -engine.state.metrics["val_" + self._loss_cfg]
             if "val_" + self._loss_cfg in engine.state.metrics
-            else -engine.state.metrics["val_SMAPE"],
+            else -engine.state.metrics["val_RMSE"],
             min_delta=1e-8,
             trainer=trainer,
         )
