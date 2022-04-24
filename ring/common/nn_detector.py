@@ -57,6 +57,7 @@ class Detector:
         trainer_cfg: Dict = {},
         root_dir: str = None,
         device=None,
+        num_workers=1,
     ) -> None:
         """
         Initialize
@@ -64,7 +65,7 @@ class Detector:
         self._losses = cfg_to_losses(loss_cfg, len(data_cfg.cont_features))
         model_params = deepcopy(model_params)
         model_params["output_size"] = sum([loss.n_parameters for loss in self._losses])
-
+        self.num_workers = num_workers
         os.makedirs(self.DEFAULT_ROOT_DIR, exist_ok=True)
         if root_dir is None:
             self.root_dir = tempfile.mkdtemp(prefix=self.DEFAULT_ROOT_DIR)
@@ -107,7 +108,7 @@ class Detector:
     def n_workers(self):
         if self.enable_gpu:
             return min(os.cpu_count() // 2, 2)
-        return 1
+        return self.num_workers
 
     def create_dataset(self, data: pd.DataFrame, **kwargs):
         # if dataset_parameters exist we will always using this to initialize dataset
