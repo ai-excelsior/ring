@@ -4,14 +4,13 @@ from scipy.fftpack import shift
 from torch import nn
 import torch
 from .dataset import TimeSeriesDataset
+from torch.utils.data import DataLoader
 from functools import cached_property
 from typing import Any, Callable, Dict, List, Tuple, Union
 from ring.common.ml.embeddings import MultiEmbedding
 from ring.common.ml.rnn import get_rnn
 from ring.common.ml.utils import to_list
-import numpy as np
-import random
-from torch.autograd import Variable
+
 
 HIDDENSTATE = Union[Tuple[torch.Tensor, torch.Tensor], torch.Tensor]
 
@@ -369,6 +368,10 @@ class BaseAnormal(BaseModel):
         x_categoricals: List[str] = [],
         embedding_sizes: Dict[str, Tuple[int, int]] = {},
         target_lags: Dict = {},
+        cell_type: str = "LSTM",
+        hidden_size: int = 8,
+        n_layers: int = 1,
+        dropout: float = 0,
     ):
         super().__init__()
 
@@ -383,6 +386,25 @@ class BaseAnormal(BaseModel):
             categorical_groups={},
             x_categoricals=x_categoricals,
         )
+        # only cont are considered, so `input_size` is this way
+        self.encoder = get_rnn(cell_type)(
+            input_size=len(self._encoder_cont),
+            hidden_size=hidden_size,
+            batch_first=True,
+            num_layers=n_layers,
+            bias=True,
+            dropout=dropout,
+        )
+
+        self.decoder = get_rnn(cell_type)(
+            input_size=len(self._encoder_cont),
+            hidden_size=hidden_size,
+            batch_first=True,
+            num_layers=n_layers,
+            bias=True,
+            dropout=dropout,
+        )
+        self.output_projector_decoder = nn.Linear(hidden_size, len(self._encoder_cont))
 
     @cached_property
     def _encoder_input_size(self) -> int:
@@ -441,9 +463,6 @@ class BaseAnormal(BaseModel):
     def forward(self, X):
         raise NotImplementedError()
 
-    def predict(self, X):
-        raise NotImplementedError()
-
     def from_dataset(cls, dataset: TimeSeriesDataset, **kwargs) -> "BaseModel":
         raise NotImplementedError()
 
@@ -470,8 +489,8 @@ class BaseAnormal(BaseModel):
         encoder_cat, encoder_cont, lengths = x["encoder_cat"], x["encoder_cont"], x["encoder_length"] - 1
         assert lengths.min() > 0
         input_vector = self.construct_input_vector(encoder_cat, encoder_cont)  # concat cat and cont
-        _, hidden_state = self.encoder(input_vector, lengths=lengths, enforce_sorted=False)
-        return hidden_state
+        output, hidden_state = self.encoder(input_vector, lengths=lengths, enforce_sorted=False)
+        return output, hidden_state
 
     def decode(
         self,
@@ -558,3 +577,9 @@ class BaseAnormal(BaseModel):
         pre = pre.roll(dims=1, shifts=1)
         pre[:, 0] = normalized_target[0]
         return pre
+
+    def calculate_params(self, dataloader: DataLoader):
+        """
+        calculate specific post-training parameters in model
+        """
+        return
