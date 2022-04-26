@@ -356,6 +356,7 @@ def result_prediction_step(
                 )
                 error = MAELoss()(y_pred_scaled, y, reduce=None)
             elif isinstance(y_pred, tuple):
+                error = y_pred[0]
                 y_pred = y_pred[1]
                 y_pred_scaled = torch.stack(
                     [
@@ -364,7 +365,7 @@ def result_prediction_step(
                     ],
                     dim=-1,
                 )
-                error = y_pred[0]
+
         return error, y_pred_scaled
 
     return prediction_step
