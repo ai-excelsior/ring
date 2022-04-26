@@ -83,5 +83,6 @@ class enc_dec_ad(BaseAnormal):
         """
 
         self.mvnormal = multivariate_normal(kwargs["mean"], kwargs["cov"], allow_singular=True)
-        score = -self.mvnormal.logpdf(output[0].reshape(-1, len(self._encoder_cont)).data.cpu().numpy())
-        return score, output[1]
+        score = -self.mvnormal.logpdf(output[0].reshape(-1, len(self._encoder_cont)))
+
+        return score.reshape(1, -1), output[1]

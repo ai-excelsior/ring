@@ -379,7 +379,7 @@ class Detector:
         model_filename: str = None,
         **kwargs,
     ):
-        """Do smoke test on given dataset, take the last max sequence to do a prediction and plot"""
+        """Do smoke test on given dataset, take all sequences by default"""
         # use `last_only`=True to fetch only last `steps` result or `start_index` =  INT to assign detection start point
 
         dataset = self.create_dataset(data, **kwargs)
@@ -413,12 +413,8 @@ class Detector:
         @predictor.on(Events.ITERATION_COMPLETED)
         def record_score():
             output = model.predict(predictor.state.output, **self._model_states)
-            scores.append(output[0].reshape(batch_size, self._data_cfg.indexer.steps))
+            scores.append(output[0])
             y_pred.append(output[1].data.cpu().numpy())
-            # elif self._model_cls.__name__ == "dagmm":
-            #     score = predictor.state.output[0].reshape(1, self._data_cfg.indexer.steps).data.cpu().numpy()
-            #     scores.append(score.reshape(batch_size, self._data_cfg.indexer.steps))
-            #     y_pred.append(predictor.state.output[1].data.cpu().numpy())
 
         predictor.run(dataloader)
         scores = np.concatenate(scores)
