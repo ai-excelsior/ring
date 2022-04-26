@@ -64,18 +64,14 @@ class enc_dec_ad(BaseAnormal):
         enc_output, enc_hidden = self.encode(x)
         simulation = self.decode(x, hidden_state=enc_hidden)
 
-        if mode == "predict":
-            if self.cov is None or self.mean is None:
-                raise ValueError("Need to fit first")
-
         return simulation
 
-    def calculate_params(self, errors: List[np.ndarray]):
+    def calculate_params(self, error_vectors: List[np.ndarray]):
         """
         calculate specific post-training parameters in model
         """
-        mean = np.mean(errors, axis=0)
-        cov = np.cov(errors, rowvar=False, dtype=mean.dtype)
+        mean = np.mean(error_vectors, axis=0)
+        cov = np.cov(error_vectors, rowvar=False, dtype=mean.dtype)
         if not cov.shape:
             cov = cov.reshape(1)
 

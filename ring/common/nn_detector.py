@@ -169,7 +169,7 @@ class Detector:
                 batch_size,
                 train=False,
                 sampler=SubsetRandomSampler,
-                ratio=self._model_params.get("train_gaussian_percentage", 0.25),
+                ratio=self._trainer_cfg.get("train_gaussian_percentage", 0.25),
                 num_workers=self.n_workers,
                 pin_memory=True,
             )
@@ -178,7 +178,7 @@ class Detector:
                 train=False,
                 num_workers=self.n_workers,
                 sampler=SubsetRandomSampler,
-                ratio=self._model_params.get("train_gaussian_percentage", 0.25),
+                ratio=self._trainer_cfg.get("train_gaussian_percentage", 0.25),
                 gaussian=True,
             )
         else:
@@ -193,14 +193,14 @@ class Detector:
                 train=False,
                 num_workers=self.n_workers,
                 sampler=SubsetRandomSampler,
-                ratio=self._model_params.get("train_gaussian_percentage", 0.25),
+                ratio=self._trainer_cfg.get("train_gaussian_percentage", 0.25),
             )
             gaussian_loader = dataset_val.to_dataloader(  # for calculating parameters
                 batch_size,
                 train=False,
                 num_workers=self.n_workers,
                 sampler=SubsetRandomSampler,
-                ratio=self._model_params.get("train_gaussian_percentage", 0.25),
+                ratio=self._trainer_cfg.get("train_gaussian_percentage", 0.25),
                 gaussian=True,
             )
 
@@ -284,9 +284,10 @@ class Detector:
         @trainer.on(Events.COMPLETED)
         def evalutate_parameter():
             gaussian_parameters.run(gaussian_loader)
-            parameters = model.calculate_params(gaussian_parameters.state.output)
+            parameters = model.calculate_params(**gaussian_parameters.state.output)
             self._model_states.update(**parameters)
-            print(f"Parameters for model are mean={parameters['mean']}, covariance={parameters['cov']}")
+            for k, v in parameters.items():
+                print(f"Parameters for model are {k}: {v}")
 
         # load
         if isinstance(load, str):

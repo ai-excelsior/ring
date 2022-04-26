@@ -17,6 +17,7 @@ def train(data_config: DataConfig, data_train: pd.DataFrame, data_val: pd.DataFr
         "early_stopping_patience": kwargs["early_stopping_patience"],
         "max_epochs": kwargs["max_epochs"],
         "sampler": kwargs[True],
+        "train_gaussian_percentage": kwargs["train_gaussian_percentage"],
     }
 
     if model_state is not None:
@@ -34,7 +35,6 @@ def train(data_config: DataConfig, data_train: pd.DataFrame, data_val: pd.DataFr
                 "hidden_size": kwargs["hidden_size"],
                 "n_layers": kwargs["n_layers"],
                 "dropout": kwargs["dropout"],
-                "train_gaussian_percentage": kwargs["train_gaussian_percentage"],
             },
             loss_cfg=kwargs.get("loss", None),
             trainer_cfg=trainer_cfg,
@@ -92,7 +92,6 @@ if __name__ == "__main__":
     train_parser.add_argument("--hidden_size", type=int, default=32)
     train_parser.add_argument("--n_layers", type=int, default=1)
     train_parser.add_argument("--dropout", type=float, default=0.1)
-    train.parser.add_argument("--train_gaussian_percentage", type=float, default=0.25)
 
     get_validate_parser(subparsers)
     get_predict_parser(subparsers)

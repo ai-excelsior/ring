@@ -19,7 +19,7 @@ def get_train_parser(subparsers):
     parser.add_argument("--weight_decay", type=float, default=None)
     parser.add_argument("--max_clip_grad_norm", type=float, default=None)
     parser.add_argument("--max_epochs", type=int, default=200)
-    parser.add_argument("--sampler", type=bool, default=False)
+    parser.add_argument("--train_gaussian_percentage", type=float, default=0.25)
     return parser
 
 
