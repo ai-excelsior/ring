@@ -186,7 +186,7 @@ def supervised_training_step(
                 )
                 / len(loss_fns)
             )
-            loss = loss_reconstruction + 0.005 * cov_diag  # + 0.1 * sample_energy  # + 0.005 * cov_diag
+            loss = loss_reconstruction + 0.1 * sample_energy + 0.005 * cov_diag
         else:
             raise TypeError("output of model must be one of torch.tensor or Dict or tuple")
 

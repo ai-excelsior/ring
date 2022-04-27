@@ -22,7 +22,7 @@ kwargs = {
     "max_clip_grad_norm": None,
     "max_epochs": 1,
     "cell_type": "LSTM",
-    "hidden_size": 32,
+    "hidden_size": 8,
     "n_layers": 3,
     "dropout": 0.1,
     "k_clusters": 3,
