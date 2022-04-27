@@ -1,22 +1,25 @@
 from types import CellType
 from scipy.stats import multivariate_normal
 from ring.common.dataset import TimeSeriesDataset
-from torch.utils.data import DataLoader
-import torch
-from torch import nn
-from typing import List, Dict, Tuple, Union
+
+pytorch_forecasting
 from copy import deepcopy
+from typing import Dict, List, Tuple, Union
+
+import torch
 from ring.common.base_model import BaseAnormal
 from ring.common.ml.rnn import get_rnn
-import numpy as np
+from torch import nn
 
 HIDDENSTATE = Union[Tuple[torch.Tensor, torch.Tensor], torch.Tensor]
 
 
-class enc_dec_ad(BaseAnormal):
+class EncoderDecoderAD(BaseAnormal):
+    """Encoder-Decoder Architecture for Time-series Anomaly Detection"""
+
     def __init__(
         self,
-        name: str = "enc_dec_ad",
+        name: str = "enc_dec_ad",  # TODO:  this can be obtained by `self.__class__.__name__`
         cell_type: str = "LSTM",
         hidden_size: int = 5,
         embedding_sizes: Dict[str, Tuple[int, int]] = {},
@@ -28,6 +31,24 @@ class enc_dec_ad(BaseAnormal):
         target_lags: Dict = {},
         output_size: int = 1,
     ):
+        # TODO: please complete the docstring
+        """Encoder-Decoder Architecture for Time-series Anomaly Detection
+
+        Args:
+            name (str, optional): _description_. Defaults to "enc_dec_ad".
+            cell_type (str, optional): _description_. Defaults to "LSTM".
+            hidden_size (int, optional): _description_. Defaults to 5.
+            embedding_sizes (Dict[str, Tuple[int, int]], optional): _description_. Defaults to {}.
+            n_layers (int, optional): _description_. Defaults to 1.
+            dropout (float, optional): _description_. Defaults to 0.
+            output_size (int, optional): _description_. Defaults to 1.
+            x_categoricals (List[str], optional): _description_. Defaults to [].
+            encoder_cont (List[str], optional): _description_. Defaults to [].
+            encoder_cat (List[str], optional): _description_. Defaults to [].
+            target_lags (Dict, optional): _description_. Defaults to {}.
+            mean (float, optional): _description_. Defaults to None.
+            cov (float, optional): _description_. Defaults to None.
+        """
         super().__init__(
             name=name,
             embedding_sizes=embedding_sizes,
@@ -40,7 +61,6 @@ class enc_dec_ad(BaseAnormal):
             n_layers=n_layers,
             dropout=dropout,
         )
-
         self.hidden_size = hidden_size
         self.cell_type = cell_type
 
@@ -60,8 +80,7 @@ class enc_dec_ad(BaseAnormal):
         )
 
     def forward(self, x: Dict[str, torch.Tensor], mode=None, **kwargs) -> Dict[str, torch.Tensor]:
-
-        enc_output, enc_hidden = self.encode(x)
+        enc_hidden = self.encode(x)
         simulation = self.decode(x, hidden_state=enc_hidden)
 
         return simulation
