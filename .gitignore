@@ -4,5 +4,5 @@
 ._influxdb_example.py
 __pycache__
 dist
-/data
+
 /example/xyz
