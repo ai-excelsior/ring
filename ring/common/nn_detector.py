@@ -34,7 +34,6 @@ from .trainer_utils import (
 from .data_config import DataConfig, dict_to_data_config_anomal
 from .base_model import BaseModel
 from .oss_utils import get_bucket_from_oss_url
-from scipy.stats import multivariate_normal
 
 
 def get_last_updated_model(filepath: str):
@@ -53,6 +52,7 @@ class Detector:
         data_cfg: DataConfig,
         model_cls: BaseModel,
         model_params: Dict = {},
+        model_states: Dict = {},
         loss_cfg: str = "MSE",
         trainer_cfg: Dict = {},
         root_dir: str = None,
@@ -77,6 +77,7 @@ class Detector:
         self._loss_cfg = loss_cfg
         self._model_cls = model_cls
         self._model_params = model_params
+        self._model_states = model_states
 
         if device is None:
             if torch.cuda.is_available():
@@ -155,8 +156,7 @@ class Detector:
         else:
             dataset_val = self.create_dataset(data_val)
 
-        sampler = self._trainer_cfg.get("sampler", False) or self._model_cls.__name__ == "enc_dec_ad"
-        batch_size = self._trainer_cfg.get("batch_size", 64)
+        batch_size = self._trainer_cfg.get("batch_size", 32)
         if self.enable_gpu:
             train_dataloader = dataset_train.to_dataloader(
                 batch_size,
@@ -165,32 +165,22 @@ class Detector:
                 pin_memory=True,
                 sampler=None,
             )
-            if self._model_cls.__name__ != "enc_dec_ad":
-                val_dataloader = dataset_val.to_dataloader(
-                    batch_size,
-                    train=False,
-                    num_workers=self.n_workers,
-                    sampler=SubsetRandomSampler if sampler else None,
-                    ratio=self._model_params.get("train_gaussian_percentage", 0.25) if sampler else None,
-                    pin_memory=True,
-                )
-            else:
-                val_dataloader = dataset_val.to_dataloader(
-                    batch_size,
-                    train=False,
-                    sampler=SubsetRandomSampler,
-                    ratio=self._model_params.get("train_gaussian_percentage", 0.25),
-                    num_workers=self.n_workers,
-                    pin_memory=True,
-                )
-                gaussian_loader = dataset_train.to_dataloader(
-                    batch_size,
-                    train=False,
-                    num_workers=self.n_workers,
-                    sampler=SubsetRandomSampler,
-                    ratio=self._model_params.get("train_gaussian_percentage", 0.25),
-                    gaussian=True,
-                )
+            val_dataloader = dataset_val.to_dataloader(
+                batch_size,
+                train=False,
+                sampler=SubsetRandomSampler,
+                ratio=self._trainer_cfg.get("train_gaussian_percentage", 0.25),
+                num_workers=self.n_workers,
+                pin_memory=True,
+            )
+            gaussian_loader = dataset_train.to_dataloader(
+                batch_size,
+                train=False,
+                num_workers=self.n_workers,
+                sampler=SubsetRandomSampler,
+                ratio=self._trainer_cfg.get("train_gaussian_percentage", 0.25),
+                gaussian=True,
+            )
         else:
             train_dataloader = dataset_train.to_dataloader(
                 batch_size,
@@ -198,30 +188,21 @@ class Detector:
                 shuffle=True,
                 sampler=None,
             )
-            if self._model_cls.__name__ != "enc_dec_ad":
-                val_dataloader = dataset_val.to_dataloader(
-                    batch_size,
-                    train=False,
-                    num_workers=self.n_workers,
-                    sampler=SubsetRandomSampler if sampler else None,
-                    ratio=self._model_params.get("train_gaussian_percentage", 0.25) if sampler else None,
-                )
-            else:
-                val_dataloader = dataset_val.to_dataloader(  # for early_stop
-                    batch_size,
-                    train=False,
-                    num_workers=self.n_workers,
-                    sampler=SubsetRandomSampler,
-                    ratio=self._model_params.get("train_gaussian_percentage", 0.25),
-                )
-                gaussian_loader = dataset_val.to_dataloader(  # for calculating parameters
-                    batch_size,
-                    train=False,
-                    num_workers=self.n_workers,
-                    sampler=SubsetRandomSampler,
-                    ratio=self._model_params.get("train_gaussian_percentage", 0.25),
-                    gaussian=True,
-                )
+            val_dataloader = dataset_val.to_dataloader(  # for early_stop
+                batch_size,
+                train=False,
+                num_workers=self.n_workers,
+                sampler=SubsetRandomSampler,
+                ratio=self._trainer_cfg.get("train_gaussian_percentage", 0.25),
+            )
+            gaussian_loader = dataset_val.to_dataloader(  # for calculating parameters
+                batch_size,
+                train=False,
+                num_workers=self.n_workers,
+                sampler=SubsetRandomSampler,
+                ratio=self._trainer_cfg.get("train_gaussian_percentage", 0.25),
+                gaussian=True,
+            )
 
         model = self.create_model(dataset_train)
         optimizer = torch.optim.Adam(
@@ -302,15 +283,11 @@ class Detector:
         # estimate parameters for `enc_dec_ad`
         @trainer.on(Events.COMPLETED)
         def evalutate_parameter():
-            if self._model_cls.__name__ == "enc_dec_ad":
-                gaussian_parameters.run(gaussian_loader)
-                output = gaussian_parameters.state.output
-                mean = np.mean(output, axis=0)
-                cov = np.cov(output, rowvar=False, dtype=mean.dtype)
-                if not cov.shape:
-                    cov = cov.reshape(1)
-                self._model_params.update({"mean": mean, "cov": cov})
-                print(f"Parameters for model Enc_Dec_AD is mean={mean}, covariance={cov}")
+            gaussian_parameters.run(gaussian_loader)
+            parameters = model.calculate_params(**gaussian_parameters.state.output)
+            self._model_states.update(**parameters)
+            for k, v in parameters.items():
+                print(f"Parameters for model are {k}: {v}")
 
         # load
         if isinstance(load, str):
@@ -402,7 +379,7 @@ class Detector:
         model_filename: str = None,
         **kwargs,
     ):
-        """Do smoke test on given dataset, take the last max sequence to do a prediction and plot"""
+        """Do smoke test on given dataset, take all sequences by default"""
         # use `last_only`=True to fetch only last `steps` result or `start_index` =  INT to assign detection start point
 
         dataset = self.create_dataset(data, **kwargs)
@@ -435,13 +412,9 @@ class Detector:
 
         @predictor.on(Events.ITERATION_COMPLETED)
         def record_score():
-            if self._model_cls.__name__ == "enc_dec_ad":
-                mvnormal = multivariate_normal(model.mean, model.cov, allow_singular=True)
-                score = -mvnormal.logpdf(
-                    predictor.state.output[0].view(-1, len(model._encoder_cont)).data.cpu().numpy()
-                )
-                scores.append(score.reshape(batch_size, self._data_cfg.indexer.steps))
-                y_pred.append(predictor.state.output[1].data.cpu().numpy())
+            output = model.predict(predictor.state.output, **self._model_states)
+            scores.append(output[0])
+            y_pred.append(output[1].data.cpu().numpy())
 
         predictor.run(dataloader)
         scores = np.concatenate(scores)

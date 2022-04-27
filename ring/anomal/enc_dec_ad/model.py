@@ -1,4 +1,5 @@
-import pytorch_forecasting
+from types import CellType
+from scipy.stats import multivariate_normal
 from ring.common.dataset import TimeSeriesDataset
 
 pytorch_forecasting
@@ -24,13 +25,11 @@ class EncoderDecoderAD(BaseAnormal):
         embedding_sizes: Dict[str, Tuple[int, int]] = {},
         n_layers: int = 1,
         dropout: float = 0,
-        output_size=1,
         x_categoricals: List[str] = [],
         encoder_cont: List[str] = [],
         encoder_cat: List[str] = [],
         target_lags: Dict = {},
-        mean: float = None,
-        cov: float = None,
+        output_size: int = 1,
     ):
         # TODO: please complete the docstring
         """Encoder-Decoder Architecture for Time-series Anomaly Detection
@@ -57,36 +56,13 @@ class EncoderDecoderAD(BaseAnormal):
             x_categoricals=x_categoricals,
             encoder_cont=encoder_cont,
             encoder_cat=encoder_cat,
+            cell_type=cell_type,
+            hidden_size=hidden_size,
+            n_layers=n_layers,
+            dropout=dropout,
         )
         self.hidden_size = hidden_size
-        self.output_size = output_size
-        self.n_layers = n_layers
-        self.dropout = dropout
         self.cell_type = cell_type
-
-        self.mean = mean
-        self.cov = cov
-
-        # only cont are considered, so `input_size` is this way
-        self.encoder = get_rnn(cell_type)(
-            input_size=len(self._encoder_cont),
-            hidden_size=self.hidden_size,
-            batch_first=True,
-            num_layers=self.n_layers,
-            bias=True,
-            dropout=self.dropout,
-        )
-
-        self.decoder = get_rnn(cell_type)(
-            input_size=len(self._encoder_cont),
-            hidden_size=self.hidden_size,
-            batch_first=True,
-            num_layers=self.n_layers,
-            bias=True,
-            dropout=self.dropout,
-        )
-
-        self.output_projector_decoder = nn.Linear(self.hidden_size, len(self._encoder_cont))
 
     @classmethod
     def from_dataset(cls, dataset: TimeSeriesDataset, **kwargs):
@@ -107,8 +83,25 @@ class EncoderDecoderAD(BaseAnormal):
         enc_hidden = self.encode(x)
         simulation = self.decode(x, hidden_state=enc_hidden)
 
-        if mode == "predict":
-            if self.cov is None or self.mean is None:
-                raise ValueError("Need to fit first")
-
         return simulation
+
+    def calculate_params(self, error_vectors: List[np.ndarray]):
+        """
+        calculate specific post-training parameters in model
+        """
+        mean = np.mean(error_vectors, axis=0)
+        cov = np.cov(error_vectors, rowvar=False, dtype=mean.dtype)
+        if not cov.shape:
+            cov = cov.reshape(1)
+
+        return {"mean": mean, "cov": cov}
+
+    def predict(self, output: tuple, **kwargs):
+        """
+        calculate specific post-predict outputs in model
+        """
+
+        self.mvnormal = multivariate_normal(kwargs["mean"], kwargs["cov"], allow_singular=True)
+        score = -self.mvnormal.logpdf(output[0].reshape(-1, len(self._encoder_cont)))
+
+        return score.reshape(1, -1), output[1]

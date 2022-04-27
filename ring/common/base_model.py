@@ -2,6 +2,12 @@ import abc
 from functools import cached_property
 from lib2to3.pytree import Base
 from tkinter import HIDDEN
+from scipy.fftpack import shift
+from torch import nn
+import torch
+from .dataset import TimeSeriesDataset
+from torch.utils.data import DataLoader
+from functools import cached_property
 from typing import Any, Callable, Dict, List, Tuple, Union
 
 import torch
@@ -364,6 +370,10 @@ class BaseAnormal(BaseModel):
         x_categoricals: List[str] = [],
         embedding_sizes: Dict[str, Tuple[int, int]] = {},
         target_lags: Dict = {},
+        cell_type: str = "LSTM",
+        hidden_size: int = 8,
+        n_layers: int = 1,
+        dropout: float = 0,
     ):
         # TODO: please complete the docstring
         """Base Model for Time-Series Anomaly Detection
@@ -387,6 +397,25 @@ class BaseAnormal(BaseModel):
             categorical_groups={},
             x_categoricals=x_categoricals,
         )
+        # only cont are considered, so `input_size` is this way
+        self.encoder = get_rnn(cell_type)(
+            input_size=len(self._encoder_cont),
+            hidden_size=hidden_size,
+            batch_first=True,
+            num_layers=n_layers,
+            bias=True,
+            dropout=dropout,
+        )
+
+        self.decoder = get_rnn(cell_type)(
+            input_size=len(self._encoder_cont),
+            hidden_size=hidden_size,
+            batch_first=True,
+            num_layers=n_layers,
+            bias=True,
+            dropout=dropout,
+        )
+        self.output_projector_decoder = nn.Linear(hidden_size, len(self._encoder_cont))
 
     @cached_property
     def _encoder_input_size(self) -> int:
@@ -448,11 +477,6 @@ class BaseAnormal(BaseModel):
     def forward(self, X):
         return
 
-    @abc.abstractmethod
-    def predict(self, X):
-        return
-
-    @abc.abstractmethod
     def from_dataset(cls, dataset: TimeSeriesDataset, **kwargs) -> "BaseModel":
         return
 
@@ -592,6 +616,13 @@ class BaseAnormal(BaseModel):
             )
             output = [o.squeeze(1) for o in output_] if isinstance(output_, list) else output_.squeeze(1)
             predictions.append(output)
+        pre = torch.stack(predictions, dim=1)  # row
+        pre = pre.roll(dims=1, shifts=1)
+        pre[:, 0] = normalized_target[0]
+        return pre
 
-        predictions = torch.stack(predictions, dim=1)
-        return predictions
+    def calculate_params(self, dataloader: DataLoader):
+        """
+        calculate specific post-training parameters in model
+        """
+        return

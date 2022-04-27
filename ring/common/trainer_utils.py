@@ -113,6 +113,7 @@ def supervised_training_step(
         x, y = prepare_batch(batch, device=device, non_blocking=non_blocking)
         y_pred = model(x)
 
+        # forward_loss + backcast_loss
         if isinstance(y_pred, Dict):
             try:
                 y_forward = y_pred["prediction"]
@@ -142,17 +143,18 @@ def supervised_training_step(
                 x["target_scales_back"][..., i],
                 normalizers[i],
             )
-            loss_backward = functools.reduce(
-                lambda a, b: a + b,
-                [
-                    loss_fn(reverse_scale_backward(i, loss_fn), x["encoder_target"][..., i])
-                    for i, loss_fn in enumerate(loss_fns)
-                ],
-            ) / len(
-                loss_fns
-            )  # mean loss of (target_i)
+            loss_backward = (
+                functools.reduce(
+                    lambda a, b: a + b,
+                    [
+                        loss_fn(reverse_scale_backward(i, loss_fn), x["encoder_target"][..., i])
+                        for i, loss_fn in enumerate(loss_fns)
+                    ],
+                )
+                / len(loss_fns)
+            )
             loss = y_backcast_ratio * loss_backward + (1 - y_backcast_ratio) * loss_forward
-
+        # forward_loss
         elif isinstance(y_pred, torch.Tensor):
             reverse_scale = lambda i, loss: loss.scale_prediction(
                 y_pred[..., loss_start_indices[i] : loss_end_indices[i]],
@@ -167,8 +169,27 @@ def supervised_training_step(
                 )
                 / len(loss_fns)
             )
+        # cutomized loss function addtion to `y_pred`
+        elif isinstance(y_pred, tuple):
+            sample_energy = y_pred[0][0]
+            cov_diag = y_pred[0][1]
+            y_recon = y_pred[1]
+            reverse_scale = lambda i, loss: loss.scale_prediction(
+                y_recon[..., loss_start_indices[i] : loss_end_indices[i]],
+                x["target_scales"][..., i],
+                normalizers[i],
+            )
+            loss_reconstruction = (
+                functools.reduce(
+                    lambda a, b: a + b,
+                    [loss_fn(reverse_scale(i, loss_fn), y[..., i]) for i, loss_fn in enumerate(loss_fns)],
+                )
+                / len(loss_fns)
+            )
+            loss = loss_reconstruction + 0.005 * cov_diag  # + 0.1 * sample_energy  # + 0.005 * cov_diag
         else:
-            raise TypeError("output of model must be one of torch.tensor or Dict")
+            raise TypeError("output of model must be one of torch.tensor or Dict or tuple")
+
         if gradient_accumulation_steps > 1:
             loss = loss / gradient_accumulation_steps
 
@@ -206,6 +227,8 @@ def supervised_evaluation_step(
                     y_pred = y_pred["prediction"]
                 except:
                     raise ValueError("output should have both `prediction` and `backcast`")
+            elif isinstance(y_pred, tuple):  # only consider reconstruction_error
+                y_pred = y_pred[1]
             elif not isinstance(y_pred, torch.Tensor):
                 raise TypeError("output of model must be one of torch.tensor or Dict")
 
@@ -234,7 +257,7 @@ def parameter_evaluation_step(
     n_parameters = [loss.n_parameters for loss in loss_fns]
     loss_end_indices = list(itertools.accumulate(n_parameters))
     loss_start_indices = [i - loss_end_indices[0] for i in loss_end_indices]
-    error_vectors = []
+    parameters_return = {}
 
     def evaluation_step(engine: Engine, batch: Sequence[torch.Tensor]) -> Union[Any, Tuple[torch.Tensor]]:
         # calculate parametrs after training
@@ -242,18 +265,60 @@ def parameter_evaluation_step(
         with torch.no_grad():
             x, y = prepare_batch(batch, device=device, non_blocking=non_blocking)
             y_pred = model(x)
-            reverse_scale = lambda i, loss: loss.scale_prediction(
-                y_pred[..., loss_start_indices[i] : loss_end_indices[i]],
-                x["target_scales"][..., i],
-                normalizers[i],
-            )
-            y_pred_scaled = torch.stack(
-                [loss_obj.to_prediction(reverse_scale(i, loss_obj)) for i, loss_obj in enumerate(loss_fns)],
-                dim=-1,
-            )
-            error = MAELoss()(y_pred_scaled, y, reduce=None)
-            # error_vectors += list(error.view(-1, y.shape[-1]).data.cpu().numpy())
-            return error_vectors + list(error.view(-1, y.shape[-1]).data.cpu().numpy())
+            if isinstance(y_pred, torch.Tensor):
+                reverse_scale = lambda i, loss: loss.scale_prediction(
+                    y_pred[..., loss_start_indices[i] : loss_end_indices[i]],
+                    x["target_scales"][..., i],
+                    normalizers[i],
+                )
+                y_pred_scaled = torch.stack(
+                    [
+                        loss_obj.to_prediction(reverse_scale(i, loss_obj))
+                        for i, loss_obj in enumerate(loss_fns)
+                    ],
+                    dim=-1,
+                )
+                error = MAELoss()(y_pred_scaled, y, reduce=None)
+                # error_vectors += list(error.view(-1, y.shape[-1]).data.cpu().numpy())
+                parameters_return.update(
+                    {
+                        "error_vectors": (
+                            parameters_return["error_vectors"]
+                            + list(error.view(-1, y.shape[-1]).data.cpu().numpy())
+                            if parameters_return
+                            else list(error.view(-1, y.shape[-1]).data.cpu().numpy())
+                        )
+                    }
+                )
+            elif isinstance(y_pred, tuple):
+                gamma = y_pred[0][0]
+                mu = y_pred[0][1]
+                cov = y_pred[0][3]
+                batch_gamma_sum = torch.sum(gamma, dim=0)
+                parameters_return.update(
+                    {
+                        "gamma_sum": (
+                            parameters_return["gamma_sum"] + batch_gamma_sum
+                            if parameters_return
+                            else batch_gamma_sum
+                        ),
+                        "mu_sum": (
+                            parameters_return["mu_sum"] + mu * batch_gamma_sum.unsqueeze(-1)
+                            if parameters_return
+                            else mu * batch_gamma_sum.unsqueeze(-1)
+                        ),
+                        "cov_sum": (
+                            parameters_return["cov_sum"] + cov * batch_gamma_sum.unsqueeze(-1).unsqueeze(-1)
+                            if parameters_return
+                            else cov * batch_gamma_sum.unsqueeze(-1).unsqueeze(-1)
+                        ),
+                        "num_samples": (
+                            parameters_return["num_samples"] + y.size(0) if parameters_return else y.size(0)
+                        ),
+                    }
+                )
+
+            return parameters_return
 
     return evaluation_step
 
@@ -269,23 +334,39 @@ def result_prediction_step(
     n_parameters = [loss.n_parameters for loss in loss_fns]
     loss_end_indices = list(itertools.accumulate(n_parameters))
     loss_start_indices = [i - loss_end_indices[0] for i in loss_end_indices]
+    results = {}
 
     def prediction_step(engine: Engine, batch: Sequence[torch.Tensor]) -> Union[Any, Tuple[torch.Tensor]]:
         model.eval()
         with torch.no_grad():
             x, y = prepare_batch(batch, device=device, non_blocking=non_blocking)
-            y_pred = model(x)
+            y_pred = model(x, mode="predict")
             reverse_scale = lambda i, loss: loss.scale_prediction(
                 y_pred[..., loss_start_indices[i] : loss_end_indices[i]],
                 x["target_scales"][..., i],
                 normalizers[i],
             )
-            y_pred_scaled = torch.stack(
-                [loss_obj.to_prediction(reverse_scale(i, loss_obj)) for i, loss_obj in enumerate(loss_fns)],
-                dim=-1,
-            )
-            error = MAELoss()(y_pred_scaled, y, reduce=None)
-            return error, y_pred_scaled
+            if isinstance(y_pred, torch.Tensor):
+                y_pred_scaled = torch.stack(
+                    [
+                        loss_obj.to_prediction(reverse_scale(i, loss_obj))
+                        for i, loss_obj in enumerate(loss_fns)
+                    ],
+                    dim=-1,
+                )
+                error = MAELoss()(y_pred_scaled, y, reduce=None)
+            elif isinstance(y_pred, tuple):
+                error = y_pred[0]
+                y_pred = y_pred[1]
+                y_pred_scaled = torch.stack(
+                    [
+                        loss_obj.to_prediction(reverse_scale(i, loss_obj))
+                        for i, loss_obj in enumerate(loss_fns)
+                    ],
+                    dim=-1,
+                )
+
+        return error, y_pred_scaled
 
     return prediction_step
 
