@@ -63,7 +63,7 @@ class DeepAR(AutoRegressiveBaseModelWithCovariates):
         decoder_cat, decoder_cont = x["decoder_cat"], x["decoder_cont"]
         input_vector = self.construct_input_vector(decoder_cat, decoder_cont, first_target)
         if n_samples is None:  # the training mode where the target values are actually known
-            output = self._decode(
+            output, _ = self._decode(
                 input_vector=input_vector, hidden_state=hidden_state, lengths=x["decoder_length"]
             )
         else:  # the prediction mode, in which the target values are unknown
@@ -85,8 +85,8 @@ class DeepAR(AutoRegressiveBaseModelWithCovariates):
             self.target_positions.unsqueeze(-1),
         ].t()
 
-        if mode == "predict":
-            return self.decode(x, hidden_state=hidden_state, first_target=first_target, n_samples=100)
+        # if mode == "predict":
+        #     return self.decode(x, hidden_state=hidden_state, first_target=first_target, n_samples=100)
 
         if self.training:
             assert n_samples is None, "cannot sample from decoder when training"

@@ -124,12 +124,9 @@ class dagmm(BaseAnormal):
 
     def compute_aux(self, C: torch.tensor):
         # setup auxilary variables for computing the sample energy
-        # L, V = torch.linalg.eig(C)
-        # L, self.V = L.real.clone(), V.real
         L, self.V = torch.linalg.eigh(C)
         idx = torch.isclose(L, torch.tensor(float(0)))
         L_inv = 1 / L
-        #  L[idx] = 0
         L_inv[idx] = 0  # force the negative to zero
         self.L = L
         self.L_inv = L_inv
@@ -153,13 +150,13 @@ class dagmm(BaseAnormal):
         )
         # NOTE: this is easier and faster
         # k_clusters
-        vv = torch.concat(
+        cov_exe = torch.concat(
             [
                 torch.prod(self.L[i][~torch.isclose(self.L[i], torch.tensor(float(0)))]).unsqueeze(0)
                 for i in range(self.k_clusters)
             ]
         )
-        det_cov = torch.max(vv * (2 * np.pi) ** dim, eps)
+        det_cov = torch.max(cov_exe * (2 * np.pi) ** dim, eps)
         # batch_size * k_clusters
         exp_term = torch.exp(-0.5 * (self.L_inv * z_mu_).unsqueeze(-2) @ z_mu_.unsqueeze(-1))[..., 0, 0]
         sample_energy = -1.0 * torch.log(torch.sum(self.phi * exp_term / torch.sqrt(det_cov), dim=1))

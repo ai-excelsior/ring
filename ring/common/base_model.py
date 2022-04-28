@@ -6,7 +6,7 @@ from typing import Callable, Dict, List, Tuple, Union
 from ring.common.ml.embeddings import MultiEmbedding
 from ring.common.ml.rnn import get_rnn
 from ring.common.ml.utils import to_list
-
+import pytorch_forecasting
 
 HIDDENSTATE = Union[Tuple[torch.Tensor, torch.Tensor], torch.Tensor]
 
@@ -201,6 +201,54 @@ class AutoRegressiveBaseModelWithCovariates(BaseModel):
     def has_time_varying_unknown_cat(self) -> bool:
         return set(self._encoder_cat) != set(self._decoder_cat)
 
+    def construct_input_vector(
+        self,
+        x_cat: torch.Tensor,
+        x_cont: torch.Tensor,
+        first_target: torch.Tensor = None,
+    ) -> torch.Tensor:
+        # create input vector
+        input_vector = []
+        # NOTE: the real-valued variables always come first in the input vector
+        if len(self.reals) > 0:
+            input_vector.append(x_cont[..., self.reals_indices].clone())
+
+        if len(self.categoricals) > 0:
+            embeddings = self.categoricals_embedding(x_cat[..., self.categoricals_indices], flat=True)
+            input_vector.append(embeddings)
+
+        input_vector = torch.cat(input_vector, dim=-1)
+        # shift the target variables by one time step into the future
+        # when `encode`, this make sure the non-overlapping of `hidden_state` and `input_vector` used in `decode` lately
+        # when `decode`, this make sure the first predict target is known thus can be directly taken from `input_vector`
+        input_vector[..., self.target_positions] = input_vector[..., self.target_positions].roll(
+            shifts=1, dims=1
+        )
+
+        if first_target is not None:  # set first target input (which is rolled over)
+            input_vector[:, 0, self.target_positions] = first_target
+        # else:  # or drop the last time step, can be done by x["encoder_length"] - 1
+        #     input_vector = input_vector[:, :-1]
+        return input_vector
+
+    def encode(self, x: Dict[str, torch.Tensor]) -> Tuple[torch.Tensor, HIDDENSTATE]:
+        """Encode a sequence into hidden state and make backcasting predictions
+
+        Args:
+            x (Dict[str, torch.Tensor]): the input dictionary
+
+        Returns:
+            Tuple[torch.Tensor, HiddenState]:
+                * the prediction on the encoding sequence
+                * the last hidden state
+        """
+        self._phase = "encode"
+        encoder_cat, encoder_cont, lengths = x["encoder_cat"], x["encoder_cont"], x["encoder_length"] - 1
+        assert lengths.min() > 0
+        input_vector = self.construct_input_vector(encoder_cat, encoder_cont)
+        _, hidden_state = self.encoder(input_vector, lengths=lengths, enforce_sorted=False)
+        return hidden_state
+
     def decode_autoregressive(
         self,
         decode_one_step: Callable,
@@ -235,54 +283,6 @@ class AutoRegressiveBaseModelWithCovariates(BaseModel):
             normalized_target.append(output)
 
         return torch.stack(predictions, dim=1)
-
-    def construct_input_vector(
-        self,
-        x_cat: torch.Tensor,
-        x_cont: torch.Tensor,
-        first_target: torch.Tensor = None,
-    ) -> torch.Tensor:
-        # create input vector
-        input_vector = []
-        # NOTE: the real-valued variables always come first in the input vector
-        if len(self.reals) > 0:
-            input_vector.append(x_cont[..., self.reals_indices].clone())
-
-        if len(self.categoricals) > 0:
-            embeddings = self.categoricals_embedding(x_cat[..., self.categoricals_indices], flat=True)
-            input_vector.append(embeddings)
-
-        input_vector = torch.cat(input_vector, dim=-1)
-        # shift the target variables by one time step into the future
-        # when `encode`, this make sure the non-overlapping of `hidden_state` and `input_vector` used in `decode` lately
-        # when `decode`, this make sure the first predict target is known thus can be directly taken from `input_vector`
-        input_vector[..., self.target_positions] = input_vector[..., self.target_positions].roll(
-            shifts=1, dims=1
-        )
-
-        if first_target is not None:  # set first target input (which is rolled over)
-            input_vector[:, 0, self.target_positions] = first_target
-        else:  # or drop the first time step
-            input_vector = input_vector[:, 1:]
-        return input_vector
-
-    def encode(self, x: Dict[str, torch.Tensor]) -> Tuple[torch.Tensor, HIDDENSTATE]:
-        """Encode a sequence into hidden state and make backcasting predictions
-
-        Args:
-            x (Dict[str, torch.Tensor]): the input dictionary
-
-        Returns:
-            Tuple[torch.Tensor, HiddenState]:
-                * the prediction on the encoding sequence
-                * the last hidden state
-        """
-        self._phase = "encode"
-        encoder_cat, encoder_cont, lengths = x["encoder_cat"], x["encoder_cont"], x["encoder_length"] - 1
-        assert lengths.min() > 0
-        input_vector = self.construct_input_vector(encoder_cat, encoder_cont)
-        _, hidden_state = self.encoder(input_vector, lengths=lengths, enforce_sorted=False)
-        return hidden_state
 
     def decode(
         self,
@@ -482,7 +482,8 @@ class BaseAnormal(BaseModel):
         return input_vector
 
     def encode(self, x: Dict[str, torch.Tensor]) -> Tuple[torch.Tensor, HIDDENSTATE]:
-        encoder_cat, encoder_cont, lengths = x["encoder_cat"], x["encoder_cont"], x["encoder_length"] - 1
+        encoder_cat, encoder_cont = x["encoder_cat"], x["encoder_cont"]
+        lengths = x["encoder_length"] - 1  # skip last timestamp
         assert lengths.min() > 0
         input_vector = self.construct_input_vector(encoder_cat, encoder_cont)  # concat cat and cont
         output, hidden_state = self.encoder(input_vector, lengths=lengths, enforce_sorted=False)
@@ -542,22 +543,21 @@ class BaseAnormal(BaseModel):
     ) -> Union[List[torch.Tensor], torch.Tensor]:
 
         # the autoregression loop
-        predictions = list()
         # take the first predicted target from the projection of last layer of `hidden_state`
         if self.cell_type == "LSTM":
-            normalized_target = [self.output_projector_decoder(hidden_state[0][-1, ...])]
+            predictions = [self.output_projector_decoder(hidden_state[0][-1, ...])]
         else:
-            normalized_target = [self.output_projector_decoder(hidden_state[-1, ...])]
+            predictions = [self.output_projector_decoder(hidden_state[-1, ...])]
         # the autoregression loop
-        for idx in range(n_decoder_steps):
+        for idx in range(n_decoder_steps - 1):
             # batch_size * 1 * n_features
             _input_vector = input_vector[:, [idx]]
             # take the last predicted target values as the input for the current prediction step
-            _input_vector[:, 0, :] = normalized_target[-1]
+            _input_vector[:, 0, :] = predictions[-1]
             for lag, lag_positions in self.lagged_target_positions.items():
                 # lagged values are depleted: if the current prediction step is beyond the lag
                 if idx > lag and len(lag_positions) > 0:
-                    _input_vector[:, 0, lag_positions] = normalized_target[-lag]
+                    _input_vector[:, 0, lag_positions] = predictions[-lag]
 
             output_, hidden_state = decode_one_step(
                 input_vector=_input_vector,
@@ -567,15 +567,19 @@ class BaseAnormal(BaseModel):
 
             output = [o.squeeze(1) for o in output_] if isinstance(output_, list) else output_.squeeze(1)
 
-            normalized_target.append(output)
             predictions.append(output)
         pre = torch.stack(predictions, dim=1)  # row
-        pre = pre.roll(dims=1, shifts=1)
-        pre[:, 0] = normalized_target[0]
+
         return pre
 
     def calculate_params(self, **kwargs):
         """
         calculate specific post-training parameters in model
+        """
+        return
+
+    def predict(self, **kwargs):
+        """
+        calculate specific post-predict parameters in model
         """
         return

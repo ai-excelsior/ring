@@ -64,6 +64,7 @@ def test_rnn():
         kwargs.pop("data_train"),
         parse_dates=[] if data_config.time is None else [data_config.time],
     )
+    data_train["cont"] = data_train["y"].map(lambda x: x + random.random())
     data_val = read_from_url(
         kwargs.get("data_val"),
         parse_dates=[] if data_config.time is None else [data_config.time],

@@ -1,6 +1,6 @@
 import shutil
 from glob import glob
-from anomal.enc_dec_ad.model import enc_dec_ad
+from anomal.enc_dec_ad.model import EncoderDecoderAD as enc_dec_ad
 from common.nn_detector import Detector as Predictor
 from common.data_config import AnomalDataConfig, AnomalIndexerConfig
 from common.data_utils import read_from_url
