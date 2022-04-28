@@ -128,11 +128,12 @@ class dagmm(BaseAnormal):
 
     def compute_aux(self, C: torch.tensor):
         # setup auxilary variables for computing the sample energy
-        L, V = torch.linalg.eig(C)
-        L, self.V = L.real.clone(), V.real
+        # L, V = torch.linalg.eig(C)
+        # L, self.V = L.real.clone(), V.real
+        L, self.V = torch.linalg.eigh(C)
         idx = torch.isclose(L, torch.tensor(float(0)))
         L_inv = 1 / L
-        L[idx] = 0
+        #  L[idx] = 0
         L_inv[idx] = 0  # force the negative to zero
         self.L = L
         self.L_inv = L_inv
@@ -146,7 +147,7 @@ class dagmm(BaseAnormal):
         if not hasattr(self, "L"):
             self.compute_aux(self.cov)
 
-        eps = 1e-10
+        eps = torch.tensor(1e-10)
         dim = self.cov.shape[0]
 
         # batch_size * k_clusters * (self.hidden + 2)
@@ -156,14 +157,18 @@ class dagmm(BaseAnormal):
         )
         # NOTE: this is easier and faster
         # k_clusters
-        vv = torch.prod(self.L, dim=1)
-        det_cov = vv * (2 * np.pi) ** dim
+        vv = torch.concat(
+            [
+                torch.prod(self.L[i][~torch.isclose(self.L[i], torch.tensor(float(0)))]).unsqueeze(0)
+                for i in range(self.k_clusters)
+            ]
+        )
+        det_cov = torch.max(vv * (2 * np.pi) ** dim, eps)
         # batch_size * k_clusters
         exp_term = torch.exp(-0.5 * (self.L_inv * z_mu_).unsqueeze(-2) @ z_mu_.unsqueeze(-1))[..., 0, 0]
-        sample_energy = -1.0 * torch.log(torch.sum(self.phi * exp_term / (torch.sqrt(det_cov) + eps), dim=1))
-        cov_diag = sum(
-            [torch.sum(self.L_inv.diag()) for i in range(self.k_clusters)]
-        )  # penalize item in case of singularity problem
+        sample_energy = -1.0 * torch.log(torch.sum(self.phi * exp_term / torch.sqrt(det_cov), dim=1))
+        cov_diag = torch.sum(torch.diagonal(1 / torch.max(eps, self.cov), dim1=1, dim2=2))
+        # penalize item in case of singularity problem
 
         if size_average:
             sample_energy = torch.mean(sample_energy)
