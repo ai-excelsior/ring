@@ -1,4 +1,3 @@
-from ast import arg
 import torch
 import torch.nn.functional as F
 import pandas as pd
@@ -7,7 +6,7 @@ import matplotlib.patches as mpatches
 import numpy as np
 from scipy import stats
 from torch import distributions
-from typing import List, Dict, Sequence, Tuple, Union, cast
+from typing import List, Dict
 
 from .utils import register
 from .normalizers import AbstractNormalizer
@@ -206,7 +205,7 @@ class DilateLoss(AbstractLoss):
 
         path = PathDTW.apply(distances_matrix, self._gamma)
         omega = pairwise_distances(torch.arange(1, sequence_length + 1, dtype=torch.float).to(y_pred.device))
-        loss_temporal = torch.sum(path * omega) / (sequence_length ** 2)
+        loss_temporal = torch.sum(path * omega) / (sequence_length**2)
 
         return self._alpha * loss_shape + (1 - self._alpha) * loss_temporal
 

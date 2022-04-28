@@ -1,13 +1,11 @@
 from typing import Dict, Any, List
 
-from torch import embedding
-
 from .data_config import Categorical
 from .estimators import Estimator
 from .utils import get_default_embedding_size
 import pandas as pd
 import abc
-from .utils import register, column_or_1d, num_samples, map_to_integer
+from .utils import register, column_or_1d, map_to_integer
 import numpy as np
 
 ENCODERS: Dict[str, "AbstractEncoder"] = {}

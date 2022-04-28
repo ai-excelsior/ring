@@ -1,15 +1,12 @@
 import warnings
 import pandas as pd
-from sklearn.utils import shuffle
 import torch
 import os
 import inspect
 import numpy as np
 import zipfile
 import tempfile
-import itertools
 import shutil
-from math import inf
 from oss2 import Bucket
 from glob import glob
 from copy import deepcopy
@@ -19,14 +16,13 @@ from ignite.engine import Events
 from ignite.contrib.handlers.tensorboard_logger import TensorboardLogger, global_step_from_engine
 from ignite.handlers import Checkpoint, EarlyStopping, DiskSaver
 from tabulate import tabulate
-from .loss import MAELoss, SMAPELoss, RMSELoss, MAPELoss, MSELoss, cfg_to_losses
+from .loss import cfg_to_losses
 from .metrics import RMSE, SMAPE, MAE, MSE, MAPE
 from .dataset_ano import TimeSeriesDataset
 from .serializer import dumps, loads
 from .utils import get_latest_updated_file, remove_prefix
 from .trainer_utils import (
     create_supervised_trainer,
-    prepare_batch,
     create_supervised_evaluator,
     create_parameter_evaluator,
     create_supervised_predictor,
@@ -138,7 +134,7 @@ class Detector:
             warnings.warn(f"You are attemping to load file {load}, but it not exist.")
 
         # automatically get the last updated pt file
-        if load == True:
+        if load is True:
             files = glob(f"{self.root_dir}{os.sep}*.pt")
             if len(files) == 0:
                 load = None
@@ -280,6 +276,7 @@ class Detector:
             Events.COMPLETED,
             early_stopping,
         )
+
         # estimate parameters for `enc_dec_ad`
         @trainer.on(Events.COMPLETED)
         def evalutate_parameter():

@@ -1,4 +1,3 @@
-from torch import rand
 from anomal.enc_dec_ad.model import enc_dec_ad
 from common.nn_detector import Detector
 from common.data_config import AnomalDataConfig, AnomalIndexerConfig
@@ -69,7 +68,7 @@ def ecg_test():
     # validate, see metrics
     detector.validate(ecg_test)
     # predict, see scores
-    result = detector.predict(ecg_test)
+    detector.predict(ecg_test)
 
 
 if __name__ == "__main__":

@@ -54,7 +54,7 @@ def validate(model_state: str, data_val: pd.DataFrame):
     """
     assert model_state is not None, "model_state is required when validate"
 
-    predictor = predictor.load(model_state, EncoderDecoderAD)
+    predictor = Predictor.load(model_state, EncoderDecoderAD)
     predictor.validate(data_val)
 
 
@@ -69,7 +69,7 @@ def predict(
     """
     assert model_state is not None, "model_state is required when validate"
 
-    predictor = predictor.load(model_state, EncoderDecoderAD)
+    predictor = Predictor.load(model_state, EncoderDecoderAD)
     pred_df = predictor.predict(data, plot=True)
     predictions_to_influx(
         pred_df,

@@ -3,7 +3,7 @@ import numpy as np
 import torch
 import inspect
 from copy import deepcopy
-from typing import Any, Dict, List, Tuple, Union
+from typing import Any, Dict, List, Tuple
 from torch.utils.data import Dataset, DataLoader
 
 from ring.common.data_config import DataConfig
@@ -16,7 +16,7 @@ from .normalizers import (
     serialize_normalizer,
     deserialize_normalizer,
 )
-from .encoder import AbstractEncoder, LabelEncoder, OrdinalEncoder, deserialize_encoder, serialize_encoder
+from .encoder import LabelEncoder, deserialize_encoder, serialize_encoder
 
 from .utils import get_default_embedding_size, add_time_idx
 from .encoder import create_encoder_from_cfg
@@ -130,7 +130,7 @@ class TimeSeriesDataset(Dataset):
 
         if self._add_static_known_real is None and (len(self.decoder_cont) + len(self.decoder_cat)) == 0:
             self._add_static_known_real = True
-        if self._add_static_known_real == True:
+        if self._add_static_known_real is True:
             data[STATIC_UNKNOWN_REAL_NAME] = 0.0
 
         # convert `categoricals`
@@ -213,13 +213,13 @@ class TimeSeriesDataset(Dataset):
                 *self._time_varying_known_reals,
                 *self._static_reals,
                 *self.targets,
-                *([STATIC_UNKNOWN_REAL_NAME] if self._add_static_known_real == True else []),
+                *([STATIC_UNKNOWN_REAL_NAME] if self._add_static_known_real is True else []),
             ]
 
         return [
             *self._time_varying_known_reals,
             *self.targets,
-            *([STATIC_UNKNOWN_REAL_NAME] if self._add_static_known_real == True else []),
+            *([STATIC_UNKNOWN_REAL_NAME] if self._add_static_known_real is True else []),
         ]
 
     @property

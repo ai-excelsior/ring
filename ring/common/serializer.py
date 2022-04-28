@@ -29,5 +29,5 @@ def dict_to_list(d: Dict) -> List:
     return [{"k": k, "v": v} for k, v in d.items()]
 
 
-def kv_list_to_dict(l: List) -> Dict:
-    return {item["k"]: item["v"] for item in l}
+def kv_list_to_dict(arr: List) -> Dict:
+    return {item["k"]: item["v"] for item in arr}

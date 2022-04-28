@@ -1,4 +1,4 @@
-from typing import List, Tuple
+from typing import Tuple
 
 import numpy as np
 import torch
@@ -225,7 +225,7 @@ class NBEATSTrendBlock(NBEATSBlock):
         coefficients_pre_b = torch.cat(
             [
                 torch.tensor(
-                    [backcast_linspace ** i for i in range(thetas_dim)],
+                    [backcast_linspace**i for i in range(thetas_dim)],
                     dtype=torch.float32,
                 ).unsqueeze(2)
                 for n in range(self.tar_num + self.cov_num)
@@ -236,7 +236,7 @@ class NBEATSTrendBlock(NBEATSBlock):
         coefficients_pre_f = torch.cat(
             [
                 torch.tensor(
-                    [forecast_linspace ** i for i in range(thetas_dim)],
+                    [forecast_linspace**i for i in range(thetas_dim)],
                     dtype=torch.float32,
                 ).unsqueeze(2)
                 for n in range(self.tar_num + self.cov_num)
@@ -300,9 +300,8 @@ class NBEATSGenericBlock(NBEATSBlock):
 
         self.agg_layer = nn.ModuleList([nn.Linear(tar_num + cov_num, 1) for i in range(tar_num)])
 
-
-    def forward(self, x):  # x:
-        x = super().forward(x)  #
+    def forward(self, x):
+        x = super().forward(x)
 
         theta_bs = torch.cat(
             [F.relu(self.theta_b_fc[n](x[..., n])).unsqueeze(2) for n in range(self.tar_num + self.cov_num)],

@@ -3,13 +3,9 @@ from ring.common.dataset import TimeSeriesDataset
 import torch.nn.functional as F
 import torch
 from torch import nn
-import warnings
-from torch.utils.data import DataLoader
-import sys
 from typing import List, Dict, Tuple, Union
 from copy import deepcopy
 from ring.common.base_model import BaseAnormal
-from ring.common.ml.rnn import get_rnn
 
 HIDDENSTATE = Union[Tuple[torch.Tensor, torch.Tensor], torch.Tensor]
 

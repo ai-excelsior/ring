@@ -1,8 +1,5 @@
 from dataclasses import dataclass, field
-from email.errors import CloseBoundaryNotFoundDefect
-from typing import List, Dict, Union
-
-from torch import embedding
+from typing import List, Dict
 
 from .oss_utils import get_bucket_from_oss_url
 from .serializer import loads

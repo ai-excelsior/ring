@@ -7,7 +7,6 @@ from ring.common.base_model import BaseModel
 from ring.common.ml.rnn import get_rnn
 from ring.common.ml.embeddings import AdditiveCategoricalEmbedding
 from ring.common.dataset import TimeSeriesDataset
-from ring.common.normalizers import AbstractNormalizer
 
 
 class RNNSeq2Seq(BaseModel):

@@ -3,20 +3,18 @@ import numpy as np
 import torch
 import inspect
 from copy import deepcopy
-from typing import Any, Dict, List, Tuple, Union
+from typing import Any, Dict, List, Tuple
 from torch.utils.data import Dataset, DataLoader
 
 from ring.common.data_config import DataConfig
 from .indexer import BaseIndexer, create_indexer_from_cfg, serialize_indexer, deserialize_indexer
 from .normalizers import (
-    AbstractNormalizer,
     GroupStardardNormalizer,
-    Normalizer,
     StandardNormalizer,
     serialize_normalizer,
     deserialize_normalizer,
 )
-from .encoder import AbstractEncoder, LabelEncoder, OrdinalEncoder, deserialize_encoder, serialize_encoder
+from .encoder import LabelEncoder, deserialize_encoder, serialize_encoder
 
 from .utils import get_default_embedding_size, add_time_idx
 from .encoder import create_encoder_from_cfg

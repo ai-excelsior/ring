@@ -2,7 +2,6 @@
 Encoders for encoding categorical variables and scaling continuous data.
 """
 from typing import Callable, Dict, List, Tuple, Union, Any
-import warnings
 import abc
 
 import numpy as np

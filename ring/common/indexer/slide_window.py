@@ -1,10 +1,7 @@
-from argparse import ArgumentParser
 import pandas as pd
 import numpy as np
 import warnings
-from dataclasses import dataclass, field
-from typing import Any, List
-from argparse import Namespace
+from typing import List
 
 from .base import BaseIndexer
 from .utils import find_end_indices
@@ -267,8 +264,6 @@ class SlideWindowIndexer_fixed(BaseIndexer):
         index = self._index.iloc[idx]
         index_start = index["index_start"]
         index_end = index["index_end"] + 1
-
-        steps = self._steps
 
         # TODO randomization encoder length and decoder length to improves generalization
         # return (index_start, index_start + encoder_length, index_end)

@@ -1,12 +1,8 @@
-from lib2to3.pytree import Base
-from tkinter import HIDDEN
-from scipy.fftpack import shift
 from torch import nn
 import torch
 from .dataset import TimeSeriesDataset
-from torch.utils.data import DataLoader
 from functools import cached_property
-from typing import Any, Callable, Dict, List, Tuple, Union
+from typing import Callable, Dict, List, Tuple, Union
 from ring.common.ml.embeddings import MultiEmbedding
 from ring.common.ml.rnn import get_rnn
 from ring.common.ml.utils import to_list
@@ -175,7 +171,7 @@ class AutoRegressiveBaseModelWithCovariates(BaseModel):
         else:
             # extract lags which are the same across all targets
             lags = list(next(iter(self._targets_lags.values())).values())
-            lag_names = {l: [] for l in lags}
+            lag_names = {lag_name: [] for lag_name in lags}
             for targeti_lags in self._targets_lags.values():
                 for name, l in targeti_lags.items():
                     lag_names[l].append(name)
@@ -438,7 +434,7 @@ class BaseAnormal(BaseModel):
         else:
             # extract lags which are the same across all targets
             lags = list(next(iter(self._targets_lags.values())).values())
-            lag_names = {l: [] for l in lags}
+            lag_names = {lag: [] for lag in lags}
             for targeti_lags in self._targets_lags.values():
                 for name, l in targeti_lags.items():
                     lag_names[l].append(name)

@@ -2,7 +2,6 @@ import functools
 import os
 from typing import Tuple
 import oss2
-import re
 
 from ring.common.utils import remove_prefix
 

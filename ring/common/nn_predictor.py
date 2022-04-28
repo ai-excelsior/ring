@@ -127,7 +127,7 @@ class Predictor:
             warnings.warn(f"You are attemping to load file {load}, but it not exist.")
 
         # automatically get the last updated pt file
-        if load == True:
+        if load is True:
             files = glob(f"{self.root_dir}{os.sep}*.pt")
             if len(files) == 0:
                 load = None

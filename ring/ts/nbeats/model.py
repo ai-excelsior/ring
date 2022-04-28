@@ -1,13 +1,12 @@
 import torch
 from torch import nn
-from typing import List, Dict, Tuple, Union
-from copy import deepcopy, copy
+from typing import List, Dict, Tuple
+from copy import deepcopy
 
 from ring.common.base_model import BaseModel
-from ring.common.ml.rnn import get_rnn
 from ring.common.ml.embeddings import MultiEmbedding
 from ring.common.dataset import TimeSeriesDataset
-from ring.ts.nbeats.submodules import NBEATSBlock, NBEATSGenericBlock, NBEATSSeasonalBlock, NBEATSTrendBlock
+from ring.ts.nbeats.submodules import NBEATSGenericBlock, NBEATSSeasonalBlock, NBEATSTrendBlock
 
 
 class NbeatsNetwork(BaseModel):
@@ -51,7 +50,7 @@ class NbeatsNetwork(BaseModel):
         )
 
         if model_type == "I":
-            width = [2 ** width, 2 ** (width + 2)]
+            width = [2**width, 2 ** (width + 2)]
             self.stack_types = ["trend", "seasonality"] * num_stack
             self.expansion_coefficient_lengths = [item for i in range(num_stack) for item in [3, 7]]
             self.num_blocks = [num_block for i in range(2 * num_stack)]
@@ -59,10 +58,10 @@ class NbeatsNetwork(BaseModel):
             self.widths = [item for i in range(num_stack) for item in width]
         elif model_type == "G":
             self.stack_types = ["generic"] * num_stack
-            self.expansion_coefficient_lengths = [2 ** expansion_coe for i in range(num_stack)]
+            self.expansion_coefficient_lengths = [2**expansion_coe for i in range(num_stack)]
             self.num_blocks = [num_block for i in range(num_stack)]
             self.num_block_layers = [num_block_layer for i in range(num_stack)]
-            self.widths = [2 ** width for i in range(num_stack)]
+            self.widths = [2**width for i in range(num_stack)]
         #
         # setup stacks
         self.net_blocks = nn.ModuleList()
@@ -212,7 +211,9 @@ class NbeatsNetwork(BaseModel):
         Returns:
             NBeats
         """
-        # assert dataset.max_encoder_length%dataset.max_prediction_length==0 and dataset.max_encoder_length<=10*dataset.max_prediction_length,"look back length should be 1-10 times of prediction length"
+        # assert dataset.max_encoder_length%dataset.max_prediction_length==0 and dataset.max_enco
+        # der_length<=10*dataset.max_prediction_length,"look back length should be 1-10 t
+        # imes of prediction length"
         desired_embedding_sizes = kwargs.pop("embedding_sizes", {})
         embedding_sizes = deepcopy(dataset.embedding_sizes)
         for name, size in desired_embedding_sizes.items():

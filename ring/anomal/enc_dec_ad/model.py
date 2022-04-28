@@ -1,4 +1,3 @@
-from types import CellType
 from scipy.stats import multivariate_normal
 from ring.common.dataset import TimeSeriesDataset
 import torch
