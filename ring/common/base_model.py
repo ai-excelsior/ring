@@ -6,7 +6,7 @@ from typing import Callable, Dict, List, Tuple, Union
 from ring.common.ml.embeddings import MultiEmbedding
 from ring.common.ml.rnn import get_rnn
 from ring.common.ml.utils import to_list
-import pytorch_forecasting
+
 
 HIDDENSTATE = Union[Tuple[torch.Tensor, torch.Tensor], torch.Tensor]
 
