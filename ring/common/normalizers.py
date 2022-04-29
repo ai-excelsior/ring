@@ -241,7 +241,7 @@ class GroupNormalizer(AbstractNormalizer):
 
         self._group_ids = group_ids
         self._center = center
-        self.feature_name = feature_name
+        self._feature_name = feature_name
 
     def transform_self(self, data: pd.Series, source: pd.DataFrame = None, **kwargs) -> pd.Series:
         assert self._state is not None

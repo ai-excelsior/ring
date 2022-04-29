@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import List, Dict
+from typing import List, Dict, Optional
 
 from .oss_utils import get_bucket_from_oss_url
 from .serializer import loads
@@ -9,7 +9,7 @@ from .utils import remove_prefix
 @dataclass
 class Categorical:
     name: str = field(default_factory=list)
-    embedding_sizes: int = field(default_factory=int)
+    embedding_size: Optional[int] = field(default_factory=int)
     choices: List[str] = field(default_factory=list)
 
 
@@ -62,15 +62,7 @@ def dict_to_data_config(cfg: Dict) -> DataConfig:
         look_back=cfg["indexer"]["look_back"],
         look_forward=cfg["indexer"]["look_forward"],
     )
-    cats = [
-        Categorical(
-            name=item["name"],
-            embedding_sizes=item["embedding_sizes"] if "embedding_sizes" in item else None,
-            choices=item["choices"],
-        )
-        for item in cfg["categoricals"]
-        if cfg.get("categoricals") is not None
-    ]
+    cats = [Categorical(**item) for item in cfg["categoricals"]]
     data_config = DataConfig(
         time=cfg["time"],
         freq=cfg["freq"],
@@ -97,7 +89,7 @@ def dict_to_data_config_anomal(cfg: Dict) -> DataConfig:
     cats = [
         Categorical(
             name=item["name"],
-            embedding_sizes=item["embedding_sizes"] if "embedding_sizes" in item else None,
+            embedding_size=item["embedding_sizes"] if "embedding_sizes" in item else None,
             choices=item["choices"],
         )
         for item in cfg["categoricals"]

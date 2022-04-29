@@ -36,8 +36,8 @@ def create_encoder_from_cfg(cfg: List[Categorical]) -> Dict:
     for item in cfg:
         cat_encoder[item.name] = (
             len(item.choices) + 1,  # add `unknown`
-            item.embedding_sizes
-            if item.embedding_sizes > 0
+            item.embedding_size
+            if item.embedding_size is not None
             else get_default_embedding_size(len(item.choices) + 1),
         )
 
