@@ -393,71 +393,7 @@ class RNNtype(BaseModel):
             bias=bias,
             dropout=dropout,
         )
-<<<<<<< HEAD
-        self.output_projector_decoder = nn.Linear(hidden_size, len(self._encoder_cont))
-
-    @cached_property
-    def _encoder_input_size(self) -> int:
-        """the actual input size/dim of the encoder after the categorical embedding, ignored when not considering cat"""
-        return len(self._encoder_cont) + self.encoder_embeddings.total_embedding_size()
-
-    @property
-    def reals(self) -> List[str]:
-        """lists of reals in the encoder or decoder sequence"""
-        return self._encoder_cont
-
-    @property
-    def reals_indices(self) -> List[int]:
-        """lists of the indices of reals in `x["encoder_cont"]`"""
-        return [self._encoder_cont.index(target) for target in self.reals]
-
-    @property
-    def categoricals(self) -> List[str]:
-        """lists of categoricals in the encoder or decoder sequence"""
-        return self._encoder_cat
-
-    @property
-    def categoricals_embedding(self) -> MultiEmbedding:
-        return self.encoder_embeddings
-
-    @property
-    def lagged_target_positions(self) -> Dict[int, torch.LongTensor]:
-        # todo: expand for categorical targets
-        if len(self._targets_lags) == 0:
-            pos = {}
-        else:
-            # extract lags which are the same across all targets
-            lags = list(next(iter(self._targets_lags.values())).values())
-            lag_names = {lag: [] for lag in lags}
-            for targeti_lags in self._targets_lags.values():
-                for name, l in targeti_lags.items():
-                    lag_names[l].append(name)
-
-            pos = {
-                lag: torch.tensor(
-                    [self._encoder_cont.index(name) for name in to_list(names)],
-                    dtype=torch.long,
-                )
-                for lag, names in lag_names.items()
-            }
-
-        return {
-            k: (torch.tensor(self.reals_indices) == v).nonzero(as_tuple=True)[0]
-            if len(v) == 1
-            else torch.stack(
-                [(torch.tensor(self.reals_indices) == item).nonzero(as_tuple=True)[0] for item in v]
-            ).nonzero(as_tuple=True)[0]
-            for k, v in pos.items()
-        }
-
-    def forward(self, X):
-        raise NotImplementedError()
-
-    def from_dataset(cls, dataset: TimeSeriesDataset, **kwargs) -> "BaseModel":
-        raise NotImplementedError()
-=======
         self.output_projector_decoder = nn.Linear(hidden_size, cont_size)
->>>>>>> d56be9e (extract `RNNtype`module for en-de-coder)
 
     def construct_input_vector(
         self, x_cat: torch.Tensor, x_cont: torch.Tensor, reverse: bool = False
