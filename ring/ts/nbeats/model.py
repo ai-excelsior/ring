@@ -134,6 +134,7 @@ class NbeatsNetwork(BaseModel):
                 encoder_cont.size(0),
                 self.context_length,
                 self.encoder_embeddings.total_embedding_size(),
+                device=encoder_cont.device,
             )
         )
         # self.hparams.prediction_length=gap+real_predict

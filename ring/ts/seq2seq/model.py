@@ -150,6 +150,5 @@ class RNNSeq2Seq(BaseModel):
             decoder_cat=dataset.decoder_cat,
             decoder_cont=dataset.decoder_cont,
             embedding_sizes=embedding_sizes,
-            x_categoricals=dataset.categoricals,
             **kwargs,
         )

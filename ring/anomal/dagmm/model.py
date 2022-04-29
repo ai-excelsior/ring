@@ -30,7 +30,8 @@ class dagmm(BaseAnormal):
         output_size: int = 1,
         eps=torch.tensor(1e-10),
         return_enc: bool = True,
-        encoderdecodertype: str = "RNN",
+        encoderdecodertype: str = "AUTO",
+        steps=1,
     ):
         super().__init__(
             name=name,
@@ -45,6 +46,7 @@ class dagmm(BaseAnormal):
             dropout=dropout,
             return_enc=return_enc,
             encoderdecodertype=encoderdecodertype,
+            steps=steps,
         )
 
         self.k_clusters = k_clusters
@@ -74,6 +76,7 @@ class dagmm(BaseAnormal):
             encoder_cont=dataset.encoder_cont,
             embedding_sizes=embedding_sizes,
             x_categoricals=dataset.categoricals,
+            steps=dataset.get_parameters().get("indexer").get("params").get("steps"),
             **kwargs,
         )
 
@@ -139,9 +142,9 @@ class dagmm(BaseAnormal):
 
     def compute_energy(self, z: torch.tensor = None, size_average=True, phi=None, cov=None, mu=None):
         if self.cov is None or self.mu is None or self.phi is None:
-            self.cov = torch.tensor(cov)
-            self.phi = torch.tensor(phi)
-            self.mu = torch.tensor(mu)
+            self.cov = torch.tensor(cov).to(cov.device)
+            self.phi = torch.tensor(phi).to(phi.device)
+            self.mu = torch.tensor(mu).to(mu.device)
 
         if not hasattr(self, "L"):
             self.compute_aux(self.cov)
@@ -162,9 +165,11 @@ class dagmm(BaseAnormal):
         det_cov = torch.max(cov_exe * (2 * np.pi), self.eps)
         # batch_size * k_clusters
         exp_term_tmp = -0.5 * (self.L_inv * z_mu_).unsqueeze(-2) @ z_mu_.unsqueeze(-1)
-        exp_temp = exp_term_tmp  # .clamp(max=89, min=-103)
-        exp_term = torch.exp(exp_temp)[..., 0, 0]
-        sample_energy = -torch.log(torch.sum(self.phi * exp_term / torch.sqrt(det_cov), dim=1))
+        max_val = torch.max((exp_term_tmp).clamp(min=0), dim=1, keepdim=True)[0]
+        exp_term = torch.exp(exp_term_tmp - max_val)[..., 0, 0]
+        sample_energy = -max_val.squeeze() - torch.log(
+            torch.sum(self.phi * exp_term / torch.sqrt(det_cov), dim=1)
+        )
         cov_diag = torch.sum(torch.diagonal(1 / torch.max(self.eps, self.cov), dim1=1, dim2=2))
         # penalize item in case of singularity problem
 

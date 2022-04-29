@@ -133,10 +133,12 @@ class NBEATSSeasonalBlock(NBEATSBlock):
         s1_b_pre = torch.tensor(
             [np.cos(2 * np.pi * i * backcast_linspace) for i in self.get_frequencies(p1)],
             dtype=torch.float32,
+            device=backcast_linspace.device,
         )  # H/2-1
         s2_b_pre = torch.tensor(
             [np.sin(2 * np.pi * i * backcast_linspace) for i in self.get_frequencies(p2)],
             dtype=torch.float32,
+            device=backcast_linspace.device,
         )
         # concat seasonal_backcast_pre_p1 and seasonal_backcast_pre_p2
         s_b_pre = torch.stack(
@@ -148,11 +150,13 @@ class NBEATSSeasonalBlock(NBEATSBlock):
         s1_f_pre = torch.tensor(
             [np.cos(2 * np.pi * i * forecast_linspace) for i in self.get_frequencies(p1)],
             dtype=torch.float32,
+            device=forecast_linspace.device,
         )
         # seasonal_forecast_pre_p2
         s2_f_pre = torch.tensor(
             [np.sin(2 * np.pi * i * forecast_linspace) for i in self.get_frequencies(p2)],
             dtype=torch.float32,
+            device=forecast_linspace.device,
         )
         # concat seasonal_forecast_pre_p1 and seasonal_forecast_pre_p2
         s_f_pre = torch.stack(
@@ -225,8 +229,9 @@ class NBEATSTrendBlock(NBEATSBlock):
         coefficients_pre_b = torch.cat(
             [
                 torch.tensor(
-                    [backcast_linspace**i for i in range(thetas_dim)],
+                    [backcast_linspace ** i for i in range(thetas_dim)],
                     dtype=torch.float32,
+                    device=backcast_linspace.device,
                 ).unsqueeze(2)
                 for n in range(self.tar_num + self.cov_num)
             ],
@@ -236,8 +241,9 @@ class NBEATSTrendBlock(NBEATSBlock):
         coefficients_pre_f = torch.cat(
             [
                 torch.tensor(
-                    [forecast_linspace**i for i in range(thetas_dim)],
+                    [forecast_linspace ** i for i in range(thetas_dim)],
                     dtype=torch.float32,
+                    device=forecast_linspace.device,
                 ).unsqueeze(2)
                 for n in range(self.tar_num + self.cov_num)
             ],

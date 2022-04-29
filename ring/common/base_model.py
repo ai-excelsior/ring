@@ -6,7 +6,7 @@ from typing import Callable, Dict, List, Tuple, Union
 from ring.common.ml.embeddings import MultiEmbedding
 from ring.common.ml.rnn import get_rnn
 from ring.common.ml.utils import to_list
-
+from ring.common.base_en_decoder import AutoencoderType, RnnType
 
 HIDDENSTATE = Union[Tuple[torch.Tensor, torch.Tensor], torch.Tensor]
 
@@ -144,12 +144,12 @@ class AutoRegressiveBaseModelWithCovariates(BaseModel):
         """
         pos = torch.tensor(
             [self._encoder_cont.index(name) for name in to_list(self._targets)],
-            #  device=self.device,
+            device=self._encoder_cont.device,
             dtype=torch.long,
         )
         a = torch.tensor(
             [i for i, p in enumerate(self.reals_indices) if p in pos],
-            # device=self.device,
+            device=self._encoder_cont.device,
             dtype=torch.long,
         )
         # device=self.device,
@@ -180,15 +180,23 @@ class AutoRegressiveBaseModelWithCovariates(BaseModel):
                 lag: torch.tensor(
                     [self._encoder_cont.index(name) for name in to_list(names)],
                     dtype=torch.long,
+                    device=self._encoder_cont.device,
                 )
                 for lag, names in lag_names.items()
             }
 
         return {
-            k: (torch.tensor(self.reals_indices) == v).nonzero(as_tuple=True)[0]
+            k: (torch.tensor(self.reals_indices, device=self.reals_indices.device) == v).nonzero(
+                as_tuple=True
+            )[0]
             if len(v) == 1
             else torch.stack(
-                [(torch.tensor(self.reals_indices) == item).nonzero(as_tuple=True)[0] for item in v]
+                [
+                    (torch.tensor(self.reals_indices, device=self.reals_indices.device) == item).nonzero(
+                        as_tuple=True
+                    )[0]
+                    for item in v
+                ]
             ).nonzero(as_tuple=True)[0]
             for k, v in pos.items()
         }
@@ -352,168 +360,6 @@ class AutoRegressiveBaseModelWithCovariates(BaseModel):
         return output, hidden_state_
 
 
-##########################
-class RNNtype(BaseModel):
-    def __init__(
-        self,
-        name: str = "RNN_type",
-        cont_size: int = 1,
-        # hpyerparameters
-        # data types
-        cell_type: str = "LSTM",
-        hidden_size: int = 8,
-        n_layers: int = 1,
-        dropout: float = 0,
-        encoder_embeddings: MultiEmbedding = None,
-        bias: bool = True,
-        return_enc: bool = False,
-        lagged_target_positions: Dict = {},
-    ):
-        super().__init__()
-        self.return_enc = return_enc
-        self.cont_size = cont_size
-        self.encoder_embeddings = encoder_embeddings
-        self.cell_type = cell_type
-        self.lagged_target_positions = lagged_target_positions
-
-        self.encoder = get_rnn(cell_type)(
-            input_size=cont_size + encoder_embeddings.total_embedding_size(),
-            hidden_size=hidden_size,
-            batch_first=True,
-            num_layers=n_layers,
-            bias=bias,
-            dropout=dropout,
-        )
-
-        self.decoder = get_rnn(cell_type)(
-            input_size=cont_size + encoder_embeddings.total_embedding_size(),
-            hidden_size=hidden_size,
-            batch_first=True,
-            num_layers=n_layers,
-            bias=bias,
-            dropout=dropout,
-        )
-        self.output_projector_decoder = nn.Linear(hidden_size, cont_size)
-
-    def construct_input_vector(
-        self, x_cat: torch.Tensor, x_cont: torch.Tensor, reverse: bool = False
-    ) -> torch.Tensor:
-        # create input vector
-        input_vector = []
-        # NOTE: the real-valued variables always come first in the input vector
-        if self.cont_size > 0:
-            input_vector.append(x_cont.clone())
-
-        if self.encoder_embeddings.total_embedding_size() > 0:
-            embeddings = self.encoder_embeddings(x_cat.clone(), flat=True)
-            input_vector.append(embeddings)
-
-        input_vector = torch.cat(input_vector, dim=-1)
-        if reverse:  # predict from backward
-            input_vector = input_vector.flip(1)  # reverse the input_vector by row
-
-        return input_vector
-
-    def encode(self, x: Dict[str, torch.Tensor]) -> Tuple[torch.Tensor, HIDDENSTATE]:
-        encoder_cat, encoder_cont = x["encoder_cat"], x["encoder_cont"]
-        lengths = x["encoder_length"] - 1  # skip last timestamp
-        assert lengths.min() > 0
-        input_vector = self.construct_input_vector(encoder_cat, encoder_cont)  # concat cat and cont
-        output, hidden_state = self.encoder(input_vector, lengths=lengths, enforce_sorted=False)
-        return output, hidden_state
-
-    def decode(
-        self,
-        x: Dict[str, torch.Tensor] = {},
-        hidden_state: HIDDENSTATE = None,
-        **_,
-    ) -> torch.Tensor:
-        encoder_cat, encoder_cont = x["encoder_cat"], x["encoder_cont"]
-        input_vector = self.construct_input_vector(encoder_cat, encoder_cont, reverse=True)
-        if self.training:  # the training mode where the target values are actually known
-            output, _ = self._decode(
-                input_vector=input_vector, hidden_state=hidden_state, lengths=x["encoder_length"]
-            )
-        else:  # the prediction mode, in which the target values are unknown
-            output = self.decode_autoregressive(
-                self._decode,
-                input_vector=input_vector,
-                hidden_state=hidden_state,
-                n_decoder_steps=x["encoder_length"][0],
-            )
-        return output.flip(1)  # reverse order
-
-    def _decode(
-        self,
-        input_vector: torch.Tensor,
-        hidden_state: HIDDENSTATE,
-        lengths: torch.Tensor = None,
-    ) -> Tuple[torch.Tensor, HIDDENSTATE]:
-
-        if self.cell_type == "LSTM":
-            last_value = hidden_state[0][-1, ...]
-        else:
-            last_value = hidden_state[-1, ...]
-        # {p0:h1, p1:h2, p2:h3 ... pt:ht+1}
-        output, hidden_state_ = self.decoder(
-            input_vector, hidden_state, lengths=lengths, enforce_sorted=False
-        )
-        if self.training:
-            # roll `ht+1` to p0 and adjust rest positions of `h`
-            output = output.roll(dims=1, shifts=1)
-            # replace p0:ht+1 with p0:h0
-            output[:, 0] = last_value
-
-        return self.output_projector_decoder(output), hidden_state_
-
-    def decode_autoregressive(
-        self,
-        decode_one_step: Callable,
-        input_vector: torch.Tensor,
-        hidden_state: HIDDENSTATE,
-        n_decoder_steps: int,
-        **kwargs,
-    ) -> Union[List[torch.Tensor], torch.Tensor]:
-
-        # the autoregression loop
-        # take the first predicted target from the projection of last layer of `hidden_state`
-        if self.cell_type == "LSTM":
-            predictions = [self.output_projector_decoder(hidden_state[0][-1, ...])]
-        else:
-            predictions = [self.output_projector_decoder(hidden_state[-1, ...])]
-        # the autoregression loop
-        for idx in range(n_decoder_steps - 1):
-            # batch_size * 1 * n_features
-            _input_vector = input_vector[:, [idx]]
-            # take the last predicted target values as the input for the current prediction step
-            _input_vector[:, 0, :] = predictions[-1]
-            for lag, lag_positions in self.lagged_target_positions.items():
-                # lagged values are depleted: if the current prediction step is beyond the lag
-                if idx > lag and len(lag_positions) > 0:
-                    _input_vector[:, 0, lag_positions] = predictions[-lag]
-
-            output_, hidden_state = decode_one_step(
-                input_vector=_input_vector,
-                hidden_state=hidden_state,
-                **kwargs,
-            )
-
-            output = [o.squeeze(1) for o in output_] if isinstance(output_, list) else output_.squeeze(1)
-
-            predictions.append(output)
-        pre = torch.stack(predictions, dim=1)  # row
-
-        return pre
-
-    def forward(self, x):
-        enc_output, enc_hidden = self.encode(x)
-        simulation = self.decode(x, hidden_state=enc_hidden)
-        if self.return_enc:
-            return enc_output, simulation
-        else:
-            return simulation
-
-
 class BaseAnormal(BaseModel):
     def __init__(
         self,
@@ -531,6 +377,7 @@ class BaseAnormal(BaseModel):
         n_layers: int = 1,
         dropout: float = 0,
         return_enc: bool = False,
+        steps: int = 1,
     ):
         super().__init__()
 
@@ -547,7 +394,7 @@ class BaseAnormal(BaseModel):
         )
         # encoder-decoder submodule
         if encoderdecodertype == "RNN":
-            self.encoderdecoder = RNNtype(
+            self.encoderdecoder = RnnType(
                 cont_size=len(self._encoder_cont),
                 cell_type=cell_type,
                 hidden_size=hidden_size,
@@ -559,9 +406,16 @@ class BaseAnormal(BaseModel):
                 lagged_target_positions=self.lagged_target_positions,
             )
         elif encoderdecodertype == "AUTO":
-            pass
+            self.encoderdecoder = AutoencoderType(
+                cont_size=len(self._encoder_cont),
+                encoder_embeddings=self.encoder_embeddings,
+                n_layers=n_layers,
+                dropout=dropout,
+                return_enc=return_enc,
+                hidden_size=hidden_size,
+                sequence_length=steps,
+            )
         # transform decoder-output
-        # self.output_projector_decoder = nn.Linear(hidden_size, len(self._encoder_cont))
 
     @cached_property
     def _encoder_input_size(self) -> int:
@@ -604,15 +458,23 @@ class BaseAnormal(BaseModel):
                 lag: torch.tensor(
                     [self._encoder_cont.index(name) for name in to_list(names)],
                     dtype=torch.long,
+                    device=self._encoder_cont.device,
                 )
                 for lag, names in lag_names.items()
             }
 
         return {
-            k: (torch.tensor(self.reals_indices) == v).nonzero(as_tuple=True)[0]
+            k: (torch.tensor(self.reals_indices, device=self.reals_indices.device) == v).nonzero(
+                as_tuple=True
+            )[0]
             if len(v) == 1
             else torch.stack(
-                [(torch.tensor(self.reals_indices) == item).nonzero(as_tuple=True)[0] for item in v]
+                [
+                    (torch.tensor(self.reals_indices, device=self.reals_indices.device) == item).nonzero(
+                        as_tuple=True
+                    )[0]
+                    for item in v
+                ]
             ).nonzero(as_tuple=True)[0]
             for k, v in pos.items()
         }
