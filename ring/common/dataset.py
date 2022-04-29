@@ -80,13 +80,15 @@ class TimeSeriesDataset(Dataset):
                     )
                 else:
                     self._target_normalizers.append(StandardNormalizer(feature_name=_))
+
         # categorical encoder
         if len(self._categorical_encoders) == 0:
             for cat in self.categoricals:
                 self._categorical_encoders.append(LabelEncoder(feature_name=cat))
-        # cont scalar
+
+        # continouse scalar
         if len(self._cont_scalars) == 0:
-            for cont in self.encoder_cont:
+            for i, cont in enumerate(set(self.encoder_cont) - set(self.targets)):
                 if len(self._group_ids) > 0:
                     self._cont_scalars.append(
                         GroupStardardNormalizer(group_ids=self._group_ids, feature_name=cont)
@@ -98,14 +100,6 @@ class TimeSeriesDataset(Dataset):
         assert all(
             group_id in data.columns for group_id in group_ids
         ), f"Please make sure all {group_ids} is in the data"
-        # 确保data中的group_ids都为int，方便将其embedding后作为特征
-        assert all(
-            data[group_id].dtype.kind == "i" for group_id in group_ids
-        ), f"all {group_ids} columns should be int encoded"
-        # groupd_ids默认会被放置在_static_categoricals
-        for group_id in group_ids:
-            if group_id not in self._static_categoricals:
-                self._static_categoricals.append(group_id)
 
         # 对于所有categoricals值，创建默认的embedding_size
         for categorical_name in self.categoricals:
@@ -120,20 +114,7 @@ class TimeSeriesDataset(Dataset):
         data.reset_index(drop=True, inplace=True)
         self._indexer.index(data, predict_mode)
 
-        # fit target normalizers
-        for i, target_name in enumerate(self._targets):
-            normalizer = self._target_normalizers[i]
-            if not normalizer.fitted:
-                data[target_name] = normalizer.fit_transform(data[target_name], data)
-            else:
-                data[target_name] = normalizer.transform(data[target_name], data)
-
-        if self._add_static_known_real is None and (len(self.decoder_cont) + len(self.decoder_cat)) == 0:
-            self._add_static_known_real = True
-        if self._add_static_known_real is True:
-            data[STATIC_UNKNOWN_REAL_NAME] = 0.0
-
-        # convert `categoricals`
+        # fit categoricals
         for i, cat in enumerate(self.categoricals):
             encoder = self._categorical_encoders[i]
             if not encoder.fitted:
@@ -142,6 +123,15 @@ class TimeSeriesDataset(Dataset):
             else:
                 data[cat] = encoder.transform(data[cat].astype(str), self.embedding_sizes)
 
+        # fit target normalizers
+        for i, target_name in enumerate(self._targets):
+            normalizer = self._target_normalizers[i]
+            if not normalizer.fitted:
+                data[target_name] = normalizer.fit_transform(data[target_name], data)
+            else:
+                data[target_name] = normalizer.transform(data[target_name], data)
+
+        # fit continous scalar
         for i, cont in enumerate(list(set(self.encoder_cont).difference(set(self.targets)))):
             scalar = self._cont_scalars[i]
             if not scalar.fitted:
@@ -150,6 +140,11 @@ class TimeSeriesDataset(Dataset):
                 data[cont] = scalar.transform(data[cont], data)
 
         self._data = data
+
+        if self._add_static_known_real is None and (len(self.decoder_cont) + len(self.decoder_cat)) == 0:
+            self._add_static_known_real = True
+        if self._add_static_known_real is True:
+            data[STATIC_UNKNOWN_REAL_NAME] = 0.0
 
     @property
     def targets(self):
@@ -174,6 +169,7 @@ class TimeSeriesDataset(Dataset):
     @property
     def categoricals(self):
         return [
+            *self._group_ids,
             *self._static_categoricals,
             *self._time_varying_known_categoricals,
             *self._time_varying_unknown_categoricals,
