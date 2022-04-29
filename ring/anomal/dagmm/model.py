@@ -28,6 +28,9 @@ class dagmm(BaseAnormal):
         mu: torch.tensor = None,
         cov: torch.tensor = None,
         output_size: int = 1,
+        eps=torch.tensor(1e-10),
+        return_enc: bool = True,
+        encoderdecodertype: str = "RNN",
     ):
         super().__init__(
             name=name,
@@ -40,22 +43,24 @@ class dagmm(BaseAnormal):
             hidden_size=hidden_size,
             n_layers=n_layers,
             dropout=dropout,
+            return_enc=return_enc,
+            encoderdecodertype=encoderdecodertype,
         )
-        self.cell_type = cell_type
-        self.hidden_size = hidden_size
+
         self.k_clusters = k_clusters
         self.mu = mu
         self.cov = cov
         self.phi = phi
-
+        self.project = nn.Linear(hidden_size, 5 + int(len(self.reals) / 20))
         layers = [
-            nn.Linear(hidden_size + 2, 10),
+            nn.Linear(5 + int(len(self.reals) / 20) + 2, 10),
             nn.Tanh(),
-            nn.Dropout(dropout),
+            nn.Dropout(0.5),
             nn.Linear(10, k_clusters),
             nn.Softmax(dim=1),
         ]
         self.estimate = nn.Sequential(*layers)
+        self.eps = eps
 
     @classmethod
     def from_dataset(cls, dataset: TimeSeriesDataset, **kwargs):
@@ -74,8 +79,8 @@ class dagmm(BaseAnormal):
 
     def forward(self, x: Dict[str, torch.Tensor], mode=None, **kwargs) -> Dict[str, torch.Tensor]:
         # low-projection and hidden
-        enc_output, enc_hidden = self.encode(x)
-        dec = self.decode(x, hidden_state=enc_hidden)
+        enc_output, dec = self.encoderdecoder(x)
+        # enc_output,dec=self.encoderdecoder(x,return_enc=True)
         batch_size = enc_output.shape[0]
         # reconstruction error
         rec_cosine = F.cosine_similarity(
@@ -85,9 +90,10 @@ class dagmm(BaseAnormal):
             2, dim=1
         ) / torch.clamp(x["encoder_cont"].reshape(batch_size, -1).norm(2, dim=1), min=1e-10)
         # concat low-projection with reconstruction error
+        enc_reduce = self.project(enc_output[:, -1])
         z = torch.cat(
             [
-                enc_output[:, -1],  # last position of `output` equals to last layer of `hidden_state`
+                enc_reduce,  # enc_output[:, -1],  # last position of `output` equals to last layer of `hidden_state`
                 rec_euclidean.unsqueeze(-1),
                 rec_cosine.unsqueeze(-1),
             ],
@@ -124,12 +130,12 @@ class dagmm(BaseAnormal):
 
     def compute_aux(self, C: torch.tensor):
         # setup auxilary variables for computing the sample energy
-        L, self.V = torch.linalg.eigh(C)
+        L, self.V = torch.linalg.eigh(C + self.eps)  # decompos0-ition
         idx = torch.isclose(L, torch.tensor(float(0)))
         L_inv = 1 / L
         L_inv[idx] = 0  # force the negative to zero
-        self.L = L
-        self.L_inv = L_inv
+        self.L = L  # eigenvalue
+        self.L_inv = L_inv  # eigenvalue of inverse matric
 
     def compute_energy(self, z: torch.tensor = None, size_average=True, phi=None, cov=None, mu=None):
         if self.cov is None or self.mu is None or self.phi is None:
@@ -139,9 +145,6 @@ class dagmm(BaseAnormal):
 
         if not hasattr(self, "L"):
             self.compute_aux(self.cov)
-
-        eps = torch.tensor(1e-10)
-        dim = self.cov.shape[0]
 
         # batch_size * k_clusters * (self.hidden + 2)
         z_mu = z.unsqueeze(1) - self.mu.unsqueeze(0)
@@ -156,11 +159,13 @@ class dagmm(BaseAnormal):
                 for i in range(self.k_clusters)
             ]
         )
-        det_cov = torch.max(cov_exe * (2 * np.pi) ** dim, eps)
+        det_cov = torch.max(cov_exe * (2 * np.pi), self.eps)
         # batch_size * k_clusters
-        exp_term = torch.exp(-0.5 * (self.L_inv * z_mu_).unsqueeze(-2) @ z_mu_.unsqueeze(-1))[..., 0, 0]
-        sample_energy = -1.0 * torch.log(torch.sum(self.phi * exp_term / torch.sqrt(det_cov), dim=1))
-        cov_diag = torch.sum(torch.diagonal(1 / torch.max(eps, self.cov), dim1=1, dim2=2))
+        exp_term_tmp = -0.5 * (self.L_inv * z_mu_).unsqueeze(-2) @ z_mu_.unsqueeze(-1)
+        exp_temp = exp_term_tmp  # .clamp(max=89, min=-103)
+        exp_term = torch.exp(exp_temp)[..., 0, 0]
+        sample_energy = -torch.log(torch.sum(self.phi * exp_term / torch.sqrt(det_cov), dim=1))
+        cov_diag = torch.sum(torch.diagonal(1 / torch.max(self.eps, self.cov), dim1=1, dim2=2))
         # penalize item in case of singularity problem
 
         if size_average:
@@ -184,7 +189,7 @@ class dagmm(BaseAnormal):
 
     def predict(self, output: tuple = None, **kwargs):
         sample_energy, _ = self.compute_energy(
-            output[0],
+            z=output[0],
             size_average=False,
             phi=kwargs["phi"],
             mu=kwargs["mu"],

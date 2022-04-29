@@ -353,53 +353,47 @@ class AutoRegressiveBaseModelWithCovariates(BaseModel):
 
 
 ##########################
-class BaseAnormal(BaseModel):
+class RNNtype(BaseModel):
     def __init__(
         self,
-        name: str = None,
+        name: str = "RNN_type",
+        cont_size: int = 1,
         # hpyerparameters
         # data types
-        encoder_cont: List[str] = [],
-        encoder_cat: List[str] = [],
-        x_categoricals: List[str] = [],
-        embedding_sizes: Dict[str, Tuple[int, int]] = {},
-        target_lags: Dict = {},
         cell_type: str = "LSTM",
         hidden_size: int = 8,
         n_layers: int = 1,
         dropout: float = 0,
+        encoder_embeddings: MultiEmbedding = None,
+        bias: bool = True,
+        return_enc: bool = False,
+        lagged_target_positions: Dict = {},
     ):
         super().__init__()
+        self.return_enc = return_enc
+        self.cont_size = cont_size
+        self.encoder_embeddings = encoder_embeddings
+        self.cell_type = cell_type
+        self.lagged_target_positions = lagged_target_positions
 
-        self._encoder_cont = encoder_cont
-        self._encoder_cat = encoder_cat
-        self._x_categoricals = x_categoricals
-        self._targets_lags = target_lags
-
-        self.encoder_embeddings = MultiEmbedding(
-            embedding_sizes=embedding_sizes,
-            embedding_paddings=[],
-            categorical_groups={},
-            x_categoricals=x_categoricals,
-        )
-        # only cont are considered, so `input_size` is this way
         self.encoder = get_rnn(cell_type)(
-            input_size=len(self._encoder_cont),
+            input_size=cont_size + encoder_embeddings.total_embedding_size(),
             hidden_size=hidden_size,
             batch_first=True,
             num_layers=n_layers,
-            bias=True,
+            bias=bias,
             dropout=dropout,
         )
 
         self.decoder = get_rnn(cell_type)(
-            input_size=len(self._encoder_cont),
+            input_size=cont_size + encoder_embeddings.total_embedding_size(),
             hidden_size=hidden_size,
             batch_first=True,
             num_layers=n_layers,
-            bias=True,
+            bias=bias,
             dropout=dropout,
         )
+<<<<<<< HEAD
         self.output_projector_decoder = nn.Linear(hidden_size, len(self._encoder_cont))
 
     @cached_property
@@ -461,6 +455,9 @@ class BaseAnormal(BaseModel):
 
     def from_dataset(cls, dataset: TimeSeriesDataset, **kwargs) -> "BaseModel":
         raise NotImplementedError()
+=======
+        self.output_projector_decoder = nn.Linear(hidden_size, cont_size)
+>>>>>>> d56be9e (extract `RNNtype`module for en-de-coder)
 
     def construct_input_vector(
         self, x_cat: torch.Tensor, x_cont: torch.Tensor, reverse: bool = False
@@ -468,11 +465,11 @@ class BaseAnormal(BaseModel):
         # create input vector
         input_vector = []
         # NOTE: the real-valued variables always come first in the input vector
-        if len(self.reals) > 0:
+        if self.cont_size > 0:
             input_vector.append(x_cont.clone())
 
-        if len(self.categoricals) > 0:
-            embeddings = self.categoricals_embedding(x_cat.clone(), flat=True)
+        if self.encoder_embeddings.total_embedding_size() > 0:
+            embeddings = self.encoder_embeddings(x_cat.clone(), flat=True)
             input_vector.append(embeddings)
 
         input_vector = torch.cat(input_vector, dim=-1)
@@ -571,6 +568,124 @@ class BaseAnormal(BaseModel):
         pre = torch.stack(predictions, dim=1)  # row
 
         return pre
+
+    def forward(self, x):
+        enc_output, enc_hidden = self.encode(x)
+        simulation = self.decode(x, hidden_state=enc_hidden)
+        if self.return_enc:
+            return enc_output, simulation
+        else:
+            return simulation
+
+
+class BaseAnormal(BaseModel):
+    def __init__(
+        self,
+        name: str = None,
+        # hpyerparameters
+        # data types
+        encoderdecodertype: str = "RNN",
+        encoder_cont: List[str] = [],
+        encoder_cat: List[str] = [],
+        x_categoricals: List[str] = [],
+        embedding_sizes: Dict[str, Tuple[int, int]] = {},
+        target_lags: Dict = {},
+        cell_type: str = "LSTM",
+        hidden_size: int = 8,
+        n_layers: int = 1,
+        dropout: float = 0,
+        return_enc: bool = False,
+    ):
+        super().__init__()
+
+        self._encoder_cont = encoder_cont
+        self._encoder_cat = encoder_cat
+        self._x_categoricals = x_categoricals
+        self._targets_lags = target_lags
+
+        self.encoder_embeddings = MultiEmbedding(
+            embedding_sizes=embedding_sizes,
+            embedding_paddings=[],
+            categorical_groups={},
+            x_categoricals=x_categoricals,
+        )
+        # encoder-decoder submodule
+        if encoderdecodertype == "RNN":
+            self.encoderdecoder = RNNtype(
+                cont_size=len(self._encoder_cont),
+                cell_type=cell_type,
+                hidden_size=hidden_size,
+                encoder_embeddings=self.encoder_embeddings,
+                n_layers=n_layers,
+                bias=True,
+                dropout=dropout,
+                return_enc=return_enc,
+                lagged_target_positions=self.lagged_target_positions,
+            )
+        elif encoderdecodertype == "AUTO":
+            pass
+        # transform decoder-output
+        # self.output_projector_decoder = nn.Linear(hidden_size, len(self._encoder_cont))
+
+    @cached_property
+    def _encoder_input_size(self) -> int:
+        """the actual input size/dim of the encoder after the categorical embedding, ignored when not considering cat"""
+        return len(self._encoder_cont) + self.encoder_embeddings.total_embedding_size()
+
+    @property
+    def reals(self) -> List[str]:
+        """lists of reals in the encoder or decoder sequence"""
+        return self._encoder_cont
+
+    @property
+    def reals_indices(self) -> List[int]:
+        """lists of the indices of reals in `x["encoder_cont"]`"""
+        return [self._encoder_cont.index(target) for target in self.reals]
+
+    @property
+    def categoricals(self) -> List[str]:
+        """lists of categoricals in the encoder or decoder sequence"""
+        return self._encoder_cat
+
+    @property
+    def categoricals_embedding(self) -> MultiEmbedding:
+        return self.encoder_embeddings
+
+    @property
+    def lagged_target_positions(self) -> Dict[int, torch.LongTensor]:
+        # todo: expand for categorical targets
+        if len(self._targets_lags) == 0:
+            pos = {}
+        else:
+            # extract lags which are the same across all targets
+            lags = list(next(iter(self._targets_lags.values())).values())
+            lag_names = {l: [] for l in lags}
+            for targeti_lags in self._targets_lags.values():
+                for name, l in targeti_lags.items():
+                    lag_names[l].append(name)
+
+            pos = {
+                lag: torch.tensor(
+                    [self._encoder_cont.index(name) for name in to_list(names)],
+                    dtype=torch.long,
+                )
+                for lag, names in lag_names.items()
+            }
+
+        return {
+            k: (torch.tensor(self.reals_indices) == v).nonzero(as_tuple=True)[0]
+            if len(v) == 1
+            else torch.stack(
+                [(torch.tensor(self.reals_indices) == item).nonzero(as_tuple=True)[0] for item in v]
+            ).nonzero(as_tuple=True)[0]
+            for k, v in pos.items()
+        }
+
+    def forward(self, x):
+        raise NotImplementedError()
+
+    def from_dataset(cls, dataset: TimeSeriesDataset, **kwargs) -> "BaseModel":
+        raise NotImplementedError()
 
     def calculate_params(self, **kwargs):
         """

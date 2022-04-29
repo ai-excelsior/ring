@@ -23,6 +23,8 @@ class EncoderDecoderAD(BaseAnormal):
         encoder_cat: List[str] = [],
         target_lags: Dict = {},
         output_size: int = 1,
+        return_enc: bool = False,
+        encoderdecodertype: str = "RNN",
     ):
         super().__init__(
             name=name,
@@ -35,10 +37,9 @@ class EncoderDecoderAD(BaseAnormal):
             hidden_size=hidden_size,
             n_layers=n_layers,
             dropout=dropout,
+            return_enc=return_enc,
+            encoderdecodertype=encoderdecodertype,
         )
-
-        self.hidden_size = hidden_size
-        self.cell_type = cell_type
 
     @classmethod
     def from_dataset(cls, dataset: TimeSeriesDataset, **kwargs):
@@ -57,8 +58,7 @@ class EncoderDecoderAD(BaseAnormal):
 
     def forward(self, x: Dict[str, torch.Tensor], mode=None, **kwargs) -> Dict[str, torch.Tensor]:
 
-        enc_output, enc_hidden = self.encode(x)
-        simulation = self.decode(x, hidden_state=enc_hidden)
+        simulation = self.encoderdecoder(x)
 
         return simulation
 
