@@ -30,9 +30,10 @@ class dagmm(BaseAnormal):
         output_size: int = 1,
         eps=torch.tensor(1e-10),
         return_enc: bool = True,
-        encoderdecodertype: str = "AUTO",
+        encoderdecodertype: str = "RNN",
         steps=1,
     ):
+        self.hidden_size = min(5 + int(output_size / 20), hidden_size)
         super().__init__(
             name=name,
             embedding_sizes=embedding_sizes,
@@ -41,7 +42,7 @@ class dagmm(BaseAnormal):
             encoder_cont=encoder_cont,
             encoder_cat=encoder_cat,
             cell_type=cell_type,
-            hidden_size=hidden_size,
+            hidden_size=self.hidden_size,
             n_layers=n_layers,
             dropout=dropout,
             return_enc=return_enc,
@@ -53,9 +54,16 @@ class dagmm(BaseAnormal):
         self.mu = mu
         self.cov = cov
         self.phi = phi
-        self.project = nn.Linear(hidden_size, 5 + int(len(self.reals) / 20))
+
+        if encoderdecodertype == "RNN":
+            project = self.hidden_size + 2
+        elif encoderdecodertype == "AUTO":
+            project = self.hidden_size * steps + 2  # because of the flatten
+        else:
+            raise ValueError("encoderdecodertype can only be RNN or AUTO")
+
         layers = [
-            nn.Linear(5 + int(len(self.reals) / 20) + 2, 10),
+            nn.Linear(project, 10),
             nn.Tanh(),
             nn.Dropout(0.5),
             nn.Linear(10, k_clusters),
@@ -93,15 +101,14 @@ class dagmm(BaseAnormal):
             2, dim=1
         ) / torch.clamp(x["encoder_cont"].reshape(batch_size, -1).norm(2, dim=1), min=1e-10)
         # concat low-projection with reconstruction error
-        enc_reduce = self.project(enc_output[:, -1])
         z = torch.cat(
-            [
-                enc_reduce,  # enc_output[:, -1],  # last position of `output` equals to last layer of `hidden_state`
+            [  # enc_output[:, -1],  # last position of `output` equals to last layer of `hidden_state`
+                enc_output[:, -1],
                 rec_euclidean.unsqueeze(-1),
                 rec_cosine.unsqueeze(-1),
             ],
             dim=1,
-        )  # batch_size * (self.hidden + 2)
+        )  # batch_size * (self.hidden_size + 2)
         gamma = self.estimate(z)  # batch_size * k_clusters
 
         if mode != "predict":
@@ -142,9 +149,9 @@ class dagmm(BaseAnormal):
 
     def compute_energy(self, z: torch.tensor = None, size_average=True, phi=None, cov=None, mu=None):
         if self.cov is None or self.mu is None or self.phi is None:
-            self.cov = torch.tensor(cov).to(cov.device)
-            self.phi = torch.tensor(phi).to(phi.device)
-            self.mu = torch.tensor(mu).to(mu.device)
+            self.cov = torch.tensor(cov).to(z.device)
+            self.phi = torch.tensor(phi).to(z.device)
+            self.mu = torch.tensor(mu).to(z.device)
 
         if not hasattr(self, "L"):
             self.compute_aux(self.cov)
