@@ -202,6 +202,7 @@ class AutoencoderType(BaseType):
 
         # flatten
         initial_size = sequence_length * (cont_size + encoder_embeddings.total_embedding_size())
+        # encoder_layer += [nn.Tanh()]
         encoder_layer = []
         encoder_layer += [nn.Linear(118, 60)]
         encoder_layer += [nn.Tanh()]
@@ -210,7 +211,7 @@ class AutoencoderType(BaseType):
         encoder_layer += [nn.Linear(30, 10)]
         encoder_layer += [nn.Tanh()]
         encoder_layer += [nn.Linear(10, 1)]
-        # if not self.n_layers:
+        # if self.n_layers == 1:
         #     hidden_list = (
         #         2 ** np.arange(max(np.ceil(np.log2(hidden_size)), 2), np.log2(initial_size))[1:][::-1]
         #     )
@@ -221,7 +222,7 @@ class AutoencoderType(BaseType):
         # for i in range(len(hidden_list) - 1):
         #     encoder_layer.extend([nn.Linear(hidden_list[i], hidden_list[i + 1]), nn.Tanh()])
         # encoder_layer.extend([nn.Linear(hidden_list[i + 1], hidden_size)])
-        # self.encoder = nn.Sequential(*encoder_layer)
+        self.encoder = nn.Sequential(*encoder_layer)
         # # decoder part
         # decoder_layer = [nn.Linear(hidden_size, hidden_list[-1]), nn.Tanh()]
         # for i in range(len(hidden_list) - 1, 0, -1):
@@ -236,7 +237,6 @@ class AutoencoderType(BaseType):
         decoder_layer += [nn.Linear(30, 60)]
         decoder_layer += [nn.Tanh()]
         decoder_layer += [nn.Linear(60, 118)]
-
         self.decoder = nn.Sequential(*decoder_layer)
 
     def forward(self, x):
@@ -247,7 +247,11 @@ class AutoencoderType(BaseType):
         enc = self.encoder(flattened_input)
         dec = self.decoder(enc)
 
+        # `AutoencoderType` dont have `layers`
+        # so `enc`::batch_size * hidden_size should be unsqueezed to match the output format of `RnnType`::batch_size * layers * hidden_size
+        # `input_vector` have been flattened to batch_size * (steps * features)
+        # so `dec`::batch_size * (steps * features) should be reshape to match the reconstruction format of `RnnType`::batch_size * steps * features
         if self.return_enc:
-            return dec, enc
+            return enc.unsqueeze(1), dec.view(input_vector.size())
         else:
             return dec

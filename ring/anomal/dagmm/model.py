@@ -57,7 +57,7 @@ class dagmm(BaseAnormal):
 
         if encoderdecodertype == "RNN":
             project = self.hidden_size + 2
-        elif encoderdecodertype == "AUTO":
+        elif encoderdecodertype in ["AUTO", "VAE"]:
             project = self.hidden_size * steps + 2  # because of the flatten
         else:
             raise ValueError("encoderdecodertype can only be RNN or AUTO")
@@ -91,7 +91,9 @@ class dagmm(BaseAnormal):
     def forward(self, x: Dict[str, torch.Tensor], mode=None, **kwargs) -> Dict[str, torch.Tensor]:
         # low-projection and hidden
         enc_output, dec = self.encoderdecoder(x)
-        # enc_output,dec=self.encoderdecoder(x,return_enc=True)
+        # if encoderdecodertype == "VAE":
+        #   kl_loss=dec[1]
+        #   dec=dec[0]
         batch_size = enc_output.shape[0]
         # reconstruction error
         rec_cosine = F.cosine_similarity(
