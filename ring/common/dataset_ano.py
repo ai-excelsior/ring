@@ -1,3 +1,4 @@
+from audioop import minmax
 import pandas as pd
 import numpy as np
 import torch
@@ -9,7 +10,9 @@ from torch.utils.data import Dataset, DataLoader
 from ring.common.data_config import DataConfig
 from .indexer import BaseIndexer, create_indexer_from_cfg, serialize_indexer, deserialize_indexer
 from .normalizers import (
+    GroupMinMaxNormalizer,
     GroupStardardNormalizer,
+    MinMaxNormalizer,
     StandardNormalizer,
     serialize_normalizer,
     deserialize_normalizer,
@@ -37,7 +40,7 @@ class TimeSeriesDataset(Dataset):
         embedding_sizes: Dict[str, Tuple[str, str]] = None,
         # normalizers
         categorical_encoders: List[LabelEncoder] = [],
-        cont_scalars: List[StandardNormalizer] = [],
+        cont_scalars: List[MinMaxNormalizer] = [],
         # toggles
         last_only=False,  # using last_only mode to index
         start_index=None,  # specify start point to detect
@@ -70,10 +73,10 @@ class TimeSeriesDataset(Dataset):
             for cont in self.encoder_cont:
                 if len(self._group_ids) > 0:
                     self._cont_scalars.append(
-                        GroupStardardNormalizer(group_ids=self._group_ids, feature_name=cont)
+                        GroupMinMaxNormalizer(group_ids=self._group_ids, feature_name=cont)
                     )
                 else:
-                    self._cont_scalars.append(StandardNormalizer(feature_name=cont))
+                    self._cont_scalars.append(MinMaxNormalizer(feature_name=cont))
 
         assert all(
             group_id in data.columns for group_id in group_ids
