@@ -132,7 +132,7 @@ class TimeSeriesDataset(Dataset):
                 data[target_name] = normalizer.transform(data[target_name], data)
 
         # fit continous scalar
-        for i, cont in enumerate(list(set(self.encoder_cont).difference(set(self.targets)))):
+        for i, cont in enumerate(set(self.encoder_cont) - set(self.targets)):
             scalar = self._cont_scalars[i]
             if not scalar.fitted:
                 data[cont] = scalar.fit_transform(data[cont], data)
