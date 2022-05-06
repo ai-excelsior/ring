@@ -6,7 +6,8 @@ from typing import Callable, Dict, List, Tuple, Union
 from ring.common.ml.embeddings import MultiEmbedding
 from ring.common.ml.rnn import get_rnn
 from ring.common.ml.utils import to_list
-from ring.common.base_en_decoder import AutoencoderType, RnnType
+from ring.common.base_en_decoder import AutoencoderType, RnnType,VariAutoencoderType
+
 
 HIDDENSTATE = Union[Tuple[torch.Tensor, torch.Tensor], torch.Tensor]
 
@@ -410,7 +411,17 @@ class BaseAnormal(BaseModel):
                 cont_size=len(self._encoder_cont),
                 encoder_embeddings=self.encoder_embeddings,
                 n_layers=n_layers,
-                dropout=dropout,
+                # dropout=dropout,
+                return_enc=return_enc,
+                hidden_size=hidden_size,
+                sequence_length=steps,
+            )
+        elif encoderdecodertype == "VAE":
+            self.encoderdecoder = VariAutoencoderType(
+                cont_size=len(self._encoder_cont),
+                encoder_embeddings=self.encoder_embeddings,
+                n_layers=n_layers,
+                # dropout=dropout,
                 return_enc=return_enc,
                 hidden_size=hidden_size,
                 sequence_length=steps,
