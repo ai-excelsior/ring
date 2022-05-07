@@ -135,8 +135,10 @@ class dagmm(BaseAnormal):
 
     def compute_aux(self, C: torch.tensor):
         # setup auxilary variables for computing the sample energy
-        D = torch.stack([C[i] + torch.eye(C[i].shape[1]) * self.eps for i in range(self.k_clusters)], dim=0)
-        L, self.V = torch.linalg.eigh(D)  # decompos0-ition
+        C_sta = torch.stack(
+            [C[i] + torch.eye(C[i].shape[1]) * self.eps for i in range(self.k_clusters)], dim=0
+        )
+        L, self.V = torch.linalg.eigh(C_sta)  # decompos0-ition
         idx = torch.isclose(L, torch.tensor(float(0)))
         L_inv = 1 / L
         L_inv[idx] = 0  # force the negative to zero
