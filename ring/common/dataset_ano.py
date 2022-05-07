@@ -282,7 +282,7 @@ class TimeSeriesDataset(Dataset):
         if gaussian:
             default_kwargs = dict(
                 shuffle=train if not sampler else False,
-                drop_last=train and len(self) > batch_size if not sampler else True,
+                drop_last=train and len(self) > batch_size,
                 collate_fn=self._collate_fn,
                 batch_size=batch_size,
                 sampler=sampler(np.random.permutation(len(self))[-int(len(self) * ratio) :])
@@ -292,7 +292,7 @@ class TimeSeriesDataset(Dataset):
         else:
             default_kwargs = dict(
                 shuffle=train if not sampler else False,
-                drop_last=(train and len(self) > batch_size) if not sampler else True,
+                drop_last=train and len(self) > batch_size,
                 collate_fn=self._collate_fn,
                 batch_size=batch_size,
                 sampler=sampler(np.random.permutation(len(self))[: -int(len(self) * ratio)])
