@@ -6,7 +6,7 @@ from typing import Callable, Dict, List, Tuple, Union
 from ring.common.ml.embeddings import MultiEmbedding
 from ring.common.ml.rnn import get_rnn
 from ring.common.ml.utils import to_list
-from ring.common.base_en_decoder import AutoencoderType, RnnType,VariAutoencoderType
+from ring.common.base_en_decoder import AutoencoderType, RnnType, VariAutoencoderType
 
 
 HIDDENSTATE = Union[Tuple[torch.Tensor, torch.Tensor], torch.Tensor]
@@ -145,12 +145,10 @@ class AutoRegressiveBaseModelWithCovariates(BaseModel):
         """
         pos = torch.tensor(
             [self._encoder_cont.index(name) for name in to_list(self._targets)],
-            device=self._encoder_cont.device,
             dtype=torch.long,
         )
         a = torch.tensor(
             [i for i, p in enumerate(self.reals_indices) if p in pos],
-            device=self._encoder_cont.device,
             dtype=torch.long,
         )
         # device=self.device,
@@ -230,12 +228,12 @@ class AutoRegressiveBaseModelWithCovariates(BaseModel):
         # shift the target variables by one time step into the future
         # when `encode`, this make sure the non-overlapping of `hidden_state` and `input_vector` used in `decode` lately
         # when `decode`, this make sure the first predict target is known thus can be directly taken from `input_vector`
-        input_vector[..., self.target_positions] = input_vector[..., self.target_positions].roll(
-            shifts=1, dims=1
-        )
+        input_vector[..., self.target_positions.to(input_vector.device)] = input_vector[
+            ..., self.target_positions.to(input_vector.device)
+        ].roll(shifts=1, dims=1)
 
         if first_target is not None:  # set first target input (which is rolled over)
-            input_vector[:, 0, self.target_positions] = first_target
+            input_vector[:, 0, self.target_positions.to(input_vector.device)] = first_target
         # else:  # or drop the last time step, can be done by x["encoder_length"] - 1
         #     input_vector = input_vector[:, :-1]
         return input_vector
@@ -271,12 +269,12 @@ class AutoRegressiveBaseModelWithCovariates(BaseModel):
         predictions = list()
         # the first predicted target can be directly obtained from data
         # because the last row of `encoder_cont`(known) has been taken to replace the first roll of rolled `input_vector`
-        normalized_target = [input_vector[:, 0, self.target_positions]]
+        normalized_target = [input_vector[:, 0, self.target_positions.to(input_vector.device)]]
         # the autoregression loop
         for idx in range(n_decoder_steps):
             _input_vector = input_vector[:, [idx]]
             # take the last predicted target values as the input for the current prediction step
-            _input_vector[:, 0, self.target_positions] = normalized_target[-1]
+            _input_vector[:, 0, self.target_positions.to(_input_vector.device)] = normalized_target[-1]
             for lag, lag_positions in self.lagged_target_positions.items():
                 # lagged values are depleted: if the current prediction step is beyond the lag
                 if idx > lag and len(lag_positions) > 0:
