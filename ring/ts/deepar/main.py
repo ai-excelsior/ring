@@ -9,7 +9,7 @@ from model import DeepAR
 
 
 def train(data_config: DataConfig, data_train: pd.DataFrame, data_val: pd.DataFrame, **kwargs):
-    model_state = kwargs.get("model_state", None)
+    model_state = kwargs.get("load_state", None)
 
     trainer_cfg = {
         "batch_size": kwargs["batch_size"],
@@ -34,13 +34,15 @@ def train(data_config: DataConfig, data_train: pd.DataFrame, data_val: pd.DataFr
             },
             loss_cfg=kwargs.get("loss", None),
             trainer_cfg=trainer_cfg,
+            save_dir=kwargs["save_state"],
+            load_dir=kwargs["load_state"],
         )
         predictor.train(data_train, data_val)
 
     if model_state is None:
         print(f"Model saved in local file path: {predictor.save_dir}")
     else:
-        predictor.upload(model_state)
+        predictor.upload(kwargs["save_state"])
 
 
 def validate(model_state: str, data_val: pd.DataFrame):
@@ -116,7 +118,7 @@ if __name__ == "__main__":
             kwargs.pop("data_val"),
             parse_dates=[] if data_config.time is None else [data_config.time],
         )
-        validate(kwargs.pop("model_state", None), data_val)
+        validate(kwargs.pop("load_state", None), data_val)
 
     elif command == "predict":
         data_config = url_to_data_config(kwargs.pop("data_cfg"))
@@ -126,7 +128,7 @@ if __name__ == "__main__":
             parse_dates=[] if data_config.time is None else [data_config.time],
         )
         predict(
-            kwargs.pop("model_state", None),
+            kwargs.pop("load_state", None),
             data,
             measurement=kwargs.pop("measurement"),
             task_id=kwargs.pop("task_id", None),

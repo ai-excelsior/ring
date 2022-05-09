@@ -59,7 +59,7 @@ class Predictor:
 
         os.makedirs(self.DEFAULT_ROOT_DIR, exist_ok=True)
         # default model_save_dir
-        if save_dir is None:
+        if save_dir is None or save_dir.startswith("oss://"):
             self.save_dir = tempfile.mkdtemp(prefix=self.DEFAULT_ROOT_DIR)
         else:
             self.save_dir = remove_prefix(save_dir, "file://")

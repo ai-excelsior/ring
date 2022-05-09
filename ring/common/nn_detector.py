@@ -64,7 +64,7 @@ class Detector:
         model_params["output_size"] = sum([loss.n_parameters for loss in self._losses])
         self.num_workers = num_workers
         os.makedirs(self.DEFAULT_ROOT_DIR, exist_ok=True)
-        if save_dir is None:
+        if save_dir is None or save_dir.startswith("oss://"):
             self.save_dir = tempfile.mkdtemp(prefix=self.DEFAULT_ROOT_DIR)
         else:
             self.save_dir = remove_prefix(save_dir, "file://")
