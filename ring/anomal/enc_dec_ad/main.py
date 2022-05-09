@@ -92,7 +92,7 @@ if __name__ == "__main__":
     train_parser.add_argument("--cell_type", type=str, choices=["LSTM", "GRU"], default="LSTM")
     train_parser.add_argument("--hidden_size", type=int, default=32)
     train_parser.add_argument("--n_layers", type=int, default=1)
-    train_parser.add_argument("--dropout", type=float, default=0.1)
+    train_parser.add_argument("--dropout", type=float, default=0)
 
     get_validate_parser(subparsers)
     get_predict_parser(subparsers)
