@@ -18,10 +18,10 @@
     "look_back": 24,
     "look_forward": 12
   },
-  "categoricals": {
-    "cat": {
-      "enums": [
-        "UKN",
+  "categoricals": [
+    {
+      "name": "cat",
+      "choices": [
         "A",
         "B",
         "C",
@@ -29,5 +29,5 @@
       ],
       "embedding_size": 2
     }
-  }
+  ]
 }
