@@ -7,7 +7,9 @@
 *.txt
 *.ipynb
 .env
-
+/example/xyz
+/data
+._influxdb_example.py
 
 **/*.pyc
 **/**/*.pyc

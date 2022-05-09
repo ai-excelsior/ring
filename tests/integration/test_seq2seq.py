@@ -70,15 +70,15 @@ def test_seq2seq():
         parse_dates=[] if data_config.time is None else [data_config.time],
     )
     predictor.train(data_train, data_val)
-    assert len(glob(f"{predictor.root_dir}/*.pt")) > 0
-    assert len(glob(f"{predictor.root_dir}/state.json")) > 0
+    assert len(glob(f"{predictor.save_dir}/*.pt")) > 0
+    assert len(glob(f"{predictor.save_dir}/state.json")) > 0
 
     # validate
     data_val = read_from_url(
         kwargs.get("data_val"),
         parse_dates=[] if data_config.time is None else [data_config.time],
     )
-    predictor = Predictor.load_from_dir(predictor.root_dir, RNNSeq2Seq)
+    predictor = Predictor.load_from_dir(predictor.save_dir, RNNSeq2Seq)
     predictor.validate(data_val)
 
     # predict
@@ -86,7 +86,7 @@ def test_seq2seq():
         kwargs.get("data_val"),
         parse_dates=[] if data_config.time is None else [data_config.time],
     )
-    predictor = Predictor.load_from_dir(predictor.root_dir, RNNSeq2Seq)
+    predictor = Predictor.load_from_dir(predictor.save_dir, RNNSeq2Seq)
     result = predictor.predict(data_pre, plot=False)
     assert [item in result.columns for item in ["ds", "y", "_time_idx_", "is_prediction", "y_pred"]]
     assert result[~result["is_prediction"]]["y_pred"].isnull().all()
@@ -127,7 +127,7 @@ def test_seq2seq():
             stop="2022-01-02T23:00:00Z",
             predicate=' _measurement = "air_passenger_result" and model= "seq2seq"',
         )
-    shutil.rmtree(predictor.root_dir)
+    shutil.rmtree(predictor.save_dir)
 
 
 # if __name__ == "__main__":

@@ -5,10 +5,16 @@ def get_train_parser(subparsers):
     parser.add_argument("--data_train", type=str, required=True, help="The train data source, s3 address")
     parser.add_argument("--data_val", type=str, required=True, help="The val data source, s3 address")
     parser.add_argument(
-        "--model_state",
+        "--load_state",
         type=str,
         default=None,
-        help="The base model state, useful when refine a model, s3 address",
+        help="Load a pre-training model_state to continue refining, s3 address",
+    )
+    parser.add_argument(
+        "--save_state",
+        type=str,
+        default=None,
+        help="Save the training model_state for validation, prediction or later refining, s3 address",
     )
 
     # common trainer config
@@ -18,7 +24,7 @@ def get_train_parser(subparsers):
     parser.add_argument("--early_stopping_patience", type=int, default=8)
     parser.add_argument("--weight_decay", type=float, default=None)
     parser.add_argument("--max_clip_grad_norm", type=float, default=None)
-    parser.add_argument("--max_epochs", type=int, default=200)
+    parser.add_argument("--max_epochs", type=int, default=1)
     parser.add_argument("--train_gaussian_percentage", type=float, default=0.25)
     return parser
 
@@ -28,10 +34,10 @@ def get_validate_parser(subparsers):
     parser.add_argument("--data_cfg", type=str, required=True, help="The data config, s3 address")
     parser.add_argument("--data_val", type=str, required=True, help="The val data source, s3 address")
     parser.add_argument(
-        "--model_state",
+        "--load_state",
         type=str,
-        required=True,
-        help="The base model state, useful when refine a model, s3 address",
+        default=None,
+        help="Load a pre-training model_state to do validation, s3 address",
     )
 
     return parser
@@ -42,10 +48,10 @@ def get_predict_parser(subparsers):
     parser.add_argument("--data_cfg", type=str, required=True, help="The data config, s3 address")
     parser.add_argument("--data", type=str, required=True, help="The data source, s3 address")
     parser.add_argument(
-        "--model_state",
+        "--load_state",
         type=str,
-        required=True,
-        help="The base model state, useful when refine a model, s3 address",
+        default=None,
+        help="Load a pre-training model_state to do prediction, s3 address",
     )
 
     parser.add_argument(

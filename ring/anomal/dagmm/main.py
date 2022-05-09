@@ -44,7 +44,7 @@ def train(data_config: DataConfig, data_train: pd.DataFrame, data_val: pd.DataFr
         predictor.train(data_train, data_val)
 
     if model_state is None:
-        print(f"Model saved in local file path: {predictor.root_dir}")
+        print(f"Model saved in local file path: {predictor.save_dir}")
     else:
         predictor.upload(model_state)
 

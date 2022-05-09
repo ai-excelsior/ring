@@ -70,8 +70,8 @@ def test_enc():
     )
     data_val["cont"] = data_val["y"].map(lambda x: x + random.random())
     predictor.train(data_train, data_val)
-    assert len(glob(f"{predictor.root_dir}/*.pt")) > 0
-    assert len(glob(f"{predictor.root_dir}/state.json")) > 0
+    assert len(glob(f"{predictor.save_dir}/*.pt")) > 0
+    assert len(glob(f"{predictor.save_dir}/state.json")) > 0
 
     # validate
     data_val = read_from_url(
@@ -79,7 +79,7 @@ def test_enc():
         parse_dates=[] if data_config.time is None else [data_config.time],
     )
     data_val["cont"] = data_val["y"].map(lambda x: x + random.random())
-    predictor = Predictor.load_from_dir(predictor.root_dir, enc_dec_ad)
+    predictor = Predictor.load_from_dir(predictor.save_dir, enc_dec_ad)
     metrics = predictor.validate(data_val)
     assert type(metrics) == dict
 
@@ -89,7 +89,7 @@ def test_enc():
         parse_dates=[] if data_config.time is None else [data_config.time],
     )
     data_pre["cont"] = data_pre["y"].map(lambda x: x + random.random())
-    predictor = Predictor.load_from_dir(predictor.root_dir, enc_dec_ad)
+    predictor = Predictor.load_from_dir(predictor.save_dir, enc_dec_ad)
     result = predictor.predict(data_pre)
     assert [item in result.columns for item in ["ds", "y", "_time_idx_", "Anomaly_Score"]]
     assert result["Anomaly_Score"].count() == len(data_pre)
@@ -129,7 +129,7 @@ def test_enc():
             predicate=' _measurement = "air_passenger_anomal" and model= "enc_dec_ad"',
         )
 
-    shutil.rmtree(predictor.root_dir)
+    shutil.rmtree(predictor.save_dir)
 
 
 if __name__ == "__main__":

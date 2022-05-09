@@ -46,8 +46,9 @@ class Predictor:
         model_params: Dict = {},
         loss_cfg: str = "MSE",
         trainer_cfg: Dict = {},
-        root_dir: str = None,
-        device=None,
+        save_dir: str = None,
+        load_dir: str = None,
+        device: str = None,
     ) -> None:
         """
         Initialize
@@ -57,11 +58,13 @@ class Predictor:
         model_params["output_size"] = sum([loss.n_parameters for loss in self._losses])
 
         os.makedirs(self.DEFAULT_ROOT_DIR, exist_ok=True)
-        if root_dir is None:
-            self.root_dir = tempfile.mkdtemp(prefix=self.DEFAULT_ROOT_DIR)
+        # default model_save_dir
+        if save_dir is None:
+            self.save_dir = tempfile.mkdtemp(prefix=self.DEFAULT_ROOT_DIR)
         else:
-            self.root_dir = root_dir
+            self.save_dir = remove_prefix(save_dir, "file://")
 
+        self.load_dir = load_dir
         self._data_cfg = data_cfg
         self._trainer_cfg = trainer_cfg
         self._loss_cfg = loss_cfg
@@ -122,13 +125,13 @@ class Predictor:
         """
         Train the model based on train_data and data_val
         """
-        if isinstance(load, str) and not os.path.isfile(f"{self.root_dir}/{load}"):
+        if isinstance(load, str) and not os.path.isfile(f"{self.load_dir}/{load}"):
             load = None
             warnings.warn(f"You are attemping to load file {load}, but it not exist.")
 
         # automatically get the last updated pt file
         if load is True:
-            files = glob(f"{self.root_dir}{os.sep}*.pt")
+            files = glob(f"{self.load_dir}{os.sep}*.pt")
             if len(files) == 0:
                 load = None
             else:
@@ -144,8 +147,6 @@ class Predictor:
             dataset_val = data_val
         else:
             dataset_val = self.create_dataset(data_val)
-
-        self.save()
 
         batch_size = self._trainer_cfg.get("batch_size", 64)
         if self.enable_gpu:
@@ -196,7 +197,7 @@ class Predictor:
         checkpoint = Checkpoint(
             to_save,
             save_handler=DiskSaver(
-                self.root_dir,
+                self.save_dir,
                 create_dir=True,
                 require_empty=False,
             ),
@@ -227,9 +228,9 @@ class Predictor:
 
         # load
         if isinstance(load, str):
-            Checkpoint.load_objects(to_load=to_save, checkpoint=torch.load(f"{self.root_dir}/{load}"))
+            Checkpoint.load_objects(to_load=to_save, checkpoint=torch.load(f"{self.load_dir}/{load}"))
 
-        with TensorboardLogger(log_dir=f"{self.root_dir}") as logger:
+        with TensorboardLogger(log_dir=f"{self.save_dir}") as logger:
             logger.attach_output_handler(
                 trainer,
                 event_name=Events.ITERATION_COMPLETED(every=1),
@@ -249,6 +250,7 @@ class Predictor:
 
             # evaluator.run(val_dataloader)
             trainer.run(train_dataloader, max_epochs=self._trainer_cfg.get("max_epochs", inf))
+        self.save()
 
     def get_parameters(self) -> Dict[str, Any]:
         """
@@ -257,7 +259,7 @@ class Predictor:
         params = {
             name: getattr(self, f"_{name}", None) or getattr(self, name, None)
             for name in inspect.signature(self.__class__.__init__).parameters.keys()
-            if name not in ["self", "_losses", "model_cls", "root_dir"]
+            if name not in ["self", "_losses", "model_cls"]
         }
 
         # pipeline and dataset
@@ -274,11 +276,11 @@ class Predictor:
 
         # load model
         if model_filename is None:
-            model_filename = get_last_updated_model(self.root_dir)
+            model_filename = get_last_updated_model(self.load_dir)
 
         model = self.create_model(dataset)
         Checkpoint.load_objects(
-            to_load={"model": model}, checkpoint=torch.load(f"{self.root_dir}/{model_filename}")
+            to_load={"model": model}, checkpoint=torch.load(f"{self.load_dir}/{model_filename}")
         )
 
         batch_size = self._trainer_cfg.get("batch_size", 64)
@@ -319,10 +321,10 @@ class Predictor:
 
         # load model
         if model_filename is None:
-            model_filename = get_last_updated_model(self.root_dir)
+            model_filename = get_last_updated_model(self.load_dir)
         model = self.create_model(dataset)
         Checkpoint.load_objects(
-            to_load={"model": model}, checkpoint=torch.load(f"{self.root_dir}/{model_filename}")
+            to_load={"model": model}, checkpoint=torch.load(f"{self.load_dir}/{model_filename}")
         )
 
         # create predict mode dataset
@@ -400,14 +402,18 @@ class Predictor:
             for i, loss in enumerate(self._losses):
                 target_name = dataset.targets[i]
                 fig = loss.plot(raw_data, x="_time_idx_", target=target_name, group_ids=dataset._group_ids)
-                fig.savefig(f"{self.root_dir}{os.sep}smoke_testing_{target_name}.png")
-            print(f"plotted figures saved at: {self.root_dir}")
+                fig.savefig(f"{self.save_dir}{os.sep}smoke_testing_{target_name}.png")
+            print(f"plotted figures saved at: {self.save_dir}")
 
         return df
 
     @classmethod
-    def from_parameters(cls, d: Dict, root_dir: str, model_cls: BaseModel) -> "Predictor":
-        self = cls(root_dir=root_dir, model_cls=model_cls, **d["params"])
+    def from_parameters(
+        cls, d: Dict, save_dir: str, model_cls: BaseModel, new_save_dir: str = None
+    ) -> "Predictor":
+        d["params"]["save_dir"] = new_save_dir
+        d["params"]["load_dir"] = save_dir
+        self = cls(model_cls=model_cls, **d["params"])
 
         self._dataset_parameters = d["dataset"]
 
@@ -422,38 +428,44 @@ class Predictor:
         pass
 
     @classmethod
-    def load_from_dir(cls, root_dir: str, model_cls: BaseModel) -> Optional["Predictor"]:
+    def load_from_dir(
+        cls, save_dir: str, model_cls: BaseModel, new_save_dir: str = None
+    ) -> Optional["Predictor"]:
         """
         Load predictor from a dir
         """
-        filepath = f"{root_dir}/state.json"
+        filepath = f"{save_dir}/state.json"
 
         if os.path.isfile(filepath):
             with open(filepath, "rb") as f:
                 state_dict = loads(f.read())
                 state_dict["params"]["data_cfg"] = dict_to_data_config(state_dict["params"]["data_cfg"])
-                return Predictor.from_parameters(state_dict, root_dir, model_cls)
+                return Predictor.from_parameters(state_dict, save_dir, model_cls, new_save_dir)
 
     @classmethod
-    def load_from_oss_bucket(cls, bucket: Bucket, key: str, model_cls: BaseModel) -> Optional["Predictor"]:
+    def load_from_oss_bucket(
+        cls, bucket: Bucket, key: str, model_cls: BaseModel, new_save_dir: str = None
+    ) -> Optional["Predictor"]:
         if bucket.object_exists(key):
-            root_dir = tempfile.mkdtemp(prefix=Predictor.DEFAULT_ROOT_DIR)
-            dest_zip_filepath = f"{root_dir}{os.sep}{key}"
+            # create a random dir locally
+            save_dir = tempfile.mkdtemp(prefix=Predictor.DEFAULT_ROOT_DIR)
+            dest_zip_filepath = f"{save_dir}{os.sep}{key}"
             dirpath = os.path.dirname(dest_zip_filepath)
             os.makedirs(dirpath, exist_ok=True)
+            # fetch oss files in dir
             bucket.get_object_to_file(key, dest_zip_filepath)
-            zipfile.ZipFile(dest_zip_filepath).extractall(root_dir)
+            zipfile.ZipFile(dest_zip_filepath).extractall(save_dir)
             os.remove(dest_zip_filepath)
 
-            return cls.load_from_dir(root_dir, model_cls=model_cls)
+            return cls.load_from_dir(save_dir, model_cls=model_cls, new_save_dir=new_save_dir)
 
     @classmethod
-    def load(cls, url: str, model_cls: BaseModel) -> Optional["Predictor"]:
+    def load(cls, url: str, model_cls: BaseModel, new_save_dir: str = None) -> Optional["Predictor"]:
         if url.startswith("file://"):
-            return Predictor.load_from_dir(remove_prefix(url, "file://"), model_cls)
+            return Predictor.load_from_dir(remove_prefix(url, "file://"), model_cls, new_save_dir)
         else:
             bucket, key = get_bucket_from_oss_url(url)
-            return Predictor.load_from_oss_bucket(bucket, key, model_cls)
+            return Predictor.load_from_oss_bucket(bucket, key, model_cls, new_save_dir)
 
     def upload(self, url: str):
         """upload model state to oss if given url is an oss file, else do nothing"""
@@ -461,25 +473,25 @@ class Predictor:
             bucket, key = get_bucket_from_oss_url(url)
             zipfilepath = self.zip()
             bucket.put_object_from_file(key, zipfilepath)
-            shutil.rmtree(self.root_dir)
+            shutil.rmtree(self.save_dir)
 
     def save(self):
         """
-        Save predictor's state to root_dir
+        Save predictor's state to save_dir
         """
         parameters = self.get_parameters()
-        with open(f"{self.root_dir}/state.json", "wb") as f:
+        with open(f"{self.save_dir}/state.json", "wb") as f:
             f.write(dumps(parameters))
 
     def zip(self, filepath: str = None):
         """zip last updated model file and state.json"""
 
-        files = glob(f"{self.root_dir}{os.sep}*.pt")
+        files = glob(f"{self.save_dir}{os.sep}*.pt")
         model_file = get_latest_updated_file(files)
-        state_file = f"{self.root_dir}{os.sep}state.json"
+        state_file = f"{self.save_dir}{os.sep}state.json"
 
         if filepath is None:
-            filepath = os.path.join(self.root_dir, "model.zip")
+            filepath = os.path.join(self.save_dir, "model.zip")
 
         with zipfile.ZipFile(filepath, "w", compression=zipfile.ZIP_BZIP2) as archive:
             if model_file is not None:

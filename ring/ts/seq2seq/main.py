@@ -9,7 +9,7 @@ from model import RNNSeq2Seq
 
 
 def train(data_config: DataConfig, data_train: pd.DataFrame, data_val: pd.DataFrame, **kwargs):
-    model_state = kwargs.get("model_state", None)
+    model_state = kwargs.get("load_state", None)
 
     trainer_cfg = {
         "batch_size": kwargs["batch_size"],
@@ -18,7 +18,9 @@ def train(data_config: DataConfig, data_train: pd.DataFrame, data_val: pd.DataFr
         "max_epochs": kwargs["max_epochs"],
     }
 
-    predictor = None if model_state is None else Predictor.load(model_state, RNNSeq2Seq)
+    predictor = (
+        None if model_state is None else Predictor.load(model_state, RNNSeq2Seq, new_save_dir="example/2")
+    )
     if predictor is None:
         predictor = Predictor(
             data_cfg=data_config,
@@ -32,6 +34,7 @@ def train(data_config: DataConfig, data_train: pd.DataFrame, data_val: pd.DataFr
             },
             loss_cfg=kwargs.get("loss", None),
             trainer_cfg=trainer_cfg,
+            save_dir=kwargs["save_state"],
         )
         predictor.train(data_train, data_val)
     else:
@@ -39,7 +42,7 @@ def train(data_config: DataConfig, data_train: pd.DataFrame, data_val: pd.DataFr
         predictor.train(data_train, data_val, load=True)
 
     if model_state is None:
-        print(f"Model saved in local file path: {predictor.root_dir}")
+        print(f"Model saved in local file path: {predictor.save_dir}")
     else:
         predictor.upload(model_state)
 
@@ -121,7 +124,7 @@ if __name__ == "__main__":
             kwargs.pop("data_val"),
             parse_dates=[] if data_config.time is None else [data_config.time],
         )
-        validate(kwargs.pop("model_state", None), data_val)
+        validate(kwargs.pop("load_state", None), data_val)
 
     elif command == "predict":
         data_config = url_to_data_config(kwargs.pop("data_cfg"))
@@ -131,7 +134,7 @@ if __name__ == "__main__":
             parse_dates=[] if data_config.time is None else [data_config.time],
         )
         predict(
-            kwargs.pop("model_state", None),
+            kwargs.pop("load_state", None),
             data,
             measurement=kwargs.pop("measurement"),
             task_id=kwargs.pop("task_id", None),
