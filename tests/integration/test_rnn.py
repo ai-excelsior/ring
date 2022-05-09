@@ -73,14 +73,14 @@ def test_rnn():
     predictor.train(data_train, data_val)
     assert len(glob(f"{predictor.save_dir}/*.pt")) > 0
     assert len(glob(f"{predictor.save_dir}/state.json")) > 0
-
+    save_dir = predictor.save_dir
     # validate
     data_val = read_from_url(
         kwargs.get("data_val"),
         parse_dates=[] if data_config.time is None else [data_config.time],
     )
     data_val["cont"] = data_val["y"].map(lambda x: x + random.random())
-    predictor = Predictor.load_from_dir(predictor.save_dir, ReccurentNetwork)
+    predictor = Predictor.load_from_dir(save_dir, ReccurentNetwork)
     predictor.validate(data_val)
 
     # predict
@@ -88,7 +88,7 @@ def test_rnn():
         kwargs.get("data_val"),
         parse_dates=[] if data_config.time is None else [data_config.time],
     )
-    predictor = Predictor.load_from_dir(predictor.save_dir, ReccurentNetwork)
+    predictor = Predictor.load_from_dir(save_dir, ReccurentNetwork)
     data_pre["cont"] = data_pre["y"].map(lambda x: x + random.random())
     result = predictor.predict(data_pre, plot=False)
     assert [item in result.columns for item in ["ds", "y", "_time_idx_", "is_prediction", "y_pred"]]

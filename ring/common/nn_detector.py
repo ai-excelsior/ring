@@ -446,9 +446,11 @@ class Detector:
     def from_parameters(
         cls, d: Dict, save_dir: str, model_cls: BaseModel, new_save_dir: str = None
     ) -> "Detector":
+        # dir to save this time
         d["params"]["save_dir"] = new_save_dir
+        # dir to load from last time
         d["params"]["load_dir"] = save_dir
-        self = cls(save_dir=save_dir, model_cls=model_cls, **d["params"])
+        self = cls(model_cls=model_cls, **d["params"])
 
         self._dataset_parameters = d["dataset"]
 

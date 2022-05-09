@@ -72,24 +72,25 @@ def test_enc():
     predictor.train(data_train, data_val)
     assert len(glob(f"{predictor.save_dir}/*.pt")) > 0
     assert len(glob(f"{predictor.save_dir}/state.json")) > 0
-
+    save_dir = predictor.save_dir
     # validate
     data_val = read_from_url(
         kwargs.get("data_val"),
         parse_dates=[] if data_config.time is None else [data_config.time],
     )
     data_val["cont"] = data_val["y"].map(lambda x: x + random.random())
-    predictor = Predictor.load_from_dir(predictor.save_dir, enc_dec_ad)
+    predictor = Predictor.load_from_dir(save_dir, enc_dec_ad)
     metrics = predictor.validate(data_val)
     assert type(metrics) == dict
-
+    # random umpty dir caused by validate.load_from_dir
+    shutil.rmtree(predictor.save_dir)
     # predict
     data_pre = read_from_url(
         kwargs.get("data_val"),
         parse_dates=[] if data_config.time is None else [data_config.time],
     )
     data_pre["cont"] = data_pre["y"].map(lambda x: x + random.random())
-    predictor = Predictor.load_from_dir(predictor.save_dir, enc_dec_ad)
+    predictor = Predictor.load_from_dir(save_dir, enc_dec_ad)
     result = predictor.predict(data_pre)
     assert [item in result.columns for item in ["ds", "y", "_time_idx_", "Anomaly_Score"]]
     assert result["Anomaly_Score"].count() == len(data_pre)
@@ -130,6 +131,7 @@ def test_enc():
         )
 
     shutil.rmtree(predictor.save_dir)
+    shutil.rmtree(save_dir)
 
 
 if __name__ == "__main__":

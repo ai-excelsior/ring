@@ -71,13 +71,13 @@ def test_deepar():
     predictor.train(data_train, data_val)
     assert len(glob(f"{predictor.save_dir}/*.pt")) > 0
     assert len(glob(f"{predictor.save_dir}/state.json")) > 0
-
+    save_dir = predictor.save_dir
     # validate
     data_val = read_from_url(
         kwargs.get("data_val"),
         parse_dates=[] if data_config.time is None else [data_config.time],
     )
-    predictor = Predictor.load_from_dir(predictor.save_dir, DeepAR)
+    predictor = Predictor.load_from_dir(save_dir, DeepAR)
     predictor.validate(data_val)
 
     # predict
@@ -85,7 +85,7 @@ def test_deepar():
         kwargs.get("data_val"),
         parse_dates=[] if data_config.time is None else [data_config.time],
     )
-    predictor = Predictor.load_from_dir(predictor.save_dir, DeepAR)
+    predictor = Predictor.load_from_dir(save_dir, DeepAR)
     result = predictor.predict(data_pre, plot=False)
     assert [item in result.columns for item in ["ds", "y", "_time_idx_", "is_prediction", "y_pred"]]
     assert result[~result["is_prediction"]]["y_pred"].isnull().all()

@@ -79,14 +79,14 @@ def test_nbeats():
     predictor.train(data_train, data_val)
     assert len(glob(f"{predictor.save_dir}/*.pt")) > 0
     assert len(glob(f"{predictor.save_dir}/state.json")) > 0
-
+    save_dir = predictor.save_dir
     # validate
     data_val = read_csv(
         kwargs.get("data_val"),
         parse_dates=[] if data_config.time is None else [data_config.time],
     )
     data_val["cont"] = data_val["y"].map(lambda x: x + random.random())
-    predictor = Predictor.load_from_dir(predictor.save_dir, NbeatsNetwork)
+    predictor = Predictor.load_from_dir(save_dir, NbeatsNetwork)
     metrics = predictor.validate(data_val)
     assert type(metrics) == dict
 
@@ -96,7 +96,7 @@ def test_nbeats():
         parse_dates=[] if data_config.time is None else [data_config.time],
     )
     data_pre["cont"] = data_pre["y"].map(lambda x: x + random.random())
-    predictor = Predictor.load_from_dir(predictor.save_dir, NbeatsNetwork)
+    predictor = Predictor.load_from_dir(save_dir, NbeatsNetwork)
     result = predictor.predict(data_pre, plot=False)
     assert all([item in result.columns for item in ["ds", "y", "_time_idx_", "is_prediction", "y_pred"]])
     assert result[~result["is_prediction"]]["y_pred"].isnull().all()

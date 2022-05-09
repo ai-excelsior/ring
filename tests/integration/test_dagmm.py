@@ -74,14 +74,14 @@ def test_dagmm():
     predictor.train(data_train, data_val)
     assert len(glob(f"{predictor.save_dir}/*.pt")) > 0
     assert len(glob(f"{predictor.save_dir}/state.json")) > 0
-
+    save_dir = predictor.save_dir
     # validate
     data_val = read_from_url(
         kwargs.get("data_val"),
         parse_dates=[] if data_config.time is None else [data_config.time],
     )
     data_val["cont"] = data_val["y"].map(lambda x: x + random.random())
-    predictor = Predictor.load_from_dir(predictor.save_dir, dagmm)
+    predictor = Predictor.load_from_dir(save_dir, dagmm)
     metrics = predictor.validate(data_val)
     assert type(metrics) == dict
 
@@ -91,7 +91,7 @@ def test_dagmm():
         parse_dates=[] if data_config.time is None else [data_config.time],
     )
     data_pre["cont"] = data_pre["y"].map(lambda x: x + random.random())
-    predictor = Predictor.load_from_dir(predictor.save_dir, dagmm)
+    predictor = Predictor.load_from_dir(save_dir, dagmm)
     result = predictor.predict(data_pre)
     assert [item in result.columns for item in ["ds", "y", "_time_idx_", "Anomaly_Score"]]
     assert result["Anomaly_Score"].count() == len(data_pre)
