@@ -192,7 +192,6 @@ class AutoencoderType(BaseType):
         return_enc: bool = False,
         hidden_size: int = 2,
         sequence_length: int = 1,
-        dropout: float = 0,
     ):
         super().__init__(name=name, cont_size=cont_size, encoder_embeddings=encoder_embeddings)
         self.return_enc = return_enc
@@ -255,3 +254,83 @@ class AutoencoderType(BaseType):
             return enc.unsqueeze(1), dec.view(input_vector.size())
         else:
             return dec
+
+
+class VariAutoencoderType(AutoencoderType):
+    def __init__(
+        self,
+        name: str = "VAE",
+        cont_size: int = 1,
+        # hpyerparameters
+        n_layers: int = None,
+        encoder_embeddings: MultiEmbedding = None,
+        return_enc: bool = False,
+        hidden_size: int = 2,
+        sequence_length: int = 1,
+        # dropout: float = 0,
+    ):
+        super().__init__(
+            name=name,
+            cont_size=cont_size,
+            encoder_embeddings=encoder_embeddings,
+            return_enc=return_enc,
+            n_layers=n_layers,
+            hidden_size=hidden_size,
+            sequence_length=sequence_length,
+        )
+        self.return_enc = return_enc
+        self.cont_size = cont_size
+        self.n_layers = n_layers
+        self.encoder_embeddings = encoder_embeddings
+        # sampling net
+
+        # flatten
+        initial_size = sequence_length * (cont_size + encoder_embeddings.total_embedding_size())
+
+        if not self.n_layers:
+            hidden_list = (
+                2 ** np.arange(max(np.ceil(np.log2(hidden_size)), 2), np.log2(initial_size))[1:][::-1]
+            )
+        else:
+            hidden_list = [int(initial_size // (2 ** i)) for i in range(n_layers)][1:]
+
+        self.mean_layer = nn.Linear(hidden_list[-1], hidden_size)
+        self.var_layer = nn.Linear(hidden_list[-1], hidden_size)
+        # encoder part
+        encoder_layer = [nn.Linear(initial_size, hidden_list[0]), nn.Tanh()]
+        for i in range(len(hidden_list) - 1):
+            encoder_layer.extend([nn.Linear(hidden_list[i], hidden_list[i + 1]), nn.Tanh()])
+        self.encoder = nn.Sequential(*encoder_layer[:-1])  # remove last tanh
+        # decoder part
+        decoder_layer = [nn.Linear(hidden_size, hidden_list[-1]), nn.Tanh()]
+        for i in range(len(hidden_list) - 1, 0, -1):
+            decoder_layer.extend([nn.Linear(hidden_list[i], hidden_list[i - 1]), nn.Tanh()])
+        decoder_layer.extend([nn.Linear(hidden_list[i - 1], initial_size)])
+        self.decoder = nn.Sequential(*decoder_layer)
+
+    def sampling(self, latent):
+        z_mean = self.mean_layer(latent)
+        z_var = self.var_layer(latent)
+        eps = torch.randn_like(z_mean).to(latent.device)
+        kl_loss = -0.5 * torch.sum(1 + z_var - torch.square(z_mean) - torch.exp(z_var), axis=1)
+        return z_mean + torch.exp(0.5 * z_var) * eps, kl_loss
+
+    def forward(self, x):
+        encoder_cat, encoder_cont = x["encoder_cat"], x["encoder_cont"]
+        input_vector = self.construct_input_vector(encoder_cat, encoder_cont)  # concat cat and cont
+
+        flattened_input = input_vector.view(input_vector.size(0), -1)
+        # batch_size * hidden_list[-1]
+        enc = self.encoder(flattened_input)
+        # batch_size * hidden_size
+        z, kl_loss = self.sampling(enc)
+
+        dec = self.decoder(z)
+        # `AutoencoderType` dont have `layers`
+        # so `enc`::batch_size * hidden_size should be unsqueezed to match the output format of `RnnType`::batch_size * layers * hidden_size
+        # `input_vector` have been flattened to batch_size * (steps * features)
+        # so `dec`::batch_size * (steps * features) should be reshape to match the reconstruction format of `RnnType`::batch_size * steps * features
+        if self.return_enc:
+            return z.unsqueeze(1), (dec.view(input_vector.size()), kl_loss)
+        else:
+            return (dec, kl_loss)

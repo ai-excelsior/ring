@@ -28,7 +28,7 @@ class dagmm(BaseAnormal):
         mu: torch.tensor = None,
         cov: torch.tensor = None,
         output_size: int = 1,
-        eps=torch.tensor(1e-4),
+        eps=torch.tensor(1e-10),
         return_enc: bool = True,
         encoderdecodertype: str = "RNN",
         steps=1,
@@ -136,7 +136,7 @@ class dagmm(BaseAnormal):
     def compute_aux(self, C: torch.tensor):
         # setup auxilary variables for computing the sample energy
         C_sta = torch.stack(
-            [C[i] + torch.eye(C[i].shape[1]) * self.eps for i in range(self.k_clusters)], dim=0
+            [C[i] + torch.eye(C[i].shape[1]).to(C.device) * self.eps for i in range(self.k_clusters)], dim=0
         )
         L, self.V = torch.linalg.eigh(C_sta)  # decompos0-ition
         idx = torch.isclose(L, torch.tensor(float(0)))
@@ -173,7 +173,7 @@ class dagmm(BaseAnormal):
         max_val = torch.max((exp_term_tmp).clamp(min=0), dim=1, keepdim=True)[0]
         exp_term = torch.exp(exp_term_tmp - max_val)[..., 0, 0]
         sample_energy = -max_val.squeeze() - torch.log(
-            torch.sum(self.phi * exp_term / torch.sqrt(det_cov), dim=1)
+            torch.sum(self.phi * exp_term / torch.sqrt(det_cov), dim=1) + self.eps
         )
         cov_diag = torch.sum(torch.diagonal(1 / torch.max(self.eps, self.cov), dim1=1, dim2=2))
         # penalize item in case of singularity problem
@@ -189,8 +189,8 @@ class dagmm(BaseAnormal):
         """
 
         train_phi = gamma_sum / num_samples
-        train_mu = mu_sum / gamma_sum.unsqueeze(-1)
-        train_cov = cov_sum / gamma_sum.unsqueeze(-1).unsqueeze(-1)
+        train_mu = mu_sum / (gamma_sum.unsqueeze(-1))
+        train_cov = cov_sum / (gamma_sum.unsqueeze(-1).unsqueeze(-1))
         return {
             "phi": train_phi.data.cpu().numpy(),
             "mu": train_mu.data.cpu().numpy(),
