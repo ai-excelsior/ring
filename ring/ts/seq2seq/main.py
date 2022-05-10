@@ -35,6 +35,8 @@ def train(data_config: DataConfig, data_train: pd.DataFrame, data_val: pd.DataFr
             loss_cfg=kwargs.get("loss", None),
             trainer_cfg=trainer_cfg,
             save_dir=kwargs["save_state"],
+            num_workers=kwargs["num_workers"],
+            logger_model=kwargs["logger_model"],
         )
         predictor.train(data_train, data_val)
     else:

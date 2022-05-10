@@ -49,6 +49,8 @@ class Predictor:
         save_dir: str = None,
         load_dir: str = None,
         device: str = None,
+        num_workers=1,
+        logger_model: str = "local",
     ) -> None:
         """
         Initialize

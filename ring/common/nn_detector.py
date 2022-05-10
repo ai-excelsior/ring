@@ -55,6 +55,7 @@ class Detector:
         load_dir: str = None,
         device=None,
         num_workers=1,
+        logger_model: str = "local",
     ) -> None:
         """
         Initialize

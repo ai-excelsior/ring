@@ -26,6 +26,8 @@ def get_train_parser(subparsers):
     parser.add_argument("--max_clip_grad_norm", type=float, default=None)
     parser.add_argument("--max_epochs", type=int, default=1)
     parser.add_argument("--train_gaussian_percentage", type=float, default=0.25)
+    parser.add_argument("--num_workers", type=int, default=1)
+    parser.add_argument("--logger_mode", type=str, default="local")
     return parser
 
 
@@ -33,6 +35,7 @@ def get_validate_parser(subparsers):
     parser = subparsers.add_parser("validate", help="validate a model, get validation metrics")
     parser.add_argument("--data_cfg", type=str, required=True, help="The data config, s3 address")
     parser.add_argument("--data_val", type=str, required=True, help="The val data source, s3 address")
+    parser.add_argument("--num_workers", type=int, default=1)
     parser.add_argument(
         "--load_state",
         type=str,
@@ -47,6 +50,7 @@ def get_predict_parser(subparsers):
     parser = subparsers.add_parser("predict", help="predict the last part of the given data")
     parser.add_argument("--data_cfg", type=str, required=True, help="The data config, s3 address")
     parser.add_argument("--data", type=str, required=True, help="The data source, s3 address")
+    parser.add_argument("--num_workers", type=int, default=1)
     parser.add_argument(
         "--load_state",
         type=str,

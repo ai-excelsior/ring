@@ -39,6 +39,8 @@ def train(data_config: DataConfig, data_train: pd.DataFrame, data_val: pd.DataFr
             trainer_cfg=trainer_cfg,
             save_dir=kwargs["save_state"],
             load_dir=kwargs["load_state"],
+            num_workers=kwargs["num_workers"],
+            logger_model=kwargs["logger_model"],
         )
         predictor.train(data_train, data_val)
     # first train
