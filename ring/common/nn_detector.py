@@ -55,7 +55,7 @@ class Detector:
         load_dir: str = None,
         device=None,
         num_workers=1,
-        logger_model: str = "local",
+        logger_mode: str = "local",
     ) -> None:
         """
         Initialize
@@ -78,7 +78,7 @@ class Detector:
         self._model_cls = model_cls
         self._model_params = model_params
         self._model_states = model_states
-
+        self._logger = logger_mode
         if device is None:
             if torch.cuda.is_available():
                 self._device = "cuda"

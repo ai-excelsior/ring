@@ -50,7 +50,7 @@ class Predictor:
         load_dir: str = None,
         device: str = None,
         num_workers=1,
-        logger_model: str = "local",
+        logger_mode: str = "local",
     ) -> None:
         """
         Initialize
@@ -72,6 +72,7 @@ class Predictor:
         self._loss_cfg = loss_cfg
         self._model_cls = model_cls
         self._model_params = model_params
+        self._logger = logger_mode
 
         if device is None:
             if torch.cuda.is_available():
