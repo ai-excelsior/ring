@@ -11,7 +11,7 @@
 /example/xyz
 /data
 ._influxdb_example.py
-
+**.yaml
 **/*.pyc
 **/**/*.pyc
 .vscode
