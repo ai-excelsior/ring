@@ -63,7 +63,7 @@ class Detector:
         self._losses = cfg_to_losses(loss_cfg, len(data_cfg.cont_features))
         model_params = deepcopy(model_params)
         model_params["output_size"] = sum([loss.n_parameters for loss in self._losses])
-        self.num_workers = num_workers
+        self._num_workers = num_workers
         os.makedirs(self.DEFAULT_ROOT_DIR, exist_ok=True)
         if save_dir is None or save_dir.startswith("oss://"):
             self.save_dir = tempfile.mkdtemp(prefix=self.DEFAULT_ROOT_DIR)
@@ -79,6 +79,7 @@ class Detector:
         self._model_params = model_params
         self._model_states = model_states
         self._logger = logger_mode
+
         if device is None:
             if torch.cuda.is_available():
                 self._device = "cuda"
@@ -109,7 +110,7 @@ class Detector:
     def n_workers(self):
         if self.enable_gpu:
             return min(os.cpu_count() // 2, 2)
-        return self.num_workers
+        return self._num_workers
 
     def create_dataset(self, data: pd.DataFrame, **kwargs):
         # if dataset_parameters exist we will always using this to initialize dataset

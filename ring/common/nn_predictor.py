@@ -72,6 +72,7 @@ class Predictor:
         self._loss_cfg = loss_cfg
         self._model_cls = model_cls
         self._model_params = model_params
+        self._num_workers = num_workers
         self._logger = logger_mode
 
         if device is None:
@@ -104,7 +105,7 @@ class Predictor:
     def n_workers(self):
         if self.enable_gpu:
             return min(os.cpu_count() // 2, 2)
-        return 1
+        return self._num_workers
 
     def create_dataset(self, data: pd.DataFrame, **kwargs):
         # if dataset_parameters exist we will always using this to initialize dataset
