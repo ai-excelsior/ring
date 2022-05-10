@@ -44,6 +44,8 @@ def train(data_config: DataConfig, data_train: pd.DataFrame, data_val: pd.DataFr
 
     if model_state is None:
         print(f"Model saved in local file path: {predictor.save_dir}")
+        if kwargs["save_state"].startswith("oss://"):
+            predictor.upload(kwargs["save_state"])
     else:
         predictor.upload(kwargs["save_state"])
 

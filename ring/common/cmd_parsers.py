@@ -14,7 +14,7 @@ def get_train_parser(subparsers):
         "--save_state",
         type=str,
         default=None,
-        help="Save the training model_state for validation, prediction or later refining, s3/oss address",
+        help="Upload the training model_state for validation, prediction or later refining, oss address",
     )
 
     # common trainer config
