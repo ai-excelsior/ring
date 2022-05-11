@@ -27,7 +27,6 @@ class LoggerWriter(object):
 
 class Fluxlogger(BaseLogger):
     def __init__(self, task_id, **kwargs):
-        # create influxdb connection when create logger
         self.writer = LoggerWriter(**kwargs)
         self.id = task_id
 
@@ -93,7 +92,7 @@ class OptimizerParamsHandler(BaseOptimizerParamsHandler):
             raise RuntimeError("Handler OptimizerParamsHandler works only with Fluxlogger")
 
         # global_step = engine.state.get_event_attrib_value(event_name)
-        tag_prefix = f"{self.tag}/" if self.tag else "None_specified"
+        tag_prefix = f"{self.tag}" if self.tag else "None_specified"
         params = {
             f"{tag_prefix}/{self.param_name}/group_{i}": float(param_group[self.param_name])
             for i, param_group in enumerate(self.optimizer.param_groups)

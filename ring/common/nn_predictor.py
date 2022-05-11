@@ -243,12 +243,12 @@ class Predictor:
             Checkpoint.load_objects(to_load=to_save, checkpoint=torch.load(f"{self.load_dir}/{load}"))
         # record TRAIN:itertaion/epoch loss
         #       VALID:epoch/complete loss
-        loggers = (
+        logger = (
             TensorboardLogger(log_dir=f"{self.save_dir}")
             if self._logger == "local"
             else Fluxlogger(task_id=f"{self.task_id}")
         )
-        with loggers as logger:
+        with logger:
             # train_itertaion loss
             logger.attach_output_handler(
                 trainer,

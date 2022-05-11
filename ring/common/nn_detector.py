@@ -298,66 +298,42 @@ class Detector:
         if isinstance(load, str):
             Checkpoint.load_objects(to_load=to_save, checkpoint=torch.load(f"{self.load_dir}/{load}"))
 
-        if self._logger == "local":
-            with TensorboardLogger(log_dir=f"{self.save_dir}") as logger:
-                # train_itertaion loss
-                logger.attach_output_handler(
-                    trainer,
-                    event_name=Events.ITERATION_COMPLETED(every=1),
-                    tag="train_iteration",
-                    output_transform=lambda loss: {"loss": loss},
-                )
-                # train_epoch loss
-                logger.attach_output_handler(
-                    trainer,
-                    event_name=Events.EPOCH_COMPLETED,
-                    tag="train_epoch",
-                    output_transform=lambda loss: {"loss": loss},
-                )
-                #  evaluate_epoch metric
-                logger.attach_output_handler(
-                    evaluator,
-                    event_name=Events.EPOCH_COMPLETED(every=1),
-                    tag="validation_epoch",
-                    metric_names=list(val_metrics.keys()),
-                    global_step_transform=global_step_from_engine(trainer),
-                )
-                # optimizer_iteration
-                logger.attach_opt_params_handler(
-                    trainer,
-                    event_name=Events.ITERATION_STARTED,
-                    tar="optimizer_itertion",
-                    optimizer=optimizer,
-                )
-                trainer.run(train_dataloader, max_epochs=self._trainer_cfg.get("max_epochs", inf))
-        elif self._logger == "influx":
-            with Fluxlogger(task_id=f"{self.task_id}") as logger:
-                logger.attach_output_handler(
-                    trainer,
-                    event_name=Events.ITERATION_COMPLETED(every=1),
-                    tag="train_iteration",
-                    output_transform=lambda loss: {"loss": loss},
-                )
-                # train_epoch loss
-                logger.attach_output_handler(
-                    trainer,
-                    event_name=Events.EPOCH_COMPLETED,
-                    tag="train_epoch",
-                    output_transform=lambda loss: {"loss": loss},
-                )
-                #  evaluate_epoch metric
-                logger.attach_output_handler(
-                    evaluator,
-                    event_name=Events.EPOCH_COMPLETED(every=1),
-                    tag="validation_epoch",
-                    metric_names=list(val_metrics.keys()),
-                    global_step_transform=global_step_from_engine(trainer),
-                )
-                # optimizer
-                logger.attach_opt_params_handler(
-                    trainer, event_name=Events.ITERATION_STARTED, optimizer=optimizer
-                )
-                trainer.run(train_dataloader, max_epochs=self._trainer_cfg.get("max_epochs", inf))
+        logger = (
+            TensorboardLogger(log_dir=f"{self.save_dir}")
+            if self._logger == "local"
+            else Fluxlogger(task_id=f"{self.task_id}")
+        )
+        with logger:
+            # train_itertaion loss
+            logger.attach_output_handler(
+                trainer,
+                event_name=Events.ITERATION_COMPLETED(every=1),
+                tag="train_iteration",
+                output_transform=lambda loss: {"loss": loss},
+            )
+            # train_epoch loss
+            logger.attach_output_handler(
+                trainer,
+                event_name=Events.EPOCH_COMPLETED,
+                tag="train_epoch",
+                output_transform=lambda loss: {"loss": loss},
+            )
+            #  evaluate_epoch metric
+            logger.attach_output_handler(
+                evaluator,
+                event_name=Events.EPOCH_COMPLETED(every=1),
+                tag="validation_epoch",
+                metric_names=list(val_metrics.keys()),
+                global_step_transform=global_step_from_engine(trainer),
+            )
+            # optimizer_iteration
+            logger.attach_opt_params_handler(
+                trainer,
+                event_name=Events.ITERATION_STARTED,
+                tag="optimizer_itertion",
+                optimizer=optimizer,
+            )
+            trainer.run(train_dataloader, max_epochs=self._trainer_cfg.get("max_epochs", inf))
         self.save()
 
     def get_parameters(self) -> Dict[str, Any]:
