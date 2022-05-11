@@ -28,6 +28,7 @@ def get_train_parser(subparsers):
     parser.add_argument("--train_gaussian_percentage", type=float, default=0.25)
     parser.add_argument("--num_workers", type=int, default=1)
     parser.add_argument("--logger_mode", type=str, default="local")
+    parser.add_argument("--task_id", type=str, default="task_default_none")
     return parser
 
 

@@ -18,8 +18,10 @@ from ignite.contrib.handlers.tensorboard_logger import TensorboardLogger, global
 from ignite.handlers import Checkpoint, EarlyStopping, DiskSaver
 from tabulate import tabulate
 from .loss import cfg_to_losses
-from .metrics import RMSE, SMAPE, MAE
+from .metrics import RMSE, SMAPE, MAE, MSE, MAPE
 from .dataset import TimeSeriesDataset
+
+from .logger import Fluxlogger
 from .serializer import dumps, loads
 from .utils import get_latest_updated_file, remove_prefix
 from .trainer_utils import create_supervised_trainer, prepare_batch, create_supervised_evaluator
@@ -51,6 +53,7 @@ class Predictor:
         device: str = None,
         num_workers=1,
         logger_mode: str = "local",
+        task_id: str = "task_default_none",
     ) -> None:
         """
         Initialize
@@ -74,6 +77,7 @@ class Predictor:
         self._model_params = model_params
         self._num_workers = num_workers
         self._logger = logger_mode
+        self._task_id = task_id
 
         if device is None:
             if torch.cuda.is_available():
@@ -176,7 +180,9 @@ class Predictor:
         )
         val_metrics = {
             "val_RMSE": RMSE(device=self._device),
+            "val_MSE": MSE(device=self._device),
             "val_SMAPE": SMAPE(device=self._device),  # percentage
+            "val_MAPE": MAPE(device=self._device),  # percentage
             "val_MAE": MAE(device=self._device),
         }
         evaluator = create_supervised_evaluator(
@@ -192,8 +198,10 @@ class Predictor:
             evaluator.run(val_dataloader)
             metrics = evaluator.state.metrics
             print(
-                f"Training Results - Epoch: {trainer.state.epoch}, Loss: {trainer.state.output:.2f}, \
-                 Val RMSE: {metrics['val_RMSE']:.2f}, Val SMAPE: {metrics['val_SMAPE']:.2f} Val MAE: {metrics['val_MAE']:.2f}"
+                f"Training Results - Epoch: {trainer.state.epoch}, {self._loss_cfg} Loss: {trainer.state.output:.2f}"
+            )
+            print(
+                f"Val RMSE: {metrics['val_RMSE']:.2f},Val MSE: {metrics['val_MSE']:.2f},Val SMAPE: {metrics['val_SMAPE']:.2f},Val MAPE: {metrics['val_MAPE']:.2f},Val MAE: {metrics['val_MAE']:.2f}"
             )
 
         # checkpoint
@@ -233,27 +241,69 @@ class Predictor:
         # load
         if isinstance(load, str):
             Checkpoint.load_objects(to_load=to_save, checkpoint=torch.load(f"{self.load_dir}/{load}"))
+        # record TRAIN:itertaion/epoch loss
+        #       VALID:epoch/complete loss
+        if self._logger == "local":
+            with TensorboardLogger(log_dir=f"{self.save_dir}") as logger:
+                # train_itertaion loss
+                logger.attach_output_handler(
+                    trainer,
+                    event_name=Events.ITERATION_COMPLETED(every=1),
+                    tag="train_iteration",
+                    output_transform=lambda loss: {"loss": loss},
+                )
+                # train_epoch loss
+                logger.attach_output_handler(
+                    trainer,
+                    event_name=Events.EPOCH_COMPLETED,
+                    tag="train_epoch",
+                    output_transform=lambda loss: {"loss": loss},
+                )
+                #  evaluate_epoch metric
+                logger.attach_output_handler(
+                    evaluator,
+                    event_name=Events.EPOCH_COMPLETED(every=1),
+                    tag="validation_epoch",
+                    metric_names=list(val_metrics.keys()),
+                    global_step_transform=global_step_from_engine(trainer),
+                )
+                # optimizer_iteration
+                logger.attach_opt_params_handler(
+                    trainer,
+                    event_name=Events.ITERATION_STARTED,
+                    tar="optimizer_itertion",
+                    optimizer=optimizer,
+                )
+                trainer.run(train_dataloader, max_epochs=self._trainer_cfg.get("max_epochs", inf))
+        elif self._logger == "influx":
+            with Fluxlogger(task_id=f"{self._task_id}") as logger:
+                logger.attach_output_handler(
+                    trainer,
+                    event_name=Events.ITERATION_COMPLETED(every=1),
+                    tag="train_iteration",
+                    output_transform=lambda loss: {"loss": loss},
+                )
+                # train_epoch loss
+                logger.attach_output_handler(
+                    trainer,
+                    event_name=Events.EPOCH_COMPLETED,
+                    tag="train_epoch",
+                    output_transform=lambda loss: {"loss": loss},
+                )
+                #  evaluate_epoch metric
+                logger.attach_output_handler(
+                    evaluator,
+                    event_name=Events.EPOCH_COMPLETED(every=1),
+                    tag="validation_epoch",
+                    metric_names=list(val_metrics.keys()),
+                    global_step_transform=global_step_from_engine(trainer),
+                )
+                # optimizer
+                # logger.attach_opt_params_handler(
+                #     trainer, event_name=Events.ITERATION_STARTED, optimizer=optimizer
+                # )
+                trainer.run(train_dataloader, max_epochs=self._trainer_cfg.get("max_epochs", inf))
 
-        with TensorboardLogger(log_dir=f"{self.save_dir}") as logger:
-            logger.attach_output_handler(
-                trainer,
-                event_name=Events.ITERATION_COMPLETED(every=1),
-                tag="train",
-                output_transform=lambda loss: {"loss": loss},
-            )
-            logger.attach_output_handler(
-                evaluator,
-                event_name=Events.COMPLETED,
-                tag="val",
-                metric_names=list(val_metrics.keys()),
-                global_step_transform=global_step_from_engine(trainer),
-            )
-            logger.attach_opt_params_handler(
-                trainer, event_name=Events.ITERATION_STARTED, optimizer=optimizer
-            )
-
-            # evaluator.run(val_dataloader)
-            trainer.run(train_dataloader, max_epochs=self._trainer_cfg.get("max_epochs", inf))
         self.save()
 
     def get_parameters(self) -> Dict[str, Any]:

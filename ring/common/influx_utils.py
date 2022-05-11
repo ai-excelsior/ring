@@ -5,10 +5,15 @@ from influxdb_client import InfluxDBClient
 
 
 @contextmanager
-def get_influx_client():
-    url = os.environ.get("INFLUX_ENDPOINT")
-    token = os.environ.get("INFLUX_TOKEN")
-    org = os.environ.get("INFLUX_ORG")
+def get_influx_client(*kwargs):
+    if not kwargs:
+        url = os.environ.get("INFLUX_ENDPOINT")
+        token = os.environ.get("INFLUX_TOKEN")
+        org = os.environ.get("INFLUX_ORG")
+    else:
+        url = kwargs.get("url")
+        token = kwargs.get("token")
+        org = kwargs.get("org")
 
     try:
         client = InfluxDBClient(
