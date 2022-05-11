@@ -6,6 +6,7 @@ import inspect
 import numpy as np
 import zipfile
 import tempfile
+from math import inf
 import shutil
 from oss2 import Bucket
 from glob import glob
@@ -30,6 +31,7 @@ from .trainer_utils import (
 from .data_config import DataConfig, dict_to_data_config_anomal
 from .base_model import BaseModel
 from .oss_utils import get_bucket_from_oss_url
+from .logger import Fluxlogger
 
 
 def get_last_updated_model(filepath: str):
@@ -56,6 +58,7 @@ class Detector:
         device=None,
         num_workers=1,
         logger_mode: str = "local",
+        task_id: str = "task_default_none",
     ) -> None:
         """
         Initialize
@@ -79,7 +82,7 @@ class Detector:
         self._model_params = model_params
         self._model_states = model_states
         self._logger = logger_mode
-
+        self.task_id = task_id
         if device is None:
             if torch.cuda.is_available():
                 self._device = "cuda"
@@ -295,26 +298,66 @@ class Detector:
         if isinstance(load, str):
             Checkpoint.load_objects(to_load=to_save, checkpoint=torch.load(f"{self.load_dir}/{load}"))
 
-        with TensorboardLogger(log_dir=f"{self.save_dir}") as logger:
-            logger.attach_output_handler(
-                trainer,
-                event_name=Events.ITERATION_COMPLETED(every=1),
-                tag="train",
-                output_transform=lambda loss: {"loss": loss},
-            )
-            logger.attach_output_handler(
-                evaluator,
-                event_name=Events.COMPLETED,
-                tag="val",
-                metric_names=list(val_metrics.keys()),
-                global_step_transform=global_step_from_engine(trainer),
-            )
-            logger.attach_opt_params_handler(
-                trainer, event_name=Events.ITERATION_STARTED, optimizer=optimizer
-            )
-
-            # evaluator.run(val_dataloader)
-            trainer.run(train_dataloader, max_epochs=self._trainer_cfg.get("max_epochs", 200))
+        if self._logger == "local":
+            with TensorboardLogger(log_dir=f"{self.save_dir}") as logger:
+                # train_itertaion loss
+                logger.attach_output_handler(
+                    trainer,
+                    event_name=Events.ITERATION_COMPLETED(every=1),
+                    tag="train_iteration",
+                    output_transform=lambda loss: {"loss": loss},
+                )
+                # train_epoch loss
+                logger.attach_output_handler(
+                    trainer,
+                    event_name=Events.EPOCH_COMPLETED,
+                    tag="train_epoch",
+                    output_transform=lambda loss: {"loss": loss},
+                )
+                #  evaluate_epoch metric
+                logger.attach_output_handler(
+                    evaluator,
+                    event_name=Events.EPOCH_COMPLETED(every=1),
+                    tag="validation_epoch",
+                    metric_names=list(val_metrics.keys()),
+                    global_step_transform=global_step_from_engine(trainer),
+                )
+                # optimizer_iteration
+                logger.attach_opt_params_handler(
+                    trainer,
+                    event_name=Events.ITERATION_STARTED,
+                    tar="optimizer_itertion",
+                    optimizer=optimizer,
+                )
+                trainer.run(train_dataloader, max_epochs=self._trainer_cfg.get("max_epochs", inf))
+        elif self._logger == "influx":
+            with Fluxlogger(task_id=f"{self.task_id}") as logger:
+                logger.attach_output_handler(
+                    trainer,
+                    event_name=Events.ITERATION_COMPLETED(every=1),
+                    tag="train_iteration",
+                    output_transform=lambda loss: {"loss": loss},
+                )
+                # train_epoch loss
+                logger.attach_output_handler(
+                    trainer,
+                    event_name=Events.EPOCH_COMPLETED,
+                    tag="train_epoch",
+                    output_transform=lambda loss: {"loss": loss},
+                )
+                #  evaluate_epoch metric
+                logger.attach_output_handler(
+                    evaluator,
+                    event_name=Events.EPOCH_COMPLETED(every=1),
+                    tag="validation_epoch",
+                    metric_names=list(val_metrics.keys()),
+                    global_step_transform=global_step_from_engine(trainer),
+                )
+                # optimizer
+                logger.attach_opt_params_handler(
+                    trainer, event_name=Events.ITERATION_STARTED, optimizer=optimizer
+                )
+                trainer.run(train_dataloader, max_epochs=self._trainer_cfg.get("max_epochs", inf))
         self.save()
 
     def get_parameters(self) -> Dict[str, Any]:

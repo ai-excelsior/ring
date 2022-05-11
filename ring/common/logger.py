@@ -11,6 +11,7 @@ import os
 class LoggerWriter(object):
     def __init__(self, **kwargs):
         self.kwargs = kwargs
+        self.bucket = os.environ.get("INFLUX_LOG_BUCKET_NAME")
 
     def add_record(self, key, value, phase, event, task_id):
         record_dic = {
@@ -21,7 +22,7 @@ class LoggerWriter(object):
         }
         with get_influx_client(**self.kwargs) as client:
             with client.write_api() as write_api:
-                write_api.write(bucket=os.environ.get("INFLUX_LOG_BUCKET_NAME"), record=record_dic)
+                write_api.write(bucket=self.bucket, record=record_dic)
 
 
 class Fluxlogger(BaseLogger):
@@ -99,4 +100,6 @@ class OptimizerParamsHandler(BaseOptimizerParamsHandler):
         }
 
         for k, v in params.items():
-            logger.writer.add_record(k, v, phase="training", event="iteration", id=self.task_id)
+            logger.writer.add_record(
+                k.split("/")[1], v, phase="training", event="iteration", task_id=self.task_id
+            )
