@@ -62,11 +62,11 @@ class OutputHandler(BaseOutputHandler):
             raise RuntimeError("Handler 'OutputHandler' works only with Fluxlogger")
 
         metrics = self._setup_output_metrics_state_attrs(engine, key_tuple=False)
-        tag_prefix = f"{self.tag}/" if self.tag else "None_specified"
-        if tag_prefix.startswith("train"):
+
+        if self.tag.startswith("train"):
             phase = "training"
-            event = "iteration" if tag_prefix.endswith("iteration/") else "epoch"
-        elif tag_prefix.startswith("validation"):
+            event = "iteration" if self.tag.endswith("iteration/") else "epoch"
+        elif self.tag.startswith("validation"):
             phase = "validation"
             event = "epoch"
         else:
@@ -95,7 +95,7 @@ class OptimizerParamsHandler(BaseOptimizerParamsHandler):
         # global_step = engine.state.get_event_attrib_value(event_name)
         tag_prefix = f"{self.tag}/" if self.tag else "None_specified"
         params = {
-            f"{tag_prefix}{self.param_name}/group_{i}": float(param_group[self.param_name])
+            f"{tag_prefix}/{self.param_name}/group_{i}": float(param_group[self.param_name])
             for i, param_group in enumerate(self.optimizer.param_groups)
         }
 
