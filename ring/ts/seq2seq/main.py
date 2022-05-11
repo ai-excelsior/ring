@@ -37,6 +37,7 @@ def train(data_config: DataConfig, data_train: pd.DataFrame, data_val: pd.DataFr
             save_dir=kwargs["save_state"],
             num_workers=kwargs["num_workers"],
             logger_mode=kwargs["logger_mode"],
+            task_id=kwargs["task_id"],
         )
         predictor.train(data_train, data_val)
     else:

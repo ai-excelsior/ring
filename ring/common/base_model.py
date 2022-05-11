@@ -66,7 +66,7 @@ class AutoRegressiveBaseModelWithCovariates(BaseModel):
 
         self.decoder_embeddings = (
             self.encoder_embeddings
-            if not self._decoder_cat == self._encoder_cat
+            if self._decoder_cat == self._encoder_cat
             else MultiEmbedding(
                 embedding_sizes={k: v for k, v in embedding_sizes.items() if k in self._decoder_cat},
                 embedding_paddings=[],
