@@ -65,7 +65,7 @@ class OutputHandler(BaseOutputHandler):
 
         if self.tag.startswith("train"):
             phase = "training"
-            event = "iteration" if self.tag.endswith("iteration/") else "epoch"
+            event = "iteration" if self.tag.endswith("iteration") else "epoch"
         elif self.tag.startswith("validation"):
             phase = "validation"
             event = "epoch"
