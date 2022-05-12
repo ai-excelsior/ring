@@ -14,6 +14,7 @@ InfluxDB 相关，用于保存预测结果：
 - INFLUX_TOKEN
 - INFLUX_ORG
 - INFLUX_PREDICTION_BUCKET_NAME
+- INFLUX_LOG_BUCKET_NAME
 
 Using docker image to train on air-passengers dataset:
 
