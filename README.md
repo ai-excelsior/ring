@@ -1,13 +1,13 @@
 # ring
 Instructions are based on the fact that all code-relate files, including dockerfiles are correctly completed。
-In other words, the only things left ARE to 
-    a. build a image to run the model in docker, remotely
+In other words, the only things left are to 
+    a. build and push a image in order to run the model in docker remotely
     b. apply k8s to do the conduction
 
 ## Prerequisite
 - First login to our docker warehouse to obtain basic images 
 - Secondly, Use `Makefile` to build and push specific images, for example `make build-docker-seq2seq-gpu`
-- Then, put following enviroment variables in files, for example `.env_example` 
+- Then put following enviroment variables in files, for example `.env_example` 
 
 ## Environment Variable
 阿里 OSS 相关，用于保存训练结果:
@@ -27,7 +27,7 @@ E.g.: Using docker image to train on air-passengers dataset:
 ```bash
 docker run -it --rm --env-file=.env_example \                                              # declare env file
     code.unianalysis.com:5050/unianalysis/ring/seq2seq-gpu:0.0.1  \                        # declare images
-    train \                                                                                # args declare in `ENTRYPOINT` in dockerfile
+    train \                                                                                # from this line below are args declared in `ENTRYPOINT` of dockerfile
     --data_train=oss://aiexcelsior-shanghai-test/liyu_test_data/air_passengers_train.csv \
     --data_val=oss://aiexcelsior-shanghai-test/liyu_test_data/air_passengers_val.csv \
     --data_cfg=oss://aiexcelsior-shanghai-test/liyu_test_data/air_passengers-config.json \
