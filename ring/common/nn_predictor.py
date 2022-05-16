@@ -16,7 +16,6 @@ from typing import Optional, Union, Dict, Any
 from ignite.engine import Events
 from ignite.contrib.handlers.tensorboard_logger import TensorboardLogger, global_step_from_engine
 from ignite.handlers import Checkpoint, EarlyStopping, DiskSaver
-from tabulate import tabulate
 from .loss import cfg_to_losses
 from .metrics import RMSE, SMAPE, MAE, MSE, MAPE
 from .dataset import TimeSeriesDataset
@@ -206,6 +205,7 @@ class Predictor:
 
         # checkpoint
         to_save = {"model": model, "optimizer": optimizer, "trainer": trainer}
+        self.save()
         checkpoint = Checkpoint(
             to_save,
             save_handler=DiskSaver(
@@ -279,7 +279,6 @@ class Predictor:
                 optimizer=optimizer,
             )
             trainer.run(train_dataloader, max_epochs=self._trainer_cfg.get("max_epochs", inf))
-        self.save()
 
     def get_parameters(self) -> Dict[str, Any]:
         """
@@ -329,13 +328,8 @@ class Predictor:
             model, self._losses, dataset.target_normalizers, metrics=metrics, device=self._device
         )
         reporter.run(test_dataloader)
-        headers = metrics.keys()
         print("===== Final Result =====")
-        print(
-            tabulate(
-                [[reporter.state.metrics[key] for key in metrics.keys()]], headers=headers, tablefmt="tsv"
-            )
-        )
+        print(str(dumps(reporter.state.metrics), "utf-8"))
 
         return reporter.state.metrics
 
