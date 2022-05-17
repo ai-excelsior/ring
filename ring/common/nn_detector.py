@@ -398,6 +398,7 @@ class Detector:
         self,
         data: pd.DataFrame = None,
         model_filename: str = None,
+        plot: str = False,
         **kwargs,
     ):
         """Do smoke test on given dataset, take all sequences by default"""
@@ -410,7 +411,8 @@ class Detector:
             model_filename = get_last_updated_model(self.load_dir)
         model = self.create_model(dataset)
         Checkpoint.load_objects(
-            to_load={"model": model}, checkpoint=torch.load(f"{self.load_dir}/{model_filename}")
+            to_load={"model": model},
+            checkpoint=torch.load(f"{self.load_dir}/{model_filename}", map_location=torch.device("cpu")),
         )
 
         batch_size = 1
