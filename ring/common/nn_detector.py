@@ -360,7 +360,14 @@ class Detector:
 
         # load model
         if model_filename is None:
-            model_filename = get_last_updated_model(self.load_dir)
+            #  `load_dir` not given
+            if self.load_dir is None:
+                # load model from last saved model
+                self.load_dir = self.save_dir
+            try:
+                model_filename = get_last_updated_model(self.load_dir)
+            except:
+                raise ValueError("`load_state` shoule be provided")
 
         model = self.create_model(dataset)
         Checkpoint.load_objects(
@@ -408,7 +415,15 @@ class Detector:
 
         # load model
         if model_filename is None:
-            model_filename = get_last_updated_model(self.load_dir)
+            #  `load_dir` not given
+            if self.load_dir is None:
+                # load model from last saved model
+                self.load_dir = self.save_dir
+            try:
+                model_filename = get_last_updated_model(self.load_dir)
+            except:
+                raise ValueError("`load_state` shoule be provided")
+
         model = self.create_model(dataset)
         Checkpoint.load_objects(
             to_load={"model": model},
