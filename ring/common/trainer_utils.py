@@ -188,7 +188,7 @@ def supervised_training_step(
             )
             loss = loss_reconstruction + 0.005 * cov_diag + 0.1 * sample_energy
         else:
-            raise TypeError("output of model must be one of torch.tensor or Dict or tuple")
+            raise TypeError("output of model must be one of torch.tensor or Dict or tuple of List")
 
         if gradient_accumulation_steps > 1:
             loss = loss / gradient_accumulation_steps
@@ -227,7 +227,7 @@ def supervised_evaluation_step(
                     y_pred = y_pred["prediction"]
                 except:
                     raise ValueError("output should have both `prediction` and `backcast`")
-            elif isinstance(y_pred, tuple):  # only consider reconstruction_error
+            elif isinstance(y_pred, (tuple, list)):  # only consider reconstruction_error
                 y_pred = y_pred[1]
             elif not isinstance(y_pred, torch.Tensor):
                 raise TypeError("output of model must be one of torch.tensor or Dict")
@@ -317,7 +317,24 @@ def parameter_evaluation_step(
                         ),
                     }
                 )
-
+            elif isinstance(y_pred, list):
+                dataset = y_pred[0][0]
+                cov = y_pred[0][1]
+                log_det = y_pred[0][2]
+                parameters_return.update(
+                    {
+                        "dataset": (
+                            torch.cat([parameters_return["dataset"], dataset], dim=0)
+                            if parameters_return
+                            else dataset
+                        ),
+                        "cov": (parameters_return["cov"] + cov if parameters_return else cov),
+                        "log_det": (parameters_return["log_det"] + log_det if parameters_return else log_det),
+                        "num_samples": (
+                            parameters_return["num_samples"] + y.size(0) if parameters_return else y.size(0)
+                        ),
+                    }
+                )
             return parameters_return
 
     return evaluation_step
