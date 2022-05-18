@@ -59,14 +59,14 @@ def validate(load_state: str, data_val: pd.DataFrame):
     """
     load a model and using this model to validate a given dataset
     """
-    assert load_state is not None, "model_state is required when validate"
+    assert load_state is not None, "load_state is required when validate"
 
     predictor = Predictor.load(load_state, NbeatsNetwork)
     predictor.validate(data_val)
 
 
 def predict(
-    model_state: str,
+    load_state: str,
     data: pd.DataFrame,
     measurement: str = "prediction-dev",
     task_id: str = None,
@@ -74,9 +74,9 @@ def predict(
     """
     load a model and predict with given dataset
     """
-    assert model_state is not None, "model_state is required when validate"
+    assert load_state is not None, "load_state is required when validate"
 
-    predictor = Predictor.load(model_state, NbeatsNetwork)
+    predictor = Predictor.load(load_state, NbeatsNetwork)
     pred_df = predictor.predict(data, plot=True)
     predictions_to_influx(
         pred_df,

@@ -8,13 +8,13 @@ def get_train_parser(subparsers):
         "--load_state",
         type=str,
         default=None,
-        help="Load a pre-training model_state to continue refining, s3 address",
+        help="Load a pre-training load_state to continue refining, s3 address",
     )
     parser.add_argument(
         "--save_state",
         type=str,
         default=None,
-        help="Upload the training model_state for validation, prediction or later refining, oss address",
+        help="Upload the training save_state for validation, prediction or later refining, oss address",
     )
 
     # common trainer config

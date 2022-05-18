@@ -9,7 +9,7 @@ from ring.anomal.dagmm.model import dagmm
 
 
 def train(data_config: DataConfig, data_train: pd.DataFrame, data_val: pd.DataFrame, **kwargs):
-    model_state = kwargs.get("load_state", None)
+    load_state = kwargs.get("load_state", None)
 
     trainer_cfg = {
         "batch_size": kwargs["batch_size"],
@@ -20,7 +20,7 @@ def train(data_config: DataConfig, data_train: pd.DataFrame, data_val: pd.DataFr
         "train_gaussian_percentage": kwargs["train_gaussian_percentage"],
     }
 
-    predictor = None if model_state is None else Predictor.load(model_state, dagmm)
+    predictor = None if load_state is None else Predictor.load(load_state, dagmm)
 
     if predictor is not None:
         predictor.trainer_cfg = trainer_cfg
@@ -47,7 +47,7 @@ def train(data_config: DataConfig, data_train: pd.DataFrame, data_val: pd.DataFr
         )
         predictor.train(data_train, data_val)
 
-    if model_state is None:
+    if load_state is None:
         print(f"Model saved in local file path: {predictor.save_dir}")
         if kwargs["save_state"].startswith("oss://"):
             predictor.upload(kwargs["save_state"])
@@ -55,18 +55,18 @@ def train(data_config: DataConfig, data_train: pd.DataFrame, data_val: pd.DataFr
         predictor.upload(kwargs["save_state"])
 
 
-def validate(model_state: str, data_val: pd.DataFrame):
+def validate(load_state: str, data_val: pd.DataFrame):
     """
     load a model and using this model to validate a given dataset
     """
-    assert model_state is not None, "model_state is required when validate"
+    assert load_state is not None, "load_state is required when validate"
 
-    predictor = Predictor.load(model_state, dagmm)
+    predictor = Predictor.load(load_state, dagmm)
     predictor.validate(data_val)
 
 
 def predict(
-    model_state: str,
+    load_state: str,
     data: pd.DataFrame,
     measurement: str = "prediction-dev",
     task_id: str = None,
@@ -74,9 +74,9 @@ def predict(
     """
     load a model and predict with given dataset
     """
-    assert model_state is not None, "model_state is required when validate"
+    assert load_state is not None, "load_state is required when validate"
 
-    predictor = Predictor.load(model_state, dagmm)
+    predictor = Predictor.load(load_state, dagmm)
     pred_df = predictor.predict(data, plot=True)
     predictions_to_influx(
         pred_df,
