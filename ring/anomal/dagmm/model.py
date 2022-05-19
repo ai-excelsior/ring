@@ -21,6 +21,7 @@ class dagmm(BaseAnormal):
         dropout: float = 0,
         k_clusters: int = 2,
         x_categoricals: List[str] = [],
+        targets: List[str] = [],
         encoder_cont: List[str] = [],
         encoder_cat: List[str] = [],
         target_lags: Dict = {},
@@ -39,6 +40,7 @@ class dagmm(BaseAnormal):
             embedding_sizes=embedding_sizes,
             target_lags=target_lags,
             x_categoricals=x_categoricals,
+            targets=targets,
             encoder_cont=encoder_cont,
             encoder_cat=encoder_cat,
             cell_type=cell_type,
@@ -73,6 +75,7 @@ class dagmm(BaseAnormal):
             cat_size, _ = embedding_sizes[name]
             embedding_sizes[name] = (cat_size, size)
         return cls(
+            targets=dataset.targets,
             encoder_cat=dataset.encoder_cat,
             encoder_cont=dataset.encoder_cont,
             embedding_sizes=embedding_sizes,
@@ -90,11 +93,14 @@ class dagmm(BaseAnormal):
         batch_size = enc_output.shape[0]
         # reconstruction error
         rec_cosine = F.cosine_similarity(
-            x["encoder_cont"].reshape(batch_size, -1), dec.reshape(batch_size, -1), dim=1
+            x["encoder_cont"].reshape(batch_size, -1),
+            dec[:, :, self.target_positions].reshape(batch_size, -1),
+            dim=1,
         )
-        rec_euclidean = (x["encoder_cont"].reshape(batch_size, -1) - dec.reshape(batch_size, -1)).norm(
-            2, dim=1
-        ) / torch.clamp(x["encoder_cont"].reshape(batch_size, -1).norm(2, dim=1), min=1e-10)
+        rec_euclidean = (
+            x["encoder_cont"].reshape(batch_size, -1)
+            - dec[:, :, self.target_positions].reshape(batch_size, -1)
+        ).norm(2, dim=1) / torch.clamp(x["encoder_cont"].reshape(batch_size, -1).norm(2, dim=1), min=1e-10)
         # concat low-projection with reconstruction error
         z = torch.cat(
             [  # enc_output[:, -1],  # last position of `output` equals to last layer of `hidden_state`
@@ -110,11 +116,13 @@ class dagmm(BaseAnormal):
             self.compute_gmm_params(z, gamma, batch_size)
             if self.training:
                 sample_energy, cov_diag = self.compute_energy(z)
-                return (sample_energy, cov_diag), dec, False  # for loss
+                return (sample_energy, cov_diag), dec[:, :, self.target_positions], False  # for loss
             else:
-                return (gamma, self.mu, self.phi, self.cov), dec  # for parameters
+                return (gamma, self.mu, self.phi, self.cov), dec[
+                    :, :, self.target_positions
+                ]  # for parameters
         else:
-            return z, dec  # for socres and reconstruction
+            return z, dec[:, :, self.target_positions]  # for socres and reconstruction
 
     def compute_gmm_params(self, z: torch.tensor = None, gamma: torch.tensor = None, batch_size: int = None):
         # shape = k_clusters

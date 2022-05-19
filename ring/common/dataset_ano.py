@@ -95,13 +95,13 @@ class TimeSeriesDataset(Dataset):
         self._indexer.index(data, last_only, start_index)
 
         # convert `categoricals`
-        for i, cat in enumerate(self.categoricals):
-            encoder = self._categorical_encoders[i]
-            if not encoder.fitted:
-                data[cat] = encoder.fit_transform(data[cat].astype(str))
+        # for i, cat in enumerate(self.categoricals):
+        #     encoder = self._categorical_encoders[i]
+        #     if not encoder.fitted:
+        #         data[cat] = encoder.fit_transform(data[cat].astype(str))
 
-            else:
-                data[cat] = encoder.transform(data[cat].astype(str), self.embedding_sizes)
+        #     else:
+        #         data[cat] = encoder.transform(data[cat].astype(str), self.embedding_sizes)
         # convert `cont`
         for i, cont in enumerate(self.encoder_cont):
             scalar = self._cont_scalars[i]

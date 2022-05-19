@@ -205,13 +205,13 @@ class AutoencoderType(BaseType):
         initial_size = sequence_length * (cont_size + encoder_embeddings.total_embedding_size())
         # encoder_layer += [nn.Tanh()]
         encoder_layer = []
-        encoder_layer += [nn.Linear(278, 10)]
+        encoder_layer += [nn.Linear(118, 60)]
         encoder_layer += [nn.Tanh()]
-        encoder_layer += [nn.Linear(10, 2)]
-        # encoder_layer += [nn.Tanh()]
-        # encoder_layer += [nn.Linear(30, 10)]
-        # encoder_layer += [nn.Tanh()]
-        # encoder_layer += [nn.Linear(10, 1)]
+        encoder_layer += [nn.Linear(60, 30)]
+        encoder_layer += [nn.Tanh()]
+        encoder_layer += [nn.Linear(30, 10)]
+        encoder_layer += [nn.Tanh()]
+        encoder_layer += [nn.Linear(10, 1)]
         # if not self.n_layers:
         #     hidden_list = (
         #         2 ** np.arange(max(np.ceil(np.log2(hidden_size)), 2), np.log2(initial_size))[1:][::-1]
@@ -231,13 +231,13 @@ class AutoencoderType(BaseType):
         # decoder_layer.extend([nn.Linear(hidden_list[i - 1], initial_size)])
 
         decoder_layer = []
-        decoder_layer += [nn.Linear(2, 10)]
+        decoder_layer += [nn.Linear(1, 10)]
         decoder_layer += [nn.Tanh()]
-        decoder_layer += [nn.Linear(10, 278)]
-        # decoder_layer += [nn.Tanh()]
-        # decoder_layer += [nn.Linear(30, 60)]
-        # decoder_layer += [nn.Tanh()]
-        # decoder_layer += [nn.Linear(60, 118)]
+        decoder_layer += [nn.Linear(10, 30)]
+        decoder_layer += [nn.Tanh()]
+        decoder_layer += [nn.Linear(30, 60)]
+        decoder_layer += [nn.Tanh()]
+        decoder_layer += [nn.Linear(60, 118)]
         self.decoder = nn.Sequential(*decoder_layer)
 
     def forward(self, x):
