@@ -223,13 +223,14 @@ def supervised_evaluation_step(
         with torch.no_grad():
             x, y = prepare_batch(batch, device=device, non_blocking=non_blocking)
             y_pred = model(x)
-
+            need = True
             if isinstance(y_pred, Dict):
                 try:
                     y_pred = y_pred["prediction"]
                 except:
                     raise ValueError("output should have both `prediction` and `backcast`")
             elif isinstance(y_pred, (tuple, list)):  # only consider reconstruction_error
+                need = y_pred[2]
                 y_pred = y_pred[1]
             elif not isinstance(y_pred, torch.Tensor):
                 raise TypeError("output of model must be one of torch.tensor or Dict")
@@ -238,6 +239,7 @@ def supervised_evaluation_step(
                 y_pred[..., loss_start_indices[i] : loss_end_indices[i]],
                 x["target_scales"][..., i],
                 normalizers[i],
+                need=need,
             )
             y_pred_scaled = torch.stack(
                 [loss_obj.to_prediction(reverse_scale(i, loss_obj)) for i, loss_obj in enumerate(loss_fns)],

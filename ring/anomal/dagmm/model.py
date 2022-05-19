@@ -118,9 +118,8 @@ class dagmm(BaseAnormal):
                 sample_energy, cov_diag = self.compute_energy(z)
                 return (sample_energy, cov_diag), dec[:, :, self.target_positions], False  # for loss
             else:
-                return (gamma, self.mu, self.phi, self.cov), dec[
-                    :, :, self.target_positions
-                ]  # for parameters
+                return (gamma, self.mu, self.phi, self.cov), dec[:, :, self.target_positions], False
+                # for parameters
         else:
             return z, dec[:, :, self.target_positions]  # for socres and reconstruction
 

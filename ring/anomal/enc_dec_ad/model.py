@@ -62,7 +62,7 @@ class EncoderDecoderAD(BaseAnormal):
     def forward(self, x: Dict[str, torch.Tensor], mode=None, **kwargs) -> Dict[str, torch.Tensor]:
 
         simulation = self.encoderdecoder(x)
-        #only consider recon of `cont`
+        # only consider recon of `cont`
         return simulation[:, :, self.target_positions]
 
     def calculate_params(self, error_vectors: List[np.ndarray]):

@@ -473,6 +473,7 @@ class Detector:
 
         raw_data = dataset.reflect(dataset._data.index)
         raw_data["Anomaly_Score"] = scores
+        # only output real and recon of `cont`
         prediction_column_names = [
             f"{target_name}_reconstruction" for target_name in self._dataset_parameters["cont_feature"]
         ]
