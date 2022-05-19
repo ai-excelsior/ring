@@ -169,15 +169,17 @@ def supervised_training_step(
                 )
                 / len(loss_fns)
             )
-        # cutomized loss function addtion to `y_pred`
+        # cutomized loss function addtion to `y_pred`:dagmm, no need to `reverse_transform`
         elif isinstance(y_pred, tuple):
             sample_energy = y_pred[0][0]
             cov_diag = y_pred[0][1]
             y_recon = y_pred[1]
+            need = y_pred[2]
             reverse_scale = lambda i, loss: loss.scale_prediction(
-                y_recon[..., loss_start_indices[i] : loss_end_indices[i]],
-                x["target_scales"][..., i],
-                normalizers[i],
+                y_pred=y_recon[..., loss_start_indices[i] : loss_end_indices[i]],
+                target_scale=x["target_scales"][..., i],
+                normalizer=normalizers[i],
+                need=need,
             )
             loss_reconstruction = (
                 functools.reduce(

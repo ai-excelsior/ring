@@ -218,15 +218,22 @@ class TimeSeriesDataset(Dataset):
 
         # consider `cont` only
         # [sequence_length, n_targets]
+        # targets = torch.stack(
+        #     [
+        #         torch.tensor(
+        #             self._cont_scalars[i]
+        #             .inverse_transform(encoder_period[target_name], encoder_period)
+        #             .to_numpy(np.float64),
+        #             dtype=torch.float,
+        #         )
+        #         for i, target_name in enumerate(self.encoder_cont)
+        #     ],
+        #     dim=-1,
+        # )
         targets = torch.stack(
             [
-                torch.tensor(
-                    self._cont_scalars[i]
-                    .inverse_transform(encoder_period[target_name], encoder_period)
-                    .to_numpy(np.float64),
-                    dtype=torch.float,
-                )
-                for i, target_name in enumerate(self.encoder_cont)
+                torch.tensor(encoder_period[target_name].to_numpy(np.float64), dtype=torch.float)
+                for target_name in self.encoder_cont
             ],
             dim=-1,
         )
