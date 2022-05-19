@@ -86,15 +86,8 @@ def dict_to_data_config_anomal(cfg: Dict) -> DataConfig:
         name=cfg["indexer"]["name"],
         steps=cfg["indexer"]["steps"],
     )
-    cats = [
-        Categorical(
-            name=item["name"],
-            embedding_size=item["embedding_sizes"] if "embedding_sizes" in item else None,
-            choices=item["choices"],
-        )
-        for item in cfg["categoricals"]
-        if cfg.get("categoricals") is not None
-    ]
+
+    cats = [Categorical(**item) for item in cfg["categoricals"]]
     data_config = AnomalDataConfig(
         time=cfg["time"],
         freq=cfg["freq"],
