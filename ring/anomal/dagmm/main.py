@@ -100,7 +100,7 @@ if __name__ == "__main__":
     train_parser.add_argument("--hidden_size", type=int, default=5)
     train_parser.add_argument("--n_layers", type=int, default=1)
     train_parser.add_argument("--dropout", type=float, default=0)
-    train_parser.add_argument("--k_clusters", type=int, default=3)
+    train_parser.add_argument("--k_clusters", type=int, default=1)
     train_parser.add_argument("--encoderdecodertype", choices=["RNN", "AUTO", "VAE"], type=str, default="RNN")
 
     get_validate_parser(subparsers)
