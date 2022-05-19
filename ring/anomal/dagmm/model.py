@@ -110,7 +110,7 @@ class dagmm(BaseAnormal):
             self.compute_gmm_params(z, gamma, batch_size)
             if self.training:
                 sample_energy, cov_diag = self.compute_energy(z)
-                return (sample_energy, cov_diag), dec  # for loss
+                return (sample_energy, cov_diag), dec, False  # for loss
             else:
                 return (gamma, self.mu, self.phi, self.cov), dec  # for parameters
         else:
