@@ -19,6 +19,7 @@ class EncoderDecoderAD(BaseAnormal):
         n_layers: int = 1,
         dropout: float = 0,
         x_categoricals: List[str] = [],
+        targets: List[str] = [],
         encoder_cont: List[str] = [],
         encoder_cat: List[str] = [],
         target_lags: Dict = {},
@@ -31,6 +32,7 @@ class EncoderDecoderAD(BaseAnormal):
             embedding_sizes=embedding_sizes,
             target_lags=target_lags,
             x_categoricals=x_categoricals,
+            targets=targets,
             encoder_cont=encoder_cont,
             encoder_cat=encoder_cat,
             cell_type=cell_type,
@@ -49,6 +51,7 @@ class EncoderDecoderAD(BaseAnormal):
             cat_size, _ = embedding_sizes[name]
             embedding_sizes[name] = (cat_size, size)
         return cls(
+            targets=dataset.targets,
             encoder_cat=dataset.encoder_cat,
             encoder_cont=dataset.encoder_cont,
             embedding_sizes=embedding_sizes,
@@ -59,8 +62,8 @@ class EncoderDecoderAD(BaseAnormal):
     def forward(self, x: Dict[str, torch.Tensor], mode=None, **kwargs) -> Dict[str, torch.Tensor]:
 
         simulation = self.encoderdecoder(x)
-
-        return simulation
+        #only consider recon of `cont`
+        return simulation[:, :, self.target_positions]
 
     def calculate_params(self, error_vectors: List[np.ndarray]):
         """

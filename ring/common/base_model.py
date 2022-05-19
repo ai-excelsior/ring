@@ -366,6 +366,7 @@ class BaseAnormal(BaseModel):
         # hpyerparameters
         # data types
         encoderdecodertype: str = "RNN",
+        targets: List[str] = [],
         encoder_cont: List[str] = [],
         encoder_cat: List[str] = [],
         x_categoricals: List[str] = [],
@@ -379,7 +380,7 @@ class BaseAnormal(BaseModel):
         steps: int = 1,
     ):
         super().__init__()
-
+        self._targets = targets
         self._encoder_cont = encoder_cont
         self._encoder_cat = encoder_cat
         self._x_categoricals = x_categoricals
@@ -449,6 +450,27 @@ class BaseAnormal(BaseModel):
     @property
     def categoricals_embedding(self) -> MultiEmbedding:
         return self.encoder_embeddings
+
+    @property
+    def target_positions(self) -> torch.LongTensor:
+        """Target positions in the encoder or decoder tensor
+
+        Note that when `time_varying_unknown_reals` is present, `target_positions` gives the indices
+        of target columns after dropping `time_varying_unknown_reals` from `x["decoder_cont"]`
+
+        Returns:
+            torch.LongTensor: tensor of positions.
+        """
+        pos = torch.tensor(
+            [self._encoder_cont.index(name) for name in to_list(self._targets)],
+            dtype=torch.long,
+        )
+        a = torch.tensor(
+            [i for i, p in enumerate(self.reals_indices) if p in pos],
+            dtype=torch.long,
+        )
+        # device=self.device,
+        return a
 
     @property
     def lagged_target_positions(self) -> Dict[int, torch.LongTensor]:

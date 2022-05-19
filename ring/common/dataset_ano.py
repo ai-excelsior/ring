@@ -288,7 +288,7 @@ class TimeSeriesDataset(Dataset):
         np.random.seed(kwargs.get("seed", 46))
         if gaussian:
             default_kwargs = dict(
-                shuffle=train if not sampler else False,
+                shuffle=train,
                 drop_last=train and len(self) > batch_size,
                 collate_fn=self._collate_fn,
                 batch_size=batch_size,
@@ -298,7 +298,7 @@ class TimeSeriesDataset(Dataset):
             )
         else:
             default_kwargs = dict(
-                shuffle=train if not sampler else False,
+                shuffle=train,
                 drop_last=train and len(self) > batch_size,
                 collate_fn=self._collate_fn,
                 batch_size=batch_size,
