@@ -27,7 +27,7 @@ class dagmm(BaseAnormal):
         target_lags: Dict = {},
         cov: torch.tensor = None,
         output_size: int = 1,
-        eps=torch.tensor(1e-10),
+        eps=torch.tensor(1e-12),
         return_enc: bool = True,
         encoderdecodertype: str = "RNN",
         steps=1,
@@ -116,7 +116,8 @@ class dagmm(BaseAnormal):
                 return [
                     [self.dataset, self.cov, self.log_det],
                     dec[:, :, self.target_positions],
-                ], False  # for parameters
+                    False,
+                ]  # for parameters
         else:
             return z, dec[:, :, self.target_positions]  # for socres and reconstruction
 

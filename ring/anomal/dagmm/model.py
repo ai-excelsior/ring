@@ -29,7 +29,7 @@ class dagmm(BaseAnormal):
         mu: torch.tensor = None,
         cov: torch.tensor = None,
         output_size: int = 1,
-        eps=torch.tensor(1e-10),
+        eps=torch.tensor(1e-12),
         return_enc: bool = True,
         encoderdecodertype: str = "RNN",
         steps=1,
