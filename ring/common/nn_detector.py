@@ -391,13 +391,9 @@ class Detector:
             model, self._losses, dataset._cont_scalars, metrics=metrics, device=self._device
         )
         reporter.run(test_dataloader)
-        headers = metrics.keys()  # metrics for simulating `look_forward` sequences
+        # headers = metrics.keys()  # metrics for simulating `look_forward` sequences
         print("===== Final Result =====")
-        print(
-            tabulate(
-                [[reporter.state.metrics[key] for key in metrics.keys()]], headers=headers, tablefmt="tsv"
-            )
-        )
+        print(str(dumps(reporter.state.metrics), "utf-8"))
 
         return reporter.state.metrics
 
