@@ -16,7 +16,6 @@ from torch.utils.data.sampler import SubsetRandomSampler
 from ignite.engine import Events
 from ignite.contrib.handlers.tensorboard_logger import TensorboardLogger, global_step_from_engine
 from ignite.handlers import Checkpoint, EarlyStopping, DiskSaver
-from tabulate import tabulate
 from .loss import cfg_to_losses
 from .metrics import RMSE, SMAPE, MAE, MSE, MAPE
 from .dataset_ano import TimeSeriesDataset
