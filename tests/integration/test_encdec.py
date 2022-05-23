@@ -24,7 +24,6 @@ kwargs = {
     "hidden_size": 32,
     "n_layers": 3,
     "dropout": 0.1,
-    "sampler": True,
 }
 data_config = AnomalDataConfig(
     time="ds",
@@ -55,7 +54,6 @@ def test_enc():
             "lr": kwargs["lr"],
             "early_stopping_patience": kwargs["early_stopping_patience"],
             "max_epochs": kwargs["max_epochs"],
-            "sampler": kwargs["sampler"],
         },
     )
     data_train = read_from_url(

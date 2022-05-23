@@ -31,7 +31,6 @@ def ecg_test():
         "hidden_size": 45,
         "n_layers": 1,
         "dropout": 0,
-        "sampler": True,
     }
 
     detector = Detector(
@@ -49,7 +48,6 @@ def ecg_test():
             "lr": kwargs["lr"],
             "early_stopping_patience": kwargs["early_stopping_patience"],
             "max_epochs": kwargs["max_epochs"],
-            "sampler": kwargs["sampler"],
         },
     )
     groups = ecg_data["ids"].unique()

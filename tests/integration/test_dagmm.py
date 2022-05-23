@@ -17,7 +17,6 @@ kwargs = {
     "lr": 0.05,
     "batch_size": 8,
     "early_stopping_patience": 10,
-    "train_gaussian_percentage": 0.25,
     "weight_decay": None,
     "max_clip_grad_norm": None,
     "max_epochs": 1,
@@ -57,7 +56,6 @@ def test_dagmm():
             "lr": kwargs["lr"],
             "early_stopping_patience": kwargs["early_stopping_patience"],
             "max_epochs": kwargs["max_epochs"],
-            "train_gaussian_percentage": kwargs["train_gaussian_percentage"],
         },
     )
     data_train = read_from_url(

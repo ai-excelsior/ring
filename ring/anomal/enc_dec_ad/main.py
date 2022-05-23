@@ -17,8 +17,6 @@ def train(data_config: DataConfig, data_train: pd.DataFrame, data_val: pd.DataFr
         "lr": kwargs["lr"],
         "early_stopping_patience": kwargs["early_stopping_patience"],
         "max_epochs": kwargs["max_epochs"],
-        "sampler": True,
-        "train_gaussian_percentage": kwargs["train_gaussian_percentage"],
     }
 
     predictor = None if model_state is None else Predictor.load(model_state, EncoderDecoderAD)

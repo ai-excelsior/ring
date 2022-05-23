@@ -282,32 +282,16 @@ class TimeSeriesDataset(Dataset):
             targets,
         )
 
-    def to_dataloader(
-        self, batch_size: int, train: bool = True, sampler=None, ratio=None, gaussian=False, **kwargs
-    ) -> DataLoader:
-        np.random.seed(kwargs.get("seed", 46))
-        if gaussian:
-            default_kwargs = dict(
-                shuffle=train,
-                drop_last=train and len(self) > batch_size,
-                collate_fn=self._collate_fn,
-                batch_size=batch_size,
-                sampler=sampler(np.random.permutation(len(self))[-int(len(self) * ratio) :])
-                if sampler
-                else None,
-            )
-        else:
-            default_kwargs = dict(
-                shuffle=train,
-                drop_last=train and len(self) > batch_size,
-                collate_fn=self._collate_fn,
-                batch_size=batch_size,
-                sampler=sampler(np.random.permutation(len(self))[: -int(len(self) * ratio)])
-                if sampler
-                else None,
-            )
+    def to_dataloader(self, batch_size: int, train: bool = True, sampler=None, **kwargs) -> DataLoader:
+        # np.random.seed(kwargs.get("seed", 46))
+        default_kwargs = dict(
+            shuffle=train,
+            drop_last=train and len(self) > batch_size,
+            collate_fn=self._collate_fn,
+            batch_size=batch_size,
+            sampler=sampler,
+        )
         kwargs.update(default_kwargs)
-        # `sampler` will not be None when appling anomal-detection
         return DataLoader(self, **kwargs)
 
     def reflect(

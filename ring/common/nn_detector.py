@@ -12,7 +12,6 @@ from oss2 import Bucket
 from glob import glob
 from copy import deepcopy
 from typing import Optional, Union, Dict, Any
-from torch.utils.data.sampler import SubsetRandomSampler
 from ignite.engine import Events
 from ignite.contrib.handlers.tensorboard_logger import TensorboardLogger, global_step_from_engine
 from ignite.handlers import Checkpoint, EarlyStopping, DiskSaver
@@ -166,13 +165,10 @@ class Detector:
                 num_workers=self.n_workers,
                 shuffle=True,
                 pin_memory=True,
-                sampler=None,
             )
             val_dataloader = dataset_val.to_dataloader(
                 batch_size,
                 train=False,
-                sampler=SubsetRandomSampler,
-                ratio=self._trainer_cfg.get("train_gaussian_percentage", 0.25),
                 num_workers=self.n_workers,
                 pin_memory=True,
             )
@@ -180,31 +176,24 @@ class Detector:
                 batch_size,
                 train=False,
                 num_workers=self.n_workers,
-                sampler=SubsetRandomSampler,
-                ratio=self._trainer_cfg.get("train_gaussian_percentage", 0.25),
-                gaussian=True,
             )
         else:
             train_dataloader = dataset_train.to_dataloader(
                 batch_size,
                 num_workers=self.n_workers,
                 shuffle=True,
-                sampler=None,
             )
             val_dataloader = dataset_val.to_dataloader(  # for early_stop
                 batch_size,
                 train=False,
                 num_workers=self.n_workers,
-                sampler=SubsetRandomSampler,
-                ratio=self._trainer_cfg.get("train_gaussian_percentage", 0.25),
             )
-            gaussian_loader = dataset_val.to_dataloader(  # for calculating parameters
-                batch_size,
-                train=False,
-                num_workers=self.n_workers,
-                sampler=SubsetRandomSampler,
-                ratio=self._trainer_cfg.get("train_gaussian_percentage", 0.25),
-                gaussian=True,
+            gaussian_loader = (
+                dataset_val.to_dataloader(  # for calculating parameters, same as `val_dataloader`
+                    batch_size,
+                    train=False,
+                    num_workers=self.n_workers,
+                )
             )
 
         model = self.create_model(dataset_train)
