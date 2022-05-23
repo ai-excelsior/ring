@@ -172,7 +172,7 @@ class Detector:
                 num_workers=self.n_workers,
                 pin_memory=True,
             )
-            gaussian_loader = dataset_train.to_dataloader(
+            gaussian_loader = dataset_val.to_dataloader(
                 batch_size,
                 train=False,
                 num_workers=self.n_workers,
