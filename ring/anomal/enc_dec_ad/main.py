@@ -7,6 +7,8 @@ from ring.common.data_config import DataConfig, url_to_data_config_anomal
 from ring.common.data_utils import read_from_url
 from ring.common.influx_utils import predictions_to_influx
 from ring.common.nn_detector import Detector as Predictor
+import uvicorn
+from fastapi import FastAPI
 
 
 def train(data_config: DataConfig, data_train: pd.DataFrame, data_val: pd.DataFrame, **kwargs):
@@ -73,7 +75,7 @@ def predict(
     assert model_state is not None, "model_state is required when validate"
 
     predictor = Predictor.load(model_state, EncoderDecoderAD)
-    pred_df = predictor.predict(data, plot=True)
+    pred_df = predictor.predict(data, plot=False)
     predictions_to_influx(
         pred_df,
         time_column=predictor._data_cfg.time,
@@ -83,8 +85,54 @@ def predict(
     )
 
 
-def serve():
-    pass
+def serve(load_state, data_cfg):
+    """
+    load a model and predict with given dataset, using serve mode
+    """
+    # load_state = 4
+    predictor = Predictor.load(load_state, EncoderDecoderAD)
+    assert load_state is not None, "load_state is required when serve"
+    data_cfg = url_to_data_config_anomal(data_cfg)
+
+    app = FastAPI(
+        title="Serve Predictor", description="API that load a trained model and do anomal detection"
+    )
+
+    @app.put("/")
+    def read_data(data_json):
+        parse_dates = [predictor._data_cfg.time] if data_cfg.time is None else [data_cfg.time]
+        need_columns = (
+            parse_dates
+            + predictor._data_cfg.cont_features
+            + predictor._data_cfg.cat_features
+            + predictor._data_cfg.static_categoricals
+            + predictor._data_cfg.group_ids
+        )
+        try:
+            data = pd.read_json(
+                data_json,
+                orient="split",
+                convert_dates=parse_dates,
+                keep_default_dates=False,
+                precise_float=True,
+            )
+        except:
+            raise TypeError("read_json failed, please check your data, especially time column")
+        # examine basic columns
+        if [item for item in need_columns if item not in data.columns]:
+            raise ValueError(
+                f"columns don't match, because {[item for item in need_columns if item not in data.columns]} are needed, \
+                    please check your data to make sure it matches the data config in trained model \
+                        which are cont_features={predictor._data_cfg.cont_features}, \
+                            cat_features={predictor._data_cfg.cat_features}, \
+                            statistic_cat = {predictor._data_cfg.static_categoricals}, \
+                                group_id={predictor._data_cfg.group_ids}, "
+            )
+
+        result = predictor.predict(data, plot=False)  # pd_df
+        return result.to_json(orient="split", date_unit="ns", index=False)
+
+    return app
 
 
 if __name__ == "__main__":
@@ -140,4 +188,6 @@ if __name__ == "__main__":
             task_id=kwargs.pop("task_id", None),
         )
     elif command == "serve":
-        pass
+        uvicorn.run(serve(kwargs.pop("load_state", None), kwargs.pop("data_cfg")))
+    else:
+        raise ValueError("command should be one of train, validate, predict and serve")

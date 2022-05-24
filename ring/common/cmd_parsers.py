@@ -72,3 +72,17 @@ def get_predict_parser(subparsers):
     )
 
     return parser
+
+
+def get_serve_parser(subparsers):
+    parser = subparsers.add_parser("serve", help="serve a model")
+    # parser = subparser
+    parser.add_argument("--data_cfg", type=str, required=True, help="The data config, s3 address")
+    parser.add_argument(
+        "--load_state",
+        type=str,
+        default=None,
+        help="Load a pre-training load_state to continue refining, s3 address",
+    )
+    parser.add_argument("--task_id", type=str, default="task_default_none")
+    return parser
