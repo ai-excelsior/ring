@@ -315,7 +315,10 @@ class Predictor:
 
         model = self.create_model(dataset)
         Checkpoint.load_objects(
-            to_load={"model": model}, checkpoint=torch.load(f"{self.load_dir}/{model_filename}")
+            to_load={"model": model},
+            checkpoint=torch.load(
+                f"{self.load_dir}/{model_filename}", map_location=torch.device(self._device)
+            ),
         )
 
         batch_size = self._trainer_cfg.get("batch_size", 64)
@@ -362,7 +365,10 @@ class Predictor:
                 raise ValueError("`load_state` shoule be provided")
         model = self.create_model(dataset)
         Checkpoint.load_objects(
-            to_load={"model": model}, checkpoint=torch.load(f"{self.load_dir}/{model_filename}")
+            to_load={"model": model},
+            checkpoint=torch.load(
+                f"{self.load_dir}/{model_filename}", map_location=torch.device(self._device)
+            ),
         )
 
         # create predict mode dataset
@@ -451,6 +457,10 @@ class Predictor:
     ) -> "Predictor":
         d["params"]["save_dir"] = new_save_dir
         d["params"]["load_dir"] = save_dir
+
+        # remove unnecessary keys
+        d["params"].pop("device", None)
+
         self = cls(model_cls=model_cls, **d["params"])
 
         self._dataset_parameters = d["dataset"]

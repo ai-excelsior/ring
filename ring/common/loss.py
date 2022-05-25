@@ -135,10 +135,16 @@ class AbstractLoss:
             ngroup = g.ngroup()
 
             fig, axes = plt.subplots(n_samples, 1, sharex=True, figsize=(9.6, 4.8 * n_samples), dpi=226)
-            for i, ax in enumerate(axes):
-                subset_data = data[ngroup == i]
-                group_info = [f"{group_id}={str(subset_data.iloc[0][group_id])}" for group_id in group_ids]
-                self.plot_one(ax, subset_data, x, target, title=", ".join(group_info), **kwargs)
+            if n_samples == 1:
+                group_info = [f"{group_id}={str(data.iloc[0][group_id])}" for group_id in group_ids]
+                self.plot_one(axes, data, x, target, title=", ".join(group_info), **kwargs)
+            else:
+                for i, ax in enumerate(axes):
+                    subset_data = data[ngroup == i]
+                    group_info = [
+                        f"{group_id}={str(subset_data.iloc[0][group_id])}" for group_id in group_ids
+                    ]
+                    self.plot_one(ax, subset_data, x, target, title=", ".join(group_info), **kwargs)
             return fig
 
         fig, ax = plt.subplots(sharex=True, figsize=(9.6, 4.8), dpi=226)
@@ -220,7 +226,7 @@ class DilateLoss(AbstractLoss):
 
         path = PathDTW.apply(distances_matrix, self._gamma)
         omega = pairwise_distances(torch.arange(1, sequence_length + 1, dtype=torch.float).to(y_pred.device))
-        loss_temporal = torch.sum(path * omega) / (sequence_length ** 2)
+        loss_temporal = torch.sum(path * omega) / (sequence_length**2)
 
         return self._alpha * loss_shape + (1 - self._alpha) * loss_temporal
 
