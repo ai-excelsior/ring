@@ -39,7 +39,7 @@ class TimeSeriesDataset(Dataset):
         cont_feature: List[str] = [],
         embedding_sizes: Dict[str, Tuple[str, str]] = None,
         # normalizers
-        categorical_encoders: List[LabelEncoder] = [],
+        categorical_encoders: List[PlainEncoder] = [],
         cont_scalars: List[MinMaxNormalizer] = [],
         # toggles
         last_only=False,  # using last_only mode to index
@@ -70,7 +70,7 @@ class TimeSeriesDataset(Dataset):
         # categorical encoder
         if len(self._categorical_encoders) == 0:
             for cat in self.categoricals:  # `group_id` already in
-                self._categorical_encoders.append(PlainEncoder(feature_name=cat))
+                self._categorical_encoders.append(LabelEncoder(feature_name=cat))
 
         # cont scalar
         if len(self._cont_scalars) == 0:
@@ -194,6 +194,10 @@ class TimeSeriesDataset(Dataset):
             indexer=indexer,
             cont_feature=data_cfg.cont_features,
             cat_feature=data_cfg.cat_features,
+            # if `data_cfg.categoricals` not provide, regard `cat_features` as no need to process
+            categorical_encoders=[PlainEncoder(feature_name=cat) for cat in data_cfg.cat_features]
+            if not data_cfg.categoricals
+            else [],
             embedding_sizes=embedding_sizes,
             lags=data_cfg.lags,
             **kwargs,
