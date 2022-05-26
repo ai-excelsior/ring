@@ -3,7 +3,6 @@ from ring.common.influx_utils import get_influx_client
 from typing import Any, Optional, List, Callable, Union
 from datetime import datetime
 from ignite.engine import Engine, EventEnum, Events
-from ignite.handlers import global_step_from_engine
 from torch.optim import Optimizer
 import os
 

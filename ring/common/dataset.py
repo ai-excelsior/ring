@@ -197,6 +197,7 @@ class TimeSeriesDataset(Dataset):
             return [
                 *self._time_varying_known_categoricals,
                 *self._time_varying_unknown_categoricals,
+                *self._group_ids,
                 *self._static_categoricals,
             ]
 
@@ -223,6 +224,7 @@ class TimeSeriesDataset(Dataset):
         if self._enable_static_as_covariant:
             return [
                 *self._time_varying_known_categoricals,
+                *self._group_ids,
                 *self._static_categoricals,
             ]
 
