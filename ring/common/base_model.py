@@ -452,7 +452,7 @@ class BaseAnormal(BaseModel):
         return self.encoder_embeddings
 
     @property
-    def target_positions(self) -> torch.LongTensor:
+    def encoder_positions(self) -> torch.LongTensor:
         """Target positions in the encoder or decoder tensor
 
         Note that when `time_varying_unknown_reals` is present, `target_positions` gives the indices
@@ -462,7 +462,7 @@ class BaseAnormal(BaseModel):
             torch.LongTensor: tensor of positions.
         """
         pos = torch.tensor(
-            [self._encoder_cont.index(name) for name in to_list(self._targets)],
+            [self._targets.index(name) for name in to_list(self._encoder_cont)],
             dtype=torch.long,
         )
         a = torch.tensor(
