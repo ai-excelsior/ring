@@ -59,10 +59,7 @@ class TimeSeriesDataset(Dataset):
         self._cat_feature = cat_feature
         self._cont_feature = cont_feature
 
-        # alter positions to match loss_function
-        data = pd.concat(
-            [data.drop(cont_feature + cat_feature, axis=1), data[cont_feature + cat_feature]], axis=1
-        )
+    
         # add `groupd_ids` to _static_categoricals
         for group_id in group_ids:
             self._static_categoricals.append(group_id)

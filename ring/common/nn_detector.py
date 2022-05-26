@@ -62,10 +62,14 @@ class Detector:
         Initialize
         """
         # make sure `cat_loss`` comes after `cont_loss`
+        # because `dataset.target` = `dataset.cont` + `dataset.cat`
         if data_cfg.cat_features:
-            self._losses = cfg_to_losses(loss_cfg, len(data_cfg.cont_features)) + cfg_to_losses(
-                "BCE", len(data_cfg.cat_features)
-            )
+            if data_cfg.categoricals:  # already one-hot encoded
+                self._losses = cfg_to_losses(loss_cfg, len(data_cfg.cont_features + data_cfg.cat_features))
+            else:  # need to be encoded lately by dataset_ano
+                self._losses = cfg_to_losses(loss_cfg, len(data_cfg.cont_features)) + cfg_to_losses(
+                    "BCE", len(data_cfg.cat_features)
+                )
         else:
             self._losses = cfg_to_losses(loss_cfg, len(data_cfg.cont_features))
 
