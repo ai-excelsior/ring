@@ -187,6 +187,18 @@ class RMSELoss(AbstractLoss):
 
 
 @register(LOSSES)
+class BCELoss(AbstractLoss):
+    def __call__(self, y_pred: torch.Tensor, y_true: torch.Tensor, reduce="mean"):
+        losses = y_pred * torch.log(y_true) + (1 - y_pred) * torch.log(1 - y_true)
+        if reduce == "mean":
+            return torch.mean(losses)
+        elif reduce == "sum":
+            return torch.sum(losses)
+        else:
+            return losses
+
+
+@register(LOSSES)
 class DilateLoss(AbstractLoss):
     def __init__(self, gamma: float = 1, alpha: float = 0.5) -> None:
         super().__init__()
