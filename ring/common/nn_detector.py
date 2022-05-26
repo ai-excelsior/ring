@@ -67,9 +67,7 @@ class Detector:
                 "BCE", len(data_cfg.cat_features)
             )
         else:
-            self._losses = cfg_to_losses(
-                loss_cfg, len(data_cfg.cont_features)
-            )  # + len(data_cfg.cat_features))
+            self._losses = cfg_to_losses(loss_cfg, len(data_cfg.cont_features))
 
         model_params = deepcopy(model_params)
         model_params["output_size"] = sum([loss.n_parameters for loss in self._losses])
