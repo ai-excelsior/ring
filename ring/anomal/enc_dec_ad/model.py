@@ -63,7 +63,7 @@ class EncoderDecoderAD(BaseAnormal):
 
         simulation = self.encoderdecoder(x)
         # only consider recon of `cont`
-        return simulation[:, :, self.target_positions]
+        return simulation
 
     def calculate_params(self, error_vectors: List[np.ndarray]):
         """

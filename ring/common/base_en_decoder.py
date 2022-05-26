@@ -30,7 +30,8 @@ class BaseType(nn.Module):
             input_vector.append(x_cont.clone())
 
         if self.encoder_embeddings.total_embedding_size() > 0:
-            embeddings = self.encoder_embeddings(x_cat.clone(), flat=True)
+            # embeddings = self.encoder_embeddings(x_cat.clone(), flat=True)
+            embeddings = x_cat.clone()
             input_vector.append(embeddings)
 
         input_vector = torch.cat(input_vector, dim=-1)

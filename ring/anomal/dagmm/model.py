@@ -94,12 +94,12 @@ class dagmm(BaseAnormal):
         # reconstruction error
         rec_cosine = F.cosine_similarity(
             x["encoder_cont"].reshape(batch_size, -1),
-            dec[:, :, self.target_positions].reshape(batch_size, -1),
+            dec[:, :, self.encoder_positions].reshape(batch_size, -1),
             dim=1,
         )
         rec_euclidean = (
             x["encoder_cont"].reshape(batch_size, -1)
-            - dec[:, :, self.target_positions].reshape(batch_size, -1)
+            - dec[:, :, self.encoder_positions].reshape(batch_size, -1)
         ).norm(2, dim=1) / torch.clamp(x["encoder_cont"].reshape(batch_size, -1).norm(2, dim=1), min=1e-10)
         # concat low-projection with reconstruction error
         z = torch.cat(
@@ -116,12 +116,12 @@ class dagmm(BaseAnormal):
             self.compute_gmm_params(z, gamma, batch_size)
             if self.training:
                 sample_energy, cov_diag = self.compute_energy(z)
-                return (sample_energy, cov_diag), dec[:, :, self.target_positions], False  # for loss
+                return (sample_energy, cov_diag), dec, False  # for loss
             else:
-                return (gamma, self.mu, self.phi, self.cov), dec[:, :, self.target_positions], False
+                return (gamma, self.mu, self.phi, self.cov), dec, False
                 # for parameters
         else:
-            return z, dec[:, :, self.target_positions]  # for socres and reconstruction
+            return z, dec  # for socres and reconstruction
 
     def compute_gmm_params(self, z: torch.tensor = None, gamma: torch.tensor = None, batch_size: int = None):
         # shape = k_clusters

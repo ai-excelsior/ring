@@ -61,7 +61,16 @@ class Detector:
         """
         Initialize
         """
-        self._losses = cfg_to_losses(loss_cfg, len(data_cfg.cont_features))
+        # make sure `cat_loss`` comes after `cont_loss`
+        if data_cfg.cat_features:
+            self._losses = cfg_to_losses(loss_cfg, len(data_cfg.cont_features)) + cfg_to_losses(
+                "BCE", len(data_cfg.cat_features)
+            )
+        else:
+            self._losses = cfg_to_losses(
+                loss_cfg, len(data_cfg.cont_features)
+            )  # + len(data_cfg.cat_features))
+
         model_params = deepcopy(model_params)
         model_params["output_size"] = sum([loss.n_parameters for loss in self._losses])
         self._num_workers = num_workers
@@ -204,7 +213,11 @@ class Detector:
         )
 
         trainer = create_supervised_trainer(
-            model, optimizer, self._losses, normalizers=dataset_train._cont_scalars, device=self._device
+            model,
+            optimizer,
+            self._losses,
+            normalizers=dataset_train._cont_scalars + dataset_train._categorical_encoders,
+            device=self._device,
         )
         val_metrics = {
             "val_RMSE": RMSE(device=self._device),
@@ -216,7 +229,7 @@ class Detector:
         evaluator = create_supervised_evaluator(
             model,
             self._losses,
-            normalizers=dataset_train._cont_scalars,
+            normalizers=dataset_train._cont_scalars + dataset_train._categorical_encoders,
             metrics=val_metrics,
             device=self._device,
         )
@@ -224,7 +237,7 @@ class Detector:
         gaussian_parameters = create_parameter_evaluator(
             model,
             loss_fns=self._losses,
-            normalizers=dataset_train._cont_scalars,
+            normalizers=dataset_train._cont_scalars + dataset_train._categorical_encoders,
             device=self._device,
         )
 
@@ -376,7 +389,11 @@ class Detector:
             test_dataloader = dataset.to_dataloader(batch_size, train=False, num_workers=self.n_workers)
 
         reporter = create_supervised_evaluator(
-            model, self._losses, dataset._cont_scalars, metrics=metrics, device=self._device
+            model,
+            self._losses,
+            dataset._cont_scalars + dataset._categorical_encoders,
+            metrics=metrics,
+            device=self._device,
         )
         reporter.run(test_dataloader)
         # headers = metrics.keys()  # metrics for simulating `look_forward` sequences
@@ -425,7 +442,7 @@ class Detector:
         predictor = create_supervised_predictor(
             model,
             loss_fns=self._losses,
-            normalizers=dataset._cont_scalars,
+            normalizers=dataset._cont_scalars + dataset._categorical_encoders,
             device=self._device,
         )
 

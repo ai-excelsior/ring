@@ -17,7 +17,7 @@ from .normalizers import (
     serialize_normalizer,
     deserialize_normalizer,
 )
-from .encoder import LabelEncoder, deserialize_encoder, serialize_encoder
+from .encoder import LabelEncoder, PlainEncoder, deserialize_encoder, serialize_encoder
 
 from .utils import get_default_embedding_size, add_time_idx
 from .encoder import create_encoder_from_cfg
@@ -59,6 +59,10 @@ class TimeSeriesDataset(Dataset):
         self._cat_feature = cat_feature
         self._cont_feature = cont_feature
 
+        # alter positions to match loss_function
+        data = pd.concat(
+            [data.drop(cont_feature + cat_feature, axis=1), data[cont_feature + cat_feature]], axis=1
+        )
         # add `groupd_ids` to _static_categoricals
         for group_id in group_ids:
             self._static_categoricals.append(group_id)
@@ -66,7 +70,7 @@ class TimeSeriesDataset(Dataset):
         # categorical encoder
         if len(self._categorical_encoders) == 0:
             for cat in self.categoricals:  # `group_id` already in
-                self._categorical_encoders.append(LabelEncoder(feature_name=cat))
+                self._categorical_encoders.append(PlainEncoder(feature_name=cat))
 
         # cont scalar
         if len(self._cont_scalars) == 0:
@@ -95,13 +99,14 @@ class TimeSeriesDataset(Dataset):
         self._indexer.index(data, last_only, start_index)
 
         # convert `categoricals`
-        # for i, cat in enumerate(self.categoricals):
-        #     encoder = self._categorical_encoders[i]
-        #     if not encoder.fitted:
-        #         data[cat] = encoder.fit_transform(data[cat].astype(str))
+        for i, cat in enumerate(self.categoricals):
+            encoder = self._categorical_encoders[i]
+            if not encoder.fitted:
+                data[cat] = encoder.fit_transform(data[cat].astype(str))
 
-        #     else:
-        #         data[cat] = encoder.transform(data[cat].astype(str), self.embedding_sizes)
+            else:
+                data[cat] = encoder.transform(data[cat].astype(str), self.embedding_sizes)
+
         # convert `cont`
         for i, cont in enumerate(self.encoder_cont):
             scalar = self._cont_scalars[i]
@@ -114,11 +119,11 @@ class TimeSeriesDataset(Dataset):
 
     @property
     def targets(self):
-        return self._cont_feature  # need recon, so only `cont`
+        return self._cont_feature + self._cat_feature  # make sure `cat` comes after `cont`
 
     @property
     def n_targets(self):
-        return len(self._cont_feature)  # need recon, so only `cont`
+        return len(self._cont_feature + self._cat_feature)  # make sure `cat` comes after `cont`
 
     @property
     def embedding_sizes(self):
@@ -212,12 +217,9 @@ class TimeSeriesDataset(Dataset):
             (encoder_time_idx - time_idx_start).to_numpy(np.int64), dtype=torch.long
         )
 
-        encoder_target = torch.tensor(
-            encoder_period[self.encoder_cont].to_numpy(np.float64), dtype=torch.float
-        )
+        encoder_target = torch.tensor(encoder_period[self.targets].to_numpy(np.float64), dtype=torch.float)
 
-        # consider `cont` only
-        # [sequence_length, n_targets]
+        # inverse `cont` to calculate loss, which is disabled in anomal_detection
         # targets = torch.stack(
         #     [
         #         torch.tensor(
@@ -230,18 +232,38 @@ class TimeSeriesDataset(Dataset):
         #     ],
         #     dim=-1,
         # )
+        # target_scales = torch.stack(
+        #     [
+        #         torch.tensor(self._cont_scalars[i].get_norm(encoder_period), dtype=torch.float)
+        #         for i, _ in enumerate(self.encoder_cont)
+        #     ],
+        #     dim=-1,
+        # )
         targets = torch.stack(
             [
                 torch.tensor(encoder_period[target_name].to_numpy(np.float64), dtype=torch.float)
-                for target_name in self.encoder_cont
+                for target_name in self.targets
             ],
             dim=-1,
         )
-        # [sequence_length, 2, n_targets]
-        target_scales = torch.stack(
+        # [sequence_length, 2, n_targets], concat `cont` and `cat`
+
+        target_scales = torch.cat(
             [
-                torch.tensor(self._cont_scalars[i].get_norm(encoder_period), dtype=torch.float)
-                for i, _ in enumerate(self.encoder_cont)
+                torch.stack(
+                    [
+                        torch.tensor(self._cont_scalars[i].get_norm(encoder_period), dtype=torch.float)
+                        for i, _ in enumerate(self.encoder_cont)
+                    ],
+                    dim=-1,
+                ),
+                torch.stack(
+                    [
+                        torch.tensor(self._categorical_encoders[i].get_norm(encoder_period), dtype=torch.int)
+                        for i, _ in enumerate(self.encoder_cat)
+                    ],
+                    dim=-1,
+                ),
             ],
             dim=-1,
         )
@@ -327,5 +349,12 @@ class TimeSeriesDataset(Dataset):
                     for i, target_name in enumerate(self.encoder_cont)
                 }
             )
-
+            data_to_return = data_to_return.assign(
+                **{
+                    target_name: self._categorical_encoders[i].inverse_transform(
+                        self._data[target_name], self._data
+                    )
+                    for i, target_name in enumerate(self.encoder_cat)
+                }
+            )
         return data_to_return
