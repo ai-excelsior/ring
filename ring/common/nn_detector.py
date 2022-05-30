@@ -462,7 +462,11 @@ class Detector:
         y_pred = np.concatenate(y_pred)
         lattice = np.full((self._data_cfg.indexer.steps, data.shape[0]), np.nan)
         lattice_ = np.full(
-            (self._data_cfg.indexer.steps, data.shape[0], len(self._dataset_parameters["cont_feature"])),
+            (
+                self._data_cfg.indexer.steps,
+                data.shape[0],
+                len(self._dataset_parameters["cont_feature"] + self._dataset_parameters["cat_feature"]),
+            ),
             np.nan,
         )
         for i, score in enumerate(scores):
@@ -478,7 +482,9 @@ class Detector:
         raw_data["Anomaly_Score"] = scores
         # only output real and recon of `cont`
         prediction_column_names = [
-            f"{target_name}_reconstruction" for target_name in self._dataset_parameters["cont_feature"]
+            f"{target_name}_reconstruction"
+            for target_name in self._dataset_parameters["cont_feature"]
+            + self._dataset_parameters["cat_feature"]
         ]
         raw_data = raw_data.assign(**{name: np.nan for name in prediction_column_names})
         raw_data[prediction_column_names] = y_pred.reshape((-1, len(prediction_column_names)))
