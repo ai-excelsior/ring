@@ -1,4 +1,4 @@
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Union
 
 from .data_config import Categorical
 from .estimators import Estimator
@@ -7,6 +7,7 @@ import pandas as pd
 import abc
 from .utils import register, column_or_1d, map_to_integer
 import numpy as np
+import torch
 
 ENCODERS: Dict[str, "AbstractEncoder"] = {}
 
@@ -48,6 +49,9 @@ class AbstractEncoder(Estimator):
     def __init__(self, feature_name=None):
         super().__init__()
         self.feature_name = feature_name
+
+    def inverse_postprocess(self, y: Union[pd.Series, torch.Tensor]) -> Union[pd.Series, torch.Tensor]:
+        return y
 
     @abc.abstractmethod
     def fit_self(self, y: pd.Series, embeddings: Dict = {}, **kwargs):
