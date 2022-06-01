@@ -1,16 +1,22 @@
 {
   "time": "datetime",
   "freq": "MS",
-  "targets": ["sales"],
-  "group_ids": ["id"],
-  "static_categoricals": ["id"],
+  "targets": [
+    "sales"
+  ],
+  "group_ids": [
+    "id"
+  ],
+  "static_categoricals": [],
   "static_reals": [],
   "time_varying_known_categoricals": [],
   "time_varying_known_reals": [],
   "time_varying_unknown_categoricals": [],
   "time_varying_unknown_reals": [],
-  "categoricals": {
-    "id": { "enums": ["UKN", "0", "1", "2"], "embedding_size": 2 }
-  },
-  "indexer": { "name": "slide_window", "look_back": 10, "look_forward": 5 }
+  "categoricals": [],
+  "indexer": {
+    "name": "slide_window",
+    "look_back": 10,
+    "look_forward": 5
+  }
 }
