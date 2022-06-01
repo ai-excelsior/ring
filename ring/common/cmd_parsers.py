@@ -61,13 +61,13 @@ def get_predict_parser(subparsers):
     parser.add_argument(
         "--measurement",
         type=str,
-        required=True,
+        required=False,
         help="The measurement name when saving predictions result to influxdb",
     )
     parser.add_argument(
         "--task_id",
         type=str,
-        required=True,
+        required=False,
         help="The identicator of the specific prediction task",
     )
 

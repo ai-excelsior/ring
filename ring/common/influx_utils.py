@@ -34,6 +34,9 @@ def predictions_to_influx(
     task_id: str = None,
     additional_tags: list = [],
 ):
+    if measurement is None or task_id is None:
+        return
+
     df.set_index(time_column, inplace=True)
     df.index = pd.to_datetime(df.index)
     df["model_name"] = model_name
