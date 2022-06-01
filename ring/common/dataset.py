@@ -445,9 +445,17 @@ class TimeSeriesDataset(Dataset):
             data_to_return = data_to_return.assign(
                 **{
                     target_name: self._target_normalizers[i].inverse_transform(
-                        self._data[target_name], self._data
+                        data_to_return[target_name], data_to_return
                     )
                     for i, target_name in enumerate(self._targets)
+                }
+            )
+        if self._group_ids:
+            data_to_return = data_to_return.assign(
+                **{
+                    group_id: self._categorical_encoders[i].inverse_transform(data_to_return[group_id])
+                    for i, group_id in enumerate(self.categoricals)
+                    if group_id in self._group_ids
                 }
             )
 

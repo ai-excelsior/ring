@@ -59,7 +59,6 @@ class TimeSeriesDataset(Dataset):
         self._cat_feature = cat_feature
         self._cont_feature = cont_feature
 
-    
         # add `groupd_ids` to _static_categoricals
         for group_id in group_ids:
             self._static_categoricals.append(group_id)
@@ -335,26 +334,27 @@ class TimeSeriesDataset(Dataset):
 
         data_to_return = self._data.loc[[*decoder_indices]][columns]
         # inverse `group_id` column
-        data_to_return = data_to_return.assign(
-            **{
-                group: self._categorical_encoders[i].inverse_transform(self._data[group], self._data)
-                for i, group in enumerate(self.categoricals)
-                if group in self._group_ids
-            }
-        )
+        if self._group_ids:
+            data_to_return = data_to_return.assign(
+                **{
+                    group: self._categorical_encoders[i].inverse_transform(data_to_return[group])
+                    for i, group in enumerate(self.categoricals)
+                    if group in self._group_ids
+                }
+            )
         # only `cont_features` are considered
         if inverse_scale_target:
             data_to_return = data_to_return.assign(
                 **{
-                    target_name: self._cont_scalars[i].inverse_transform(self._data[target_name], self._data)
+                    target_name: self._cont_scalars[i].inverse_transform(
+                        data_to_return[target_name], data_to_return
+                    )
                     for i, target_name in enumerate(self.encoder_cont)
                 }
             )
             data_to_return = data_to_return.assign(
                 **{
-                    target_name: self._categorical_encoders[i].inverse_transform(
-                        self._data[target_name], self._data
-                    )
+                    target_name: self._categorical_encoders[i].inverse_transform(data_to_return[target_name])
                     for i, target_name in enumerate(self.encoder_cat)
                 }
             )
