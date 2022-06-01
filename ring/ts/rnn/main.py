@@ -78,12 +78,14 @@ def predict(
     predictor = Predictor.load(load_state, ReccurentNetwork)
     pred_df = predictor.predict(data, plot=True)
     predictor.validate(data)
+
     predictions_to_influx(
         pred_df,
         time_column=predictor._data_cfg.time,
         model_name=predictor._model_cls.__module__,
         measurement=measurement,
         task_id=task_id,
+        additional_tags=predictor._data_cfg.group_ids,
     )
 
 

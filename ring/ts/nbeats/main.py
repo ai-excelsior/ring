@@ -88,6 +88,7 @@ def predict(
         model_name=predictor._model_cls.__module__,
         measurement=measurement,
         task_id=task_id,
+        additional_tags=predictor._data_cfg.group_ids,
     )
 
 

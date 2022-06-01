@@ -32,12 +32,12 @@ def predictions_to_influx(
     model_name: str,
     measurement: str,
     task_id: str = None,
+    additional_tags: list = [],
 ):
     df.set_index(time_column, inplace=True)
     df.index = pd.to_datetime(df.index)
     df["model_name"] = model_name
 
-    additional_tags = []
     if task_id is not None:
         df["task_id"] = task_id
         additional_tags.append("task_id")
