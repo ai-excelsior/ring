@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Tuple
 from torch.utils.data import Dataset, DataLoader
 
 from ring.common.data_config import DataConfig
+from ring.common.time_features import time_feature
 from .indexer import BaseIndexer, create_indexer_from_cfg, serialize_indexer, deserialize_indexer
 from .normalizers import (
     AbstractNormalizer,
@@ -139,7 +140,7 @@ class TimeSeriesDataset(Dataset):
             else:
                 data[cont] = scalar.transform(data[cont], data)
 
-        self._data = data
+        self._data = pd.concat([data, self.time_features], axis=1)
 
         if self._add_static_known_real is None and (len(self.decoder_cont) + len(self.decoder_cat)) == 0:
             self._add_static_known_real = True
@@ -237,6 +238,14 @@ class TimeSeriesDataset(Dataset):
     @property
     def lags(self):
         return self._lags
+
+    @property
+    def time_features(self):
+        return time_feature(pd.to_datetime(self._time.values), freq=self._freq)
+
+    @property
+    def time_derive(self):
+        return self.time_features.columns
 
     def get_parameters(self) -> Dict[str, Any]:
         """
@@ -355,8 +364,14 @@ class TimeSeriesDataset(Dataset):
             dim=-1,
         )
 
+        encoder_time_features = torch.tensor(
+            encoder_period[self.time_derive].to_numpy(np.float64), dtype=torch.float
+        )
+        decoder_time_features = torch.tensor(
+            decoder_period[self.time_derive].to_numpy(np.float64), dtype=torch.float
+        )
         return (
-            dict(
+            dict(  # batch[0]
                 encoder_cont=encoder_cont,
                 encoder_cat=encoder_cat,
                 encoder_time_idx=encoder_time_idx,
@@ -369,8 +384,10 @@ class TimeSeriesDataset(Dataset):
                 decoder_target=decoder_target,
                 target_scales=target_scales,
                 target_scales_back=target_scales_back,
+                encoder_time_features=encoder_time_features,
+                decoder_time_features=decoder_time_features,
             ),
-            targets,
+            targets,  # batch[1]
         )
 
     def _collate_fn(self, batches):
@@ -391,6 +408,7 @@ class TimeSeriesDataset(Dataset):
         target_scales = torch.stack([batch[0]["target_scales"] for batch in batches])
         target_scales_back = torch.stack([batch[0]["target_scales_back"] for batch in batches])
         targets = torch.stack([batch[1] for batch in batches])
+        time_features = torch.stack([batch[0]["time_features"] for batch in batches])
 
         return (
             dict(
@@ -408,6 +426,7 @@ class TimeSeriesDataset(Dataset):
                 decoder_length=decoder_length,
                 target_scales=target_scales,
                 target_scales_back=target_scales_back,
+                time_features=time_features,
             ),
             targets,
         )

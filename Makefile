@@ -14,6 +14,13 @@ build-docker-nbeats-gpu:
 	docker build -f ring/ts/nbeats/Dockerfile_gpu -t code.unianalysis.com:5050/unianalysis/ring/nbeats-gpu:$(VERSION) --network=host .
 	docker push code.unianalysis.com:5050/unianalysis/ring/nbeats-gpu:$(VERSION)
 
+build-docker-informer:
+	docker build -f ring/longts/informer/Dockerfile_cpu -t code.unianalysis.com:5050/unianalysis/ring/informer:$(VERSION) --network=host .
+
+build-docker-informer-gpu:
+	docker build -f ring/longts/informer/Dockerfile_gpu -t code.unianalysis.com:5050/unianalysis/ring/informer-gpu:$(VERSION) --network=host .
+	docker push code.unianalysis.com:5050/unianalysis/ring/informer-gpu:$(VERSION)
+
 build-docker-encdecad:
 	docker build -f ring/anomal/enc_dec_ad/Dockerfile_cpu -t code.unianalysis.com:5050/unianalysis/ring/encdecad:$(VERSION) --network=host .
 

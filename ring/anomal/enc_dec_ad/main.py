@@ -2,7 +2,12 @@ from argparse import ArgumentParser
 
 import pandas as pd
 from ring.anomal.enc_dec_ad.model import EncoderDecoderAD
-from ring.common.cmd_parsers import get_predict_parser, get_train_parser, get_validate_parser
+from ring.common.cmd_parsers import (
+    get_predict_parser,
+    get_train_parser,
+    get_validate_parser,
+    get_serve_parser,
+)
 from ring.common.data_config import DataConfig, url_to_data_config_anomal
 from ring.common.data_utils import read_from_url
 from ring.common.influx_utils import predictions_to_influx
@@ -150,6 +155,7 @@ if __name__ == "__main__":
 
     get_validate_parser(subparsers)
     get_predict_parser(subparsers)
+    get_serve_parser(subparsers)
 
     kwargs = vars(parser.parse_args())
     command = kwargs.pop("command")

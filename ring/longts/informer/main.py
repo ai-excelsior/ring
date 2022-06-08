@@ -10,7 +10,7 @@ from ring.common.data_config import DataConfig, url_to_data_config
 from ring.common.nn_predictor import Predictor
 from ring.common.influx_utils import predictions_to_influx
 from ring.common.data_utils import read_from_url
-from model import ReccurentNetwork
+from model import Informer
 from fastapi import FastAPI
 import uvicorn
 
@@ -25,17 +25,18 @@ def train(data_config: DataConfig, data_train: pd.DataFrame, data_val: pd.DataFr
         "max_epochs": kwargs["max_epochs"],
     }
 
-    predictor = None if load_state is None else Predictor.load(load_state, ReccurentNetwork)
+    predictor = None if load_state is None else Predictor.load(load_state, Informer)
     if predictor is not None:
         predictor.trainer_cfg = trainer_cfg
         predictor.train(data_train, data_val, load=True)
     else:
         predictor = Predictor(
             data_cfg=data_config,
-            model_cls=ReccurentNetwork,
+            model_cls=Informer,
             model_params={
-                "cell_type": kwargs["cell_type"],
+                "n_heads": kwargs["n_heads"],
                 "hidden_size": kwargs["hidden_size"],
+                "fcn_size": kwargs["fcn_size"],
                 "n_layers": kwargs["n_layers"],
                 "dropout": kwargs["dropout"],
             },
@@ -65,7 +66,7 @@ def validate(load_state: str, data_val: pd.DataFrame):
     """
     assert load_state is not None, "load_state is required when validate"
 
-    predictor = Predictor.load(load_state, ReccurentNetwork)
+    predictor = Predictor.load(load_state, Informer)
     predictor.validate(data_val)
 
 
@@ -80,7 +81,7 @@ def predict(
     """
     assert load_state is not None, "load_state is required when validate"
 
-    predictor = Predictor.load(load_state, ReccurentNetwork)
+    predictor = Predictor.load(load_state, Informer)
     pred_df = predictor.predict(data, plot=True)
     predictor.validate(data)
 
@@ -99,7 +100,7 @@ def serve(load_state, data_cfg):
     load a model and predict with given dataset, using serve mode
     """
     # load_state = 4
-    predictor = Predictor.load(load_state, ReccurentNetwork)
+    predictor = Predictor.load(load_state, Informer)
     assert load_state is not None, "load_state is required when serve"
     data_cfg = url_to_data_config(data_cfg)
 
@@ -157,15 +158,15 @@ if __name__ == "__main__":
 
     subparsers = parser.add_subparsers(dest="command")
     train_parser = get_train_parser(subparsers)
-    train_parser.add_argument("--cell_type", type=str, choices=["LSTM", "GRU"], default="GRU")
-    train_parser.add_argument("--hidden_size", type=int, default=32)
+    train_parser.add_argument("--n_heads", type=int, choices=int, default=0)
+    train_parser.add_argument("--hidden_size", type=int, default=64)
+    train_parser.add_argument("--fcn_size", type=int, choices=int, default=1024)
     train_parser.add_argument("--n_layers", type=int, default=1)
     train_parser.add_argument("--dropout", type=float, default=0.1)
 
     get_validate_parser(subparsers)
     get_predict_parser(subparsers)
     get_serve_parser(subparsers)
-
     kwargs = vars(parser.parse_args())
     command = kwargs.pop("command")
     if command == "train":
