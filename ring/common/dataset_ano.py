@@ -260,7 +260,7 @@ class TimeSeriesDataset(Dataset):
                 torch.stack(
                     [
                         torch.tensor(self._categorical_encoders[i].get_norm(encoder_period), dtype=torch.int)
-                        for i, _ in enumerate(self.encoder_cat)
+                        for i, _ in enumerate(self.categoricals)
                     ],
                     dim=-1,
                 ),
