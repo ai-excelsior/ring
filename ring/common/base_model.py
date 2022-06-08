@@ -3,10 +3,21 @@ import torch
 from .dataset import TimeSeriesDataset
 from functools import cached_property
 from typing import Callable, Dict, List, Tuple, Union
-from ring.common.ml.embeddings import MultiEmbedding
-from ring.common.ml.rnn import get_rnn
+from ring.common.ml.embeddings import MultiEmbedding, DataEmbedding
 from ring.common.ml.utils import to_list
-from ring.common.base_en_decoder import AutoencoderType, RnnType, VariAutoencoderType
+from ring.common.ml.rnn import get_rnn
+from ring.common.base_en_decoder import (
+    AutoencoderType,
+    RnnType,
+    VariAutoencoderType,
+    ConvLayer,
+    Decoder,
+    DecoderLayer,
+    EncoderLayer,
+    Encoder,
+    AttentionLayer,
+    ProbAttention,
+)
 
 
 HIDDENSTATE = Union[Tuple[torch.Tensor, torch.Tensor], torch.Tensor]
@@ -527,3 +538,163 @@ class BaseAnormal(BaseModel):
         calculate specific post-predict parameters in model
         """
         return
+
+
+class BaseLong(BaseModel):
+    def __init__(
+        self,
+        targets: str,
+        output_size: int,
+        context_length: int,
+        prediction_length: int,
+        token_length: int,
+        # hpyerparameters
+        fcn_size: int = 1024,
+        n_heads: int = 0,
+        hidden_size: int = 64,
+        n_layers: int = 1,
+        dropout: float = 0.1,
+        # data types
+        encoder_cont: List[str] = [],
+        encoder_cat: List[str] = [],
+        decoder_cont: List[str] = [],
+        decoder_cat: List[str] = [],
+        target_lags: Dict = {},
+        freq: str = "h",
+    ):
+        super().__init__()
+
+        self._targets = targets
+        self._output_size = output_size
+        self._encoder_cont = encoder_cont
+        self._encoder_cat = encoder_cat
+        self._decoder_cont = decoder_cont
+        self._decoder_cat = decoder_cat
+        self._targets_lags = target_lags
+        self._prediction_length = prediction_length
+        self._token_length = token_length
+        self._context_length = context_length
+        self._freq = freq
+        self.hidden_size = hidden_size
+        self.n_layers = n_layers
+        self.n_heads = n_heads
+        self.fcn_size = fcn_size
+        assert (
+            self._targets not in self._decoder_cont
+        ), f"Target: {self._targets} should not in decoder_cont, which contains: {self._decoder_cont}"
+
+        # embedding both `cont` and `cat`
+        self.enc_embedding = DataEmbedding(
+            len(encoder_cont) + len(encoder_cat), hidden_size, self._freq, dropout
+        )
+        self.dec_embedding = DataEmbedding(
+            len(decoder_cont) + len(decoder_cat), hidden_size, self._freq, dropout
+        )
+
+        # factor always equal to 3, gelu always equal to gelu
+        self.encoder = Encoder(
+            [
+                EncoderLayer(
+                    AttentionLayer(
+                        ProbAttention(False, 3, attention_dropout=dropout, output_attention=False),
+                        hidden_size,
+                        n_heads,
+                    ),
+                    hidden_size,
+                    fcn_size,
+                    dropout=dropout,
+                    activation="gelu",
+                )
+                for l in range(n_layers)
+            ],
+            [ConvLayer(hidden_size) for l in range(n_layers - 1)],
+            norm_layer=torch.nn.LayerNorm(hidden_size),
+        )
+        self._phase = "encode"
+        self.decoder = Decoder(
+            [
+                DecoderLayer(
+                    AttentionLayer(
+                        ProbAttention(True, 3, attention_dropout=dropout, output_attention=False),
+                        hidden_size,
+                        n_heads,
+                    ),
+                    AttentionLayer(
+                        ProbAttention(False, 3, attention_dropout=dropout, output_attention=False),
+                        hidden_size,
+                        n_heads,
+                    ),
+                    hidden_size,
+                    fcn_size,
+                    dropout,
+                    activation="gelu",
+                )
+                for _ in range(n_layers)
+            ],
+            norm_layer=torch.nn.LayerNorm(hidden_size),
+        )
+
+        self.projection = nn.Linear(hidden_size, output_size, bias=True)
+
+    @property
+    def cont_size(self):
+        return self._encoder_cont.size[1]
+
+    @property
+    def cat_size(self):
+        return self._encoder_cat.size[1]
+
+    def encode(self, x: Dict[str, torch.Tensor]) -> Tuple[torch.Tensor, HIDDENSTATE]:
+        """Encode a sequence into hidden state and make backcasting predictions
+
+        Args:
+            x (Dict[str, torch.Tensor]): the input dictionary
+
+        Returns:
+            Tuple[torch.Tensor, HiddenState]:
+                * the prediction on the encoding sequence
+                * the last hidden state
+        """
+        self._phase = "encode"
+        input_vector = []
+        # NOTE: the real-valued variables always come first in the input vector
+        if self.cont_size > 0:
+            input_vector.append(x["encoder_cont"].clone())
+        if self.cat_size > 0:
+            input_vector.append(x["encoder_cat"].clone())
+
+        input_vector = torch.cat(input_vector, dim=-1)
+        enc_out = self.enc_embedding(input_vector, x["encoder_time_features"])
+        # output_attention = False leading to attns = []
+        enc_out, _ = self.encoder(enc_out, attn_mask=None)
+
+        return enc_out
+
+    def decode(
+        self,
+        x: Dict[str, torch.Tensor],
+        hidden_state: HIDDENSTATE,
+        **_,
+    ) -> torch.Tensor:
+        """Decode a hidden state and an input sequence into forcasting  predictions.
+
+        Args:
+            x (Dict[str, torch.Tensor]): the input dictionary
+            hidden_state (HiddenState): the last output from the encoder
+
+        Returns:
+            torch.Tensor: the prediction on the decoding sequence
+        """
+        self._phase = "decode"
+        input_vector = []
+        # NOTE: the real-valued variables always come first in the input vector
+        if self.cont_size > 0:
+            input_vector.append(x["decoder_cont"].clone())
+        if self.cat_size > 0:
+            input_vector.append(x["decoder_cat"].clone())
+
+        input_vector = torch.cat(input_vector, dim=-1)
+        dec_out = self.dec_embedding(input_vector, x["decoder_time_features"])
+        dec_out = self.decoder(dec_out, hidden_state, x_mask=None, cross_mask=None)
+
+        return dec_out[:, -self.pred_len :, :]

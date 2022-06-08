@@ -158,9 +158,9 @@ if __name__ == "__main__":
 
     subparsers = parser.add_subparsers(dest="command")
     train_parser = get_train_parser(subparsers)
-    train_parser.add_argument("--n_heads", type=int, choices=int, default=0)
+    train_parser.add_argument("--n_heads", type=int, default=2)
     train_parser.add_argument("--hidden_size", type=int, default=64)
-    train_parser.add_argument("--fcn_size", type=int, choices=int, default=1024)
+    train_parser.add_argument("--fcn_size", type=int, default=1024)
     train_parser.add_argument("--n_layers", type=int, default=1)
     train_parser.add_argument("--dropout", type=float, default=0.1)
 

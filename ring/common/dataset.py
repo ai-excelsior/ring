@@ -54,6 +54,7 @@ class TimeSeriesDataset(Dataset):
         # seasonality
         lags: Dict = {},
     ) -> None:
+        self._data = data
         self._time = time
         self._freq = freq
         self._group_ids = group_ids
@@ -140,6 +141,7 @@ class TimeSeriesDataset(Dataset):
             else:
                 data[cont] = scalar.transform(data[cont], data)
 
+        self.time_features = time_feature(pd.to_datetime(data[self._time].values), freq=self._freq)
         self._data = pd.concat([data, self.time_features], axis=1)
 
         if self._add_static_known_real is None and (len(self.decoder_cont) + len(self.decoder_cat)) == 0:
@@ -238,10 +240,6 @@ class TimeSeriesDataset(Dataset):
     @property
     def lags(self):
         return self._lags
-
-    @property
-    def time_features(self):
-        return time_feature(pd.to_datetime(self._time.values), freq=self._freq)
 
     @property
     def time_derive(self):

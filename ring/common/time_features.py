@@ -104,10 +104,22 @@ def time_features_from_frequency_str(freq_str: str) -> List[TimeFeature]:
     """
 
     features_by_offsets = {
+        offsets.YearBegin: [],
         offsets.YearEnd: [],
+        offsets.BYearBegin: [],
+        offsets.BYearEnd: [],
+        offsets.QuarterBegin: [MonthOfYear],
         offsets.QuarterEnd: [MonthOfYear],
+        offsets.BQuarterBegin: [MonthOfYear],
+        offsets.BQuarterEnd: [MonthOfYear],
+        offsets.MonthBegin: [MonthOfYear],
         offsets.MonthEnd: [MonthOfYear],
+        offsets.SemiMonthBegin: [MonthOfYear],
+        offsets.SemiMonthEnd: [MonthOfYear],
+        offsets.BusinessMonthBegin: [MonthOfYear],
+        offsets.BusinessMonthEnd: [MonthOfYear],
         offsets.Week: [DayOfMonth, WeekOfYear],
+        offsets.LastWeekOfMonth: [DayOfMonth, WeekOfYear],
         offsets.Day: [DayOfWeek, DayOfMonth, DayOfYear],
         offsets.BusinessDay: [DayOfWeek, DayOfMonth, DayOfYear],
         offsets.Hour: [HourOfDay, DayOfWeek, DayOfMonth, DayOfYear],
@@ -177,9 +189,14 @@ def time_features_from_frequency_str(freq_str: str) -> List[TimeFeature]:
         T   - minutely
             alias: min
         S   - secondly
+        ms  - microsecndly
+        ns  - nanosecondly
     """
     raise RuntimeError(supported_freq_msg)
 
 
 def time_feature(dates, freq="h"):
-    return np.vstack([list(feat.values())[0](dates) for feat in time_features_from_frequency_str(freq)])
+    return pd.DataFrame(
+        np.vstack([list(feat.values())[0](dates) for feat in time_features_from_frequency_str(freq)]).T,
+        columns=[list(item.keys())[0] for item in time_features_from_frequency_str(freq)],
+    )
