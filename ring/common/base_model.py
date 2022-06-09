@@ -589,7 +589,7 @@ class BaseLong(BaseModel):
             len(decoder_cont) + len(decoder_cat), hidden_size, self._freq, dropout
         )
 
-        # factor always equal to 3, gelu always equal to gelu
+        # factor always equal to 3, activation always equal to gelu
         self.encoder = Encoder(
             [
                 EncoderLayer(
@@ -698,7 +698,6 @@ class BaseLong(BaseModel):
             .float()
             .to(x["encoder_target"].device)
         )
-
         decoder_time_features = torch.cat(
             [
                 x["encoder_time_features"][:, self._context_length - self._token_length :, :],
@@ -706,6 +705,7 @@ class BaseLong(BaseModel):
             ],
             dim=1,
         )
+
         dec_out = self.dec_embedding(decoder_init, decoder_time_features)
         dec_out = self.decoder(dec_out, hidden_state, x_mask=None, cross_mask=None)
 
