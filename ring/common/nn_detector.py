@@ -245,7 +245,7 @@ class Detector:
 
         @trainer.on(Events.EPOCH_COMPLETED)
         def run_validation(trainer):
-            evaluator.run(val_dataloader)
+            evaluator.run(val_dataloader, epoch_length=1000)
             metrics = evaluator.state.metrics
             print(
                 f"Training Results - Epoch: {trainer.state.epoch}, {self._loss_cfg} Loss: {trainer.state.output:.2f}"
@@ -291,7 +291,7 @@ class Detector:
         # estimate parameters for `enc_dec_ad`
         @trainer.on(Events.COMPLETED)
         def evalutate_parameter():
-            gaussian_parameters.run(gaussian_loader)
+            gaussian_parameters.run(gaussian_loader, epoch_length=1000)
             parameters = model.calculate_params(**gaussian_parameters.state.output)
             self._model_states.update(**parameters)
             for k, v in parameters.items():
@@ -336,7 +336,9 @@ class Detector:
                 tag="optimizer_itertion",
                 optimizer=optimizer,
             )
-            trainer.run(train_dataloader, max_epochs=self._trainer_cfg.get("max_epochs", inf))
+            trainer.run(
+                train_dataloader, max_epochs=self._trainer_cfg.get("max_epochs", inf), epoch_length=1000
+            )
         self.save()
 
     def get_parameters(self) -> Dict[str, Any]:

@@ -380,7 +380,6 @@ class BaseAnormal(BaseModel):
         targets: List[str] = [],
         encoder_cont: List[str] = [],
         encoder_cat: List[str] = [],
-        x_categoricals: List[str] = [],
         embedding_sizes: Dict[str, Tuple[int, int]] = {},
         target_lags: Dict = {},
         cell_type: str = "LSTM",
@@ -394,14 +393,13 @@ class BaseAnormal(BaseModel):
         self._targets = targets
         self._encoder_cont = encoder_cont
         self._encoder_cat = encoder_cat
-        self._x_categoricals = x_categoricals
         self._targets_lags = target_lags
 
         self.encoder_embeddings = MultiEmbedding(
             embedding_sizes=embedding_sizes,
             embedding_paddings=[],
             categorical_groups={},
-            x_categoricals=x_categoricals,
+            x_categoricals=encoder_cat,
         )
         # encoder-decoder submodule
         if encoderdecodertype == "RNN":
