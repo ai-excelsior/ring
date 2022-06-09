@@ -636,11 +636,11 @@ class BaseLong(BaseModel):
 
     @property
     def cont_size(self):
-        return self._encoder_cont.size[1]
+        return len(self._encoder_cont)
 
     @property
     def cat_size(self):
-        return self._encoder_cat.size[1]
+        return len(self._encoder_cat)
 
     def encode(self, x: Dict[str, torch.Tensor]) -> Tuple[torch.Tensor, HIDDENSTATE]:
         """Encode a sequence into hidden state and make backcasting predictions
@@ -664,9 +664,9 @@ class BaseLong(BaseModel):
         input_vector = torch.cat(input_vector, dim=-1)
         enc_out = self.enc_embedding(input_vector, x["encoder_time_features"])
         # output_attention = False leading to attns = []
-        enc_out, _ = self.encoder(enc_out, attn_mask=None)
+        enc_out, attns = self.encoder(enc_out, attn_mask=None)
 
-        return enc_out
+        return enc_out, attns
 
     def decode(
         self,
@@ -684,15 +684,29 @@ class BaseLong(BaseModel):
             torch.Tensor: the prediction on the decoding sequence
         """
         self._phase = "decode"
-        input_vector = []
-        # NOTE: the real-valued variables always come first in the input vector
-        if self.cont_size > 0:
-            input_vector.append(x["decoder_cont"].clone())
-        if self.cat_size > 0:
-            input_vector.append(x["decoder_cat"].clone())
 
-        input_vector = torch.cat(input_vector, dim=-1)
-        dec_out = self.dec_embedding(input_vector, x["decoder_time_features"])
+        # place token_length encoder_target in the start of decoder serires
+        # initialize the rest with zero
+        decoder_init = (
+            torch.cat(
+                [
+                    x["encoder_target"][:, self._context_length - self._token_length :, :],
+                    torch.zeros_like(x["decoder_target"][:, -self._prediction_length :, :]),
+                ],
+                dim=1,
+            )
+            .float()
+            .to(x["encoder_target"].device)
+        )
+
+        decoder_time_features = torch.cat(
+            [
+                x["encoder_time_features"][:, self._context_length - self._token_length :, :],
+                x["decoder_time_features"],
+            ],
+            dim=1,
+        )
+        dec_out = self.dec_embedding(decoder_init, decoder_time_features)
         dec_out = self.decoder(dec_out, hidden_state, x_mask=None, cross_mask=None)
 
-        return dec_out[:, -self.pred_len :, :]
+        return dec_out[:, -self._prediction_length :, :]

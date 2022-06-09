@@ -73,6 +73,11 @@ class TimeSeriesDataset(Dataset):
         self._categorical_encoders = categorical_encoders
         self._cont_scalars = cont_scalars
         self._lags = lags
+
+        # time features will be added in `encoder_cont` and `decoder_cont`
+        self.time_features = time_feature(pd.to_datetime(data[self._time].values), freq=self._freq)
+        data = pd.concat([data, self.time_features], axis=1)
+
         # target normalizer
         if len(self._target_normalizers) == 0:
             for _ in self.targets:
@@ -141,13 +146,14 @@ class TimeSeriesDataset(Dataset):
             else:
                 data[cont] = scalar.transform(data[cont], data)
 
-        self.time_features = time_feature(pd.to_datetime(data[self._time].values), freq=self._freq)
-        self._data = pd.concat([data, self.time_features], axis=1)
-
+        # commonly, because time_features have been calculated,  __ZERO__ will not be added
+        # but some frequency has no time_features, e.g. Year
         if self._add_static_known_real is None and (len(self.decoder_cont) + len(self.decoder_cat)) == 0:
             self._add_static_known_real = True
         if self._add_static_known_real is True:
             data[STATIC_UNKNOWN_REAL_NAME] = 0.0
+
+        self._data = data
 
     @property
     def targets(self):
@@ -185,12 +191,14 @@ class TimeSeriesDataset(Dataset):
                 *self._time_varying_known_reals,
                 *self._time_varying_unknown_reals,
                 *self._static_reals,
+                *self.time_derive,
                 *self.targets,
             ]
 
         return [
             *self._time_varying_known_reals,
             *self._time_varying_unknown_reals,
+            *self.time_derive,
             *self.targets,
         ]
 
@@ -212,13 +220,13 @@ class TimeSeriesDataset(Dataset):
             return [
                 *self._time_varying_known_reals,
                 *self._static_reals,
-                *self.targets,
+                *self.time_derive,
                 *([STATIC_UNKNOWN_REAL_NAME] if self._add_static_known_real is True else []),
             ]
 
         return [
             *self._time_varying_known_reals,
-            *self.targets,
+            *self.time_derive,
             *([STATIC_UNKNOWN_REAL_NAME] if self._add_static_known_real is True else []),
         ]
 
@@ -243,7 +251,7 @@ class TimeSeriesDataset(Dataset):
 
     @property
     def time_derive(self):
-        return self.time_features.columns
+        return list(self.time_features.columns)
 
     def get_parameters(self) -> Dict[str, Any]:
         """
@@ -406,8 +414,8 @@ class TimeSeriesDataset(Dataset):
         target_scales = torch.stack([batch[0]["target_scales"] for batch in batches])
         target_scales_back = torch.stack([batch[0]["target_scales_back"] for batch in batches])
         targets = torch.stack([batch[1] for batch in batches])
-        time_features = torch.stack([batch[0]["time_features"] for batch in batches])
-
+        encoder_time_features = torch.stack([batch[0]["encoder_time_features"] for batch in batches])
+        decoder_time_features = torch.stack([batch[0]["decoder_time_features"] for batch in batches])
         return (
             dict(
                 encoder_cont=encoder_cont,
@@ -424,7 +432,8 @@ class TimeSeriesDataset(Dataset):
                 decoder_length=decoder_length,
                 target_scales=target_scales,
                 target_scales_back=target_scales_back,
-                time_features=time_features,
+                encoder_time_features=encoder_time_features,
+                decoder_time_features=decoder_time_features,
             ),
             targets,
         )
