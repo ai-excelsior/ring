@@ -215,7 +215,10 @@ class NbeatsNetwork(BaseModel):
         # der_length<=10*dataset.max_prediction_length,"look back length should be 1-10 t
         # imes of prediction length"
         desired_embedding_sizes = kwargs.pop("embedding_sizes", {})
-        embedding_sizes = deepcopy(dataset.embedding_sizes)
+        embedding_sizes = {}
+        for k, v in dataset.embedding_sizes.items():
+            if k in dataset.encoder_cat:
+                embedding_sizes[k] = v
         for name, size in desired_embedding_sizes.items():
             cat_size, _ = embedding_sizes[name]
             embedding_sizes[name] = (cat_size, size)

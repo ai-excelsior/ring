@@ -97,7 +97,10 @@ class DeepAR(AutoRegressiveBaseModelWithCovariates):
     def from_dataset(cls, dataset: TimeSeriesDataset, **kwargs) -> "DeepAR":
         # update embedding sizes from kwargs
         desired_embedding_sizes = kwargs.pop("embedding_sizes", {})
-        embedding_sizes = deepcopy(dataset.embedding_sizes)
+        embedding_sizes = {}
+        for k, v in dataset.embedding_sizes.items():
+            if k in dataset.encoder_cat:
+                embedding_sizes[k] = v
         for name, size in desired_embedding_sizes.items():
             cat_size, _ = embedding_sizes[name]
             embedding_sizes[name] = (cat_size, size)

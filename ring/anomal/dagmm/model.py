@@ -20,7 +20,6 @@ class dagmm(BaseAnormal):
         n_layers: int = 1,
         dropout: float = 0,
         k_clusters: int = 2,
-        x_categoricals: List[str] = [],
         targets: List[str] = [],
         encoder_cont: List[str] = [],
         encoder_cat: List[str] = [],
@@ -39,7 +38,6 @@ class dagmm(BaseAnormal):
             name=name,
             embedding_sizes=embedding_sizes,
             target_lags=target_lags,
-            x_categoricals=x_categoricals,
             targets=targets,
             encoder_cont=encoder_cont,
             encoder_cat=encoder_cat,
@@ -70,7 +68,10 @@ class dagmm(BaseAnormal):
     @classmethod
     def from_dataset(cls, dataset: TimeSeriesDataset, **kwargs):
         desired_embedding_sizes = kwargs.pop("embedding_sizes", {})
-        embedding_sizes = deepcopy(dataset.embedding_sizes)
+        embedding_sizes = {}
+        for k, v in dataset.embedding_sizes.items():
+            if k in dataset.encoder_cat:
+                embedding_sizes[k] = v
         for name, size in desired_embedding_sizes.items():
             cat_size, _ = embedding_sizes[name]
             embedding_sizes[name] = (cat_size, size)
@@ -79,7 +80,6 @@ class dagmm(BaseAnormal):
             encoder_cat=dataset.encoder_cat,
             encoder_cont=dataset.encoder_cont,
             embedding_sizes=embedding_sizes,
-            x_categoricals=dataset.categoricals,
             steps=dataset.get_parameters().get("indexer").get("params").get("steps"),
             **kwargs,
         )
