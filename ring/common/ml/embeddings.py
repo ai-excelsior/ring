@@ -651,6 +651,7 @@ class TimeFeatureEmbedding(nn.Module):
                 "m": 5,
                 "min": 5,
                 "s": 6,  # second
+                "S": 6,
                 "ms": 7,  # millisecond
                 "us": 8,  # microseconds
                 "ns": 9,  # nanosecond

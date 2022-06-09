@@ -270,11 +270,19 @@ class TimeSeriesDataset(Dataset):
                 ],
                 dim=-1,
             )
-            if self.categoricals
+            if self.categoricals and self.encoder_cont
             else torch.stack(
                 [
                     torch.tensor(self._cont_scalars[i].get_norm(encoder_period), dtype=torch.float)
                     for i, _ in enumerate(self.encoder_cont)
+                ],
+                dim=-1,
+            )
+            if self.encoder_cont
+            else torch.stack(
+                [
+                    torch.tensor(self._categorical_encoders[i].get_norm(encoder_period), dtype=torch.int)
+                    for i, _ in enumerate(self.categoricals)
                 ],
                 dim=-1,
             )

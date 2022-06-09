@@ -67,7 +67,7 @@ class AbstractEncoder(Estimator):
 
     @abc.abstractmethod
     def get_norm(self, y: pd.Series, embeddings: Dict = {}, **kwargs) -> np.ndarray:
-        pass
+        return np.tile(np.asarray([0, len(self._state) - 1]), (len(y), 1))
 
     def fit(self, y: pd.Series, embeddings: Dict = {}, **kwargs):
         return self.fit_self(y, embeddings, **kwargs)
