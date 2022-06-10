@@ -96,6 +96,7 @@ def supervised_training_step(
     prepare_batch: Callable = prepare_batch,
     output_transform: Callable[[Any, Any, Any, torch.Tensor], Any] = lambda x, y, y_pred, loss: loss.item(),
     gradient_accumulation_steps: int = 1,
+    optimizer_choice: bool = False,
 ):
     if gradient_accumulation_steps <= 0:
         raise ValueError(
@@ -106,6 +107,8 @@ def supervised_training_step(
     n_parameters = [loss.n_parameters for loss in loss_fns]
     loss_end_indices = list(itertools.accumulate(n_parameters))
     loss_start_indices = [i - loss_end_indices[0] for i in loss_end_indices]
+    if optimizer_choice:
+        optimizer.defaults["lr"] /= 2
 
     def update(engine: Engine, batch: Sequence[torch.Tensor]) -> Union[Any, Tuple[torch.Tensor]]:
         model.train()
@@ -406,6 +409,7 @@ def create_supervised_trainer(
     output_transform: Callable[[Any, Any, Any, torch.Tensor], Any] = lambda x, y, y_pred, loss: loss.item(),
     deterministic: bool = False,
     gradient_accumulation_steps: int = 1,
+    optimizer_choice: bool = False,
 ) -> Engine:
     update_fn = supervised_training_step(
         model,
@@ -417,6 +421,7 @@ def create_supervised_trainer(
         prepare_batch,
         output_transform,
         gradient_accumulation_steps,
+        optimizer_choice,
     )
     return Engine(update_fn) if not deterministic else DeterministicEngine(update_fn)
 

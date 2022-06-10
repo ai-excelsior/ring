@@ -161,7 +161,7 @@ if __name__ == "__main__":
     subparsers = parser.add_subparsers(dest="command")
     train_parser = get_train_parser(subparsers)
     train_parser.add_argument("--num_stack", type=int, default=1, help="number of stacks")
-    train_parser.add_argument("--num_block", type=int, default=3, hekp="number of blocks in single stack")
+    train_parser.add_argument("--num_block", type=int, default=3, help="number of blocks in single stack")
     train_parser.add_argument(
         "--width", type=int, default=7, help="hidden size, will be transformed to 2 ** X "
     )

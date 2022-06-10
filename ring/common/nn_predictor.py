@@ -175,7 +175,12 @@ class Predictor:
         )
 
         trainer = create_supervised_trainer(
-            model, optimizer, self._losses, normalizers=dataset_train.target_normalizers, device=self._device
+            model,
+            optimizer,
+            self._losses,
+            normalizers=dataset_train.target_normalizers,
+            device=self._device,
+            optimizer_choice=True if self._trainer_cfg.get("weight_decay", None) == "half" else False,
         )
         val_metrics = {
             "val_RMSE": RMSE(device=self._device),
@@ -194,7 +199,7 @@ class Predictor:
 
         @trainer.on(Events.EPOCH_COMPLETED)
         def run_validation(trainer):
-            evaluator.run(val_dataloader)
+            evaluator.run(val_dataloader, epoch_length=1)
             metrics = evaluator.state.metrics
             print(
                 f"Training Results - Epoch: {trainer.state.epoch}, {self._loss_cfg} Loss: {trainer.state.output:.2f}"
@@ -278,7 +283,7 @@ class Predictor:
                 tag="optimizer_itertion",
                 optimizer=optimizer,
             )
-            trainer.run(train_dataloader, max_epochs=self._trainer_cfg.get("max_epochs", inf))
+            trainer.run(train_dataloader, max_epochs=self._trainer_cfg.get("max_epochs", inf), epoch_length=1)
 
     def get_parameters(self) -> Dict[str, Any]:
         """
