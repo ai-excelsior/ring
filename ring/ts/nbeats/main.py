@@ -160,12 +160,21 @@ if __name__ == "__main__":
 
     subparsers = parser.add_subparsers(dest="command")
     train_parser = get_train_parser(subparsers)
-    train_parser.add_argument("--num_stack", type=int, default=1)
-    train_parser.add_argument("--num_block", type=int, default=3)
-    train_parser.add_argument("--width", type=int, default=7)
+    train_parser.add_argument("--num_stack", type=int, default=1, help="number of stacks")
+    train_parser.add_argument("--num_block", type=int, default=3, hekp="number of blocks in single stack")
+    train_parser.add_argument(
+        "--width", type=int, default=7, help="hidden size, will be transformed to 2 ** X "
+    )
     train_parser.add_argument("--dropout", type=float, default=0.1)
-    train_parser.add_argument("--expansion_coe", type=int, default=5)
-    train_parser.add_argument("--backcast_loss_ratio", type=float, default=0.1)
+    train_parser.add_argument(
+        "--expansion_coe", type=int, default=5, help="expansion coefficient,will be transformed to 2 ** X"
+    )
+    train_parser.add_argument(
+        "--backcast_loss_ratio",
+        type=float,
+        default=0.1,
+        help="backcast_loss ratio when calculate loss for backward",
+    )
 
     get_validate_parser(subparsers)
     get_predict_parser(subparsers)

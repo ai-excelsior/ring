@@ -148,10 +148,12 @@ if __name__ == "__main__":
 
     subparsers = parser.add_subparsers(dest="command")
     train_parser = get_train_parser(subparsers)
-    train_parser.add_argument("--cell_type", type=str, choices=["LSTM", "GRU"], default="LSTM")
-    train_parser.add_argument("--hidden_size", type=int, default=32)
-    train_parser.add_argument("--n_layers", type=int, default=1)
-    train_parser.add_argument("--dropout", type=float, default=0)
+    train_parser.add_argument(
+        "--cell_type", type=str, choices=["LSTM", "GRU"], default="GRU", help="rnn cell type"
+    )
+    train_parser.add_argument("--hidden_size", type=int, default=32, help="hidden size of cell")
+    train_parser.add_argument("--n_layers", type=int, default=1, help="layers of cell")
+    train_parser.add_argument("--dropout", type=float, default=0.1)
 
     get_validate_parser(subparsers)
     get_predict_parser(subparsers)

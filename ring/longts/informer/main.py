@@ -159,12 +159,12 @@ if __name__ == "__main__":
 
     subparsers = parser.add_subparsers(dest="command")
     train_parser = get_train_parser(subparsers)
-    train_parser.add_argument("--n_heads", type=int, default=2)
-    train_parser.add_argument("--hidden_size", type=int, default=64)
-    train_parser.add_argument("--fcn_size", type=int, default=1024)
-    train_parser.add_argument("--n_layers", type=int, default=1)
+    train_parser.add_argument("--n_heads", type=int, default=2, help="number of multi-attention heads")
+    train_parser.add_argument("--hidden_size", type=int, default=64, help="attention hidden size")
+    train_parser.add_argument("--fcn_size", type=int, default=1024, help="convolution hidden size")
+    train_parser.add_argument("--n_layers", type=int, default=1, help="layers of attention in single stack")
     train_parser.add_argument("--dropout", type=float, default=0.1)
-    train_parser.add_argument("--n_stacks", type=int, default=1)
+    train_parser.add_argument("--n_stacks", type=int, default=1, help="stacks of encoder")
 
     get_validate_parser(subparsers)
     get_predict_parser(subparsers)
