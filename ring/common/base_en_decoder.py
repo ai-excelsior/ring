@@ -416,7 +416,7 @@ class Encoder(nn.Module):
 class EncoderStack(nn.Module):
     def __init__(self, encoders):
         super(EncoderStack, self).__init__()
-        self.encoders = nn.ModuleList(encoders)
+        self.encoders = encoders
 
     def forward(self, x, attn_mask=None):
         # x [batch_size, look_back, n_target]
@@ -429,6 +429,10 @@ class EncoderStack(nn.Module):
             x_s, attn = self.encoders[i](x[:, -inp_len:, :])
             x_stack.append(x_s)
             attns.append(attn)
+            # decrease one distill layer each stack
+            # will cascade drop all layers in stack, so just use i instead of i+1 to avoid boundary issue
+            self.encoders[i].conv_layers = self.encoders[i].conv_layers[:-1]
+
         # concat all-stack output
         x_stack = torch.cat(x_stack, -2)
         return x_stack, attns
