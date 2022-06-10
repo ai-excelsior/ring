@@ -34,6 +34,7 @@ def train(data_config: DataConfig, data_train: pd.DataFrame, data_val: pd.DataFr
             data_cfg=data_config,
             model_cls=Informer,
             model_params={
+                "token_length": kwargs["token_length"],
                 "n_heads": kwargs["n_heads"],
                 "hidden_size": kwargs["hidden_size"],
                 "fcn_size": kwargs["fcn_size"],
@@ -159,6 +160,9 @@ if __name__ == "__main__":
 
     subparsers = parser.add_subparsers(dest="command")
     train_parser = get_train_parser(subparsers)
+    train_parser.add_argument(
+        "--token_length", type=float, default=0.5, help="ratio of token length compared to look back length"
+    )
     train_parser.add_argument("--n_heads", type=int, default=2, help="number of multi-attention heads")
     train_parser.add_argument("--hidden_size", type=int, default=64, help="attention hidden size")
     train_parser.add_argument("--fcn_size", type=int, default=1024, help="convolution hidden size")

@@ -79,7 +79,10 @@ class Informer(BaseLong):
             # output_size=len(dataset.targets),
             context_length=dataset.get_parameters().get("indexer").get("params").get("look_back"),
             prediction_length=dataset.get_parameters().get("indexer").get("params").get("look_forward"),
-            token_length=dataset.get_parameters().get("indexer").get("params").get("look_back") // 2,
+            token_length=int(
+                dataset.get_parameters().get("indexer").get("params").get("look_back")
+                * kwargs.pop("token_length")
+            ),
             encoder_cont=dataset.encoder_cont,
             encoder_cat=dataset.encoder_cat,
             decoder_cont=dataset.decoder_cont,
