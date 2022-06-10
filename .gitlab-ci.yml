@@ -1,5 +1,7 @@
 default:
   image: docker:20.10.16
+  after_script:
+    - docker image prune -f
 
 stages:
   - build
