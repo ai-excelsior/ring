@@ -25,6 +25,7 @@ def train(data_config: DataConfig, data_train: pd.DataFrame, data_val: pd.DataFr
         "lr": kwargs["lr"],
         "early_stopping_patience": kwargs["early_stopping_patience"],
         "max_epochs": kwargs["max_epochs"],
+        "weight_decay": kwargs["weight_decay"],
     }
 
     predictor = None if load_state is None else Predictor.load(load_state, dagmm)
@@ -158,8 +159,14 @@ if __name__ == "__main__":
     train_parser.add_argument("--hidden_size", type=int, default=32, help="hidden size of cell")
     train_parser.add_argument("--n_layers", type=int, default=1, help="layers of cell")
     train_parser.add_argument("--dropout", type=float, default=0.1)
-    train_parser.add_argument("--k_clusters", type=int, default=1,help="number of proposed clusters")
-    train_parser.add_argument("--encoderdecodertype", choices=["RNN", "AUTO", "VAE"], type=str, default="RNN",help="type of encode/decode type")
+    train_parser.add_argument("--k_clusters", type=int, default=1, help="number of proposed clusters")
+    train_parser.add_argument(
+        "--encoderdecodertype",
+        choices=["RNN", "AUTO", "VAE"],
+        type=str,
+        default="RNN",
+        help="type of encode/decode type",
+    )
 
     get_validate_parser(subparsers)
     get_predict_parser(subparsers)

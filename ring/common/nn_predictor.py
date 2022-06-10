@@ -167,11 +167,18 @@ class Predictor:
             train_dataloader = dataset_train.to_dataloader(batch_size, num_workers=self.n_workers)
             val_dataloader = dataset_val.to_dataloader(batch_size, train=False, num_workers=self.n_workers)
 
+        try:
+            weight_decay = float(self._trainer_cfg.get("weight_decay", 0))
+            optimizer_choice = False
+        except:
+            weight_decay = 0
+            optimizer_choice = True
+
         model = self.create_model(dataset_train)
         optimizer = torch.optim.Adam(
             model.parameters(),
             lr=self._trainer_cfg.get("lr", 1e-3),
-            weight_decay=self._trainer_cfg.get("weight_decay", 0),
+            weight_decay=weight_decay,
         )
 
         trainer = create_supervised_trainer(
@@ -180,7 +187,7 @@ class Predictor:
             self._losses,
             normalizers=dataset_train.target_normalizers,
             device=self._device,
-            optimizer_choice=True if self._trainer_cfg.get("weight_decay", None) == "half" else False,
+            optimizer_choice=optimizer_choice,
         )
         val_metrics = {
             "val_RMSE": RMSE(device=self._device),
