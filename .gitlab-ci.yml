@@ -1,0 +1,80 @@
+default:
+  image: docker:20.10.16
+
+stages:
+  - build
+
+docker-build-nbeats-gpu:
+  image: docker:20.10.16
+  stage: build
+  tags:
+    - ring
+  before_script: 
+    - sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories
+    - apk add make
+  script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_JOB_TOKEN $CI_REGISTRY
+    - DOCKER_BUILDKIT=1 make build-docker-nbeats-gpu
+  when: manual
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+
+docker-build-seq2seq-gpu:
+  image: docker:20.10.16
+  stage: build
+  tags:
+    - ring
+  before_script: 
+    - sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories
+    - apk add make
+  script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_JOB_TOKEN $CI_REGISTRY
+    - make build-docker-seq2seq-gpu
+  when: manual
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+
+docker-build-informer-gpu:
+  image: docker:20.10.16
+  stage: build
+  tags:
+    - ring
+  before_script: 
+    - sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories
+    - apk add make
+  script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_JOB_TOKEN $CI_REGISTRY
+    - make build-docker-informer-gpu
+  when: manual
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+
+docker-build-encdecad-gpu:
+  image: docker:20.10.16
+  stage: build
+  tags:
+    - ring
+  before_script: 
+    - sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories
+    - apk add make
+  script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_JOB_TOKEN $CI_REGISTRY
+    - make build-docker-encdecad-gpu
+  when: manual
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+
+docker-build-dagmm-gpu:
+  image: docker:20.10.16
+  stage: build
+  tags:
+    - ring
+  before_script: 
+    - sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories
+    - apk add make
+  script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_JOB_TOKEN $CI_REGISTRY
+    - make build-docker-dagmm-gpu
+  when: manual
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
