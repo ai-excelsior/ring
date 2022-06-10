@@ -676,21 +676,3 @@ class DataEmbedding(nn.Module):
     def forward(self, x, x_mark):
         x = self.value_embedding(x) + self.temporal_embedding(x_mark) + self.position_embedding(x)
         return self.dropout(x)
-
-
-class DataEmbedding_wo_pos(nn.Module):
-    def __init__(self, c_in, hidden_size, embed_type="fixed", freq="h", dropout=0.1):
-        super(DataEmbedding_wo_pos, self).__init__()
-
-        self.value_embedding = TokenEmbedding(c_in=c_in, hidden_size=hidden_size)
-        self.position_embedding = PositionalEmbedding(hidden_size=hidden_size)
-        self.temporal_embedding = (
-            TemporalEmbedding(hidden_size=hidden_size, embed_type=embed_type, freq=freq)
-            if embed_type != "timeF"
-            else TimeFeatureEmbedding(hidden_size=hidden_size, embed_type=embed_type, freq=freq)
-        )
-        self.dropout = nn.Dropout(p=dropout)
-
-    def forward(self, x, x_mark):
-        x = self.value_embedding(x) + self.temporal_embedding(x_mark)
-        return self.dropout(x)
