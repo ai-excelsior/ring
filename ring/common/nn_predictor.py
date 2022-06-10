@@ -293,7 +293,7 @@ class Predictor:
                 tag="optimizer_itertion",
                 optimizer=optimizer,
             )
-            trainer.run(train_dataloader, max_epochs=self._trainer_cfg.get("max_epochs", inf), epoch_length=1)
+            trainer.run(train_dataloader, max_epochs=self._trainer_cfg.get("max_epochs", inf), epoch_length=2)
 
     def get_parameters(self) -> Dict[str, Any]:
         """
