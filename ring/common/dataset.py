@@ -74,7 +74,7 @@ class TimeSeriesDataset(Dataset):
         self._cont_scalars = cont_scalars
         self._lags = lags
 
-        # time features will be added in `encoder_cont` and `decoder_cont`
+        # time_features will not be added in decoder_cont or encoder_cont
         self.time_features = time_feature(pd.to_datetime(data[self._time].values), freq=self._freq)
         data = pd.concat([data, self.time_features], axis=1)
 
@@ -191,14 +191,12 @@ class TimeSeriesDataset(Dataset):
                 *self._time_varying_known_reals,
                 *self._time_varying_unknown_reals,
                 *self._static_reals,
-                *self.time_derive,
                 *self.targets,
             ]
 
         return [
             *self._time_varying_known_reals,
             *self._time_varying_unknown_reals,
-            *self.time_derive,
             *self.targets,
         ]
 
@@ -220,13 +218,11 @@ class TimeSeriesDataset(Dataset):
             return [
                 *self._time_varying_known_reals,
                 *self._static_reals,
-                *self.time_derive,
                 *([STATIC_UNKNOWN_REAL_NAME] if self._add_static_known_real is True else []),
             ]
 
         return [
             *self._time_varying_known_reals,
-            *self.time_derive,
             *([STATIC_UNKNOWN_REAL_NAME] if self._add_static_known_real is True else []),
         ]
 
@@ -331,6 +327,9 @@ class TimeSeriesDataset(Dataset):
             (encoder_time_idx - time_idx_start).to_numpy(np.int64), dtype=torch.long
         )
         encoder_target = torch.tensor(encoder_period[self.targets].to_numpy(np.float64), dtype=torch.float)
+        encoder_time_features = torch.tensor(
+            encoder_period[self.time_derive].to_numpy(np.float64), dtype=torch.float
+        )
 
         decoder_cont = torch.tensor(decoder_period[self.decoder_cont].to_numpy(np.float64), dtype=torch.float)
         decoder_cat = torch.tensor(decoder_period[self.decoder_cat].to_numpy(np.float64), dtype=torch.int)
@@ -340,7 +339,9 @@ class TimeSeriesDataset(Dataset):
         )
 
         decoder_target = torch.tensor(decoder_period[self.targets].to_numpy(np.float64), dtype=torch.float)
-
+        decoder_time_features = torch.tensor(
+            decoder_period[self.time_derive].to_numpy(np.float64), dtype=torch.float
+        )
         # [sequence_length, n_targets]
         targets = torch.stack(
             [
@@ -370,12 +371,6 @@ class TimeSeriesDataset(Dataset):
             dim=-1,
         )
 
-        encoder_time_features = torch.tensor(
-            encoder_period[self.time_derive].to_numpy(np.float64), dtype=torch.float
-        )
-        decoder_time_features = torch.tensor(
-            decoder_period[self.time_derive].to_numpy(np.float64), dtype=torch.float
-        )
         return (
             dict(  # batch[0]
                 encoder_cont=encoder_cont,
@@ -383,15 +378,15 @@ class TimeSeriesDataset(Dataset):
                 encoder_time_idx=encoder_time_idx,
                 encoder_idx=torch.tensor(encoder_idx, dtype=torch.long),
                 encoder_target=encoder_target,
+                encoder_time_features=encoder_time_features,
                 decoder_cont=decoder_cont,
                 decoder_cat=decoder_cat,
                 decoder_time_idx=decoder_time_idx,
                 decoder_idx=torch.tensor(decoder_idx, dtype=torch.long),
                 decoder_target=decoder_target,
+                decoder_time_features=decoder_time_features,
                 target_scales=target_scales,
                 target_scales_back=target_scales_back,
-                encoder_time_features=encoder_time_features,
-                decoder_time_features=decoder_time_features,
             ),
             targets,  # batch[1]
         )

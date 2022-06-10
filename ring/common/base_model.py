@@ -686,7 +686,6 @@ class BaseLong(BaseModel):
             torch.Tensor: the prediction on the decoding sequence
         """
         self._phase = "decode"
-
         # place token_length encoder_target in the start of decoder serires
         # initialize the rest with zero
         decoder_init = (
