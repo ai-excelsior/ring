@@ -7,7 +7,7 @@ from ring.common.mask import ProbMask, TriangularCausalMask
 class ProbAttention(nn.Module):
     def __init__(self, mask_flag=True, scale=None, attention_dropout=0.1, output_attention=False):
         super(ProbAttention, self).__init__()
-        self.factor = 3
+        self.factor = 5
         self.scale = scale
         self.mask_flag = mask_flag
         self.output_attention = output_attention
@@ -124,7 +124,7 @@ class FullAttention(nn.Module):
 
 
 class AttentionLayer(nn.Module):
-    def __init__(self, attention, hidden_size, n_heads, d_keys=None, d_values=None):
+    def __init__(self, attention, hidden_size, n_heads, d_keys=None, d_values=None, mix=False):
         super(AttentionLayer, self).__init__()
 
         d_keys = d_keys or (hidden_size // n_heads)
@@ -136,6 +136,7 @@ class AttentionLayer(nn.Module):
         self.value_projection = nn.Linear(hidden_size, d_values * n_heads)
         self.out_projection = nn.Linear(d_values * n_heads, hidden_size)
         self.n_heads = n_heads
+        self.mix = mix
 
     def forward(self, queries, keys, values, attn_mask):
         B, L, _ = queries.shape
@@ -147,6 +148,8 @@ class AttentionLayer(nn.Module):
         values = self.value_projection(values).view(B, S, H, -1)
 
         out, attn = self.inner_attention(queries, keys, values, attn_mask)
+        if self.mix:
+            out = out.transpose(2, 1).contiguous()  # mix attention
         out = out.view(B, L, -1)
 
         return self.out_projection(out), attn

@@ -589,7 +589,7 @@ class BaseLong(BaseModel):
             len(decoder_cont) + len(decoder_cat), hidden_size, self._freq, dropout
         )
 
-        # factor always equal to 3, which uses to determine top-k, activation always equal to gelu
+        # factor always equal to 5, which uses to determine top-k, activation always equal to gelu
         self.encoder = Encoder(
             attn_layers=[
                 EncoderLayer(
@@ -617,6 +617,7 @@ class BaseLong(BaseModel):
                         self.attn_type(mask_flag=True, attention_dropout=dropout, output_attention=False),
                         hidden_size,
                         n_heads,
+                        mix=True,
                     ),
                     AttentionLayer(
                         self.attn_type(mask_flag=False, attention_dropout=dropout, output_attention=False),
