@@ -39,6 +39,7 @@ def train(data_config: DataConfig, data_train: pd.DataFrame, data_val: pd.DataFr
                 "fcn_size": kwargs["fcn_size"],
                 "n_layers": kwargs["n_layers"],
                 "dropout": kwargs["dropout"],
+                "n_stacks": kwargs["n_stacks"],
             },
             loss_cfg=kwargs.get("loss", None),
             trainer_cfg=trainer_cfg,
@@ -163,6 +164,7 @@ if __name__ == "__main__":
     train_parser.add_argument("--fcn_size", type=int, default=1024)
     train_parser.add_argument("--n_layers", type=int, default=1)
     train_parser.add_argument("--dropout", type=float, default=0.1)
+    train_parser.add_argument("--n_stacks", type=int, default=1)
 
     get_validate_parser(subparsers)
     get_predict_parser(subparsers)

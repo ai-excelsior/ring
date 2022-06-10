@@ -15,10 +15,8 @@ from ring.common.base_en_decoder import (
     DecoderLayer,
     EncoderLayer,
     Encoder,
-    AttentionLayer,
-    ProbAttention,
 )
-
+from ring.common.attention import AttentionLayer, ProbAttention, FullAttention
 
 HIDDENSTATE = Union[Tuple[torch.Tensor, torch.Tensor], torch.Tensor]
 
@@ -552,6 +550,7 @@ class BaseLong(BaseModel):
         hidden_size: int = 64,
         n_layers: int = 1,
         dropout: float = 0.1,
+        attn_type: str = "prob",
         # data types
         encoder_cont: List[str] = [],
         encoder_cat: List[str] = [],
@@ -577,6 +576,7 @@ class BaseLong(BaseModel):
         self.n_layers = n_layers
         self.n_heads = n_heads
         self.fcn_size = fcn_size
+        self.attn_type = ProbAttention if attn_type == "prob" else FullAttention
         assert (
             self._targets not in self._decoder_cont
         ), f"Target: {self._targets} should not in decoder_cont, which contains: {self._decoder_cont}"
@@ -589,36 +589,36 @@ class BaseLong(BaseModel):
             len(decoder_cont) + len(decoder_cat), hidden_size, self._freq, dropout
         )
 
-        # factor always equal to 3, activation always equal to gelu
+        # factor always equal to 3, which uses to determine top-k, activation always equal to gelu
         self.encoder = Encoder(
-            [
+            attn_layers=[
                 EncoderLayer(
                     AttentionLayer(
-                        ProbAttention(False, 3, attention_dropout=dropout, output_attention=False),
+                        self.attn_type(mask_flag=False, attention_dropout=dropout, output_attention=False),
                         hidden_size,
                         n_heads,
                     ),
                     hidden_size,
                     fcn_size,
-                    dropout=dropout,
+                    dropout,
                     activation="gelu",
                 )
-                for l in range(n_layers)
+                for _ in range(n_layers)
             ],
-            [ConvLayer(hidden_size) for l in range(n_layers - 1)],
+            conv_layers=[ConvLayer(hidden_size) for _ in range(n_layers - 1)],
             norm_layer=torch.nn.LayerNorm(hidden_size),
         )
         self._phase = "encode"
         self.decoder = Decoder(
-            [
+            attn_layers=[
                 DecoderLayer(
                     AttentionLayer(
-                        ProbAttention(True, 3, attention_dropout=dropout, output_attention=False),
+                        self.attn_type(mask_flag=True, attention_dropout=dropout, output_attention=False),
                         hidden_size,
                         n_heads,
                     ),
                     AttentionLayer(
-                        ProbAttention(False, 3, attention_dropout=dropout, output_attention=False),
+                        self.attn_type(mask_flag=False, attention_dropout=dropout, output_attention=False),
                         hidden_size,
                         n_heads,
                     ),
@@ -663,7 +663,7 @@ class BaseLong(BaseModel):
 
         input_vector = torch.cat(input_vector, dim=-1)
         enc_out = self.enc_embedding(input_vector, x["encoder_time_features"])
-        # output_attention = False leading to attns = []
+        # output_attention = False which is default leading to attns = []
         enc_out, attns = self.encoder(enc_out, attn_mask=None)
 
         return enc_out, attns

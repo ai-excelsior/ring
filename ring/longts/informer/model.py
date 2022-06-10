@@ -1,11 +1,8 @@
-from turtle import forward
 import torch
-from torch import nn
-from typing import List, Dict, Tuple
-from copy import deepcopy
+from typing import List, Dict
 from ring.common.base_model import BaseLong
-from ring.common.ml.embeddings import DataEmbedding
 from ring.common.dataset import TimeSeriesDataset
+from ring.common.base_en_decoder import EncoderStack
 
 
 class Informer(BaseLong):
@@ -22,6 +19,8 @@ class Informer(BaseLong):
         fcn_size: int = 1024,
         n_layers: int = 1,
         dropout: float = 0.1,
+        n_stacks: int = 1,
+        attn_type: str = "prob",
         # data types
         encoder_cont: List[str] = [],
         encoder_cat: List[str] = [],
@@ -41,6 +40,7 @@ class Informer(BaseLong):
             hidden_size=hidden_size,
             n_layers=n_layers,
             dropout=dropout,
+            attn_type=attn_type,
             encoder_cont=encoder_cont,
             encoder_cat=encoder_cat,
             decoder_cont=decoder_cont,
@@ -49,6 +49,12 @@ class Informer(BaseLong):
             output_size=output_size,
             freq=freq,
         )
+        # stacked encoder
+        if n_stacks > 1:
+            self.encoder = EncoderStack([self.encoder for _ in range(n_stacks)])
+
+        elif n_stacks <= 0:
+            raise ValueError("n_stacks must be bigger than 0")
 
     def forward(self, x: Dict[str, torch.Tensor], **kwargs):
         enc_out, _ = self.encode(x)
