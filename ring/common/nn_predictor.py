@@ -167,17 +167,20 @@ class Predictor:
             train_dataloader = dataset_train.to_dataloader(batch_size, num_workers=self.n_workers)
             val_dataloader = dataset_val.to_dataloader(batch_size, train=False, num_workers=self.n_workers)
 
+        optimizer_choice = False
+        lr = self._trainer_cfg.get("lr", 1e-3)
         try:
             weight_decay = float(self._trainer_cfg.get("weight_decay", 0))
-            optimizer_choice = False
         except:
             weight_decay = 0
-            optimizer_choice = True
+            if self._trainer_cfg.get("weight_decay") == "half":
+                lr = self._trainer_cfg.get("lr", 1e-3) * 2
+                optimizer_choice = True
 
         model = self.create_model(dataset_train)
         optimizer = torch.optim.Adam(
             model.parameters(),
-            lr=self._trainer_cfg.get("lr", 1e-3),
+            lr=lr,
             weight_decay=weight_decay,
         )
 
