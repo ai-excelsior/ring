@@ -10,7 +10,7 @@ RUN --mount=type=cache,target=/root/.cache pip install -r requirements_no_torch.
 RUN --mount=type=cache,target=/root/.cache pip install -r ring/longts/informer/requirements.txt -i https://mirrors.aliyun.com/pypi/simple/
 
 ADD ring/common ring/common
-ADD ring/ts/rnn ring/longts/informer
+ADD ring/longts/informer ring/longts/informer
 
 ENV PYTHONPATH=/home
 ENTRYPOINT ["python", "/home/ring/longts/informer/main.py"]
