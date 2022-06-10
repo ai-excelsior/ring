@@ -173,7 +173,7 @@ class Predictor:
             weight_decay = float(self._trainer_cfg.get("weight_decay", 0))
         except:
             weight_decay = 0
-            if self._trainer_cfg.get("weight_decay") == "half":
+            if self._trainer_cfg.get("weight_decay") == "epoch_decay":
                 lr = self._trainer_cfg.get("lr", 1e-3) * 2
                 optimizer_choice = True
 
