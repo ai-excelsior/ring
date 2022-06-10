@@ -605,6 +605,7 @@ class BaseLong(BaseModel):
                 )
                 for _ in range(n_layers)
             ],
+            # last attention dont need cov, so n_cov=n_atten - 1
             conv_layers=[ConvLayer(hidden_size) for _ in range(n_layers - 1)],
             norm_layer=torch.nn.LayerNorm(hidden_size),
         )

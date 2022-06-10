@@ -393,9 +393,11 @@ class Encoder(nn.Module):
     def forward(self, x, attn_mask=None):
         # x [B, L, D]
         attns = []
-        if self.conv_layers is not None:
+        if self.conv_layers is not None:  # n_layers >1
             for attn_layer, conv_layer in zip(self.attn_layers, self.conv_layers):
+                # go through a attention layer
                 x, attn = attn_layer(x, attn_mask=attn_mask)
+                # go through a cov layer
                 x = conv_layer(x)
                 attns.append(attn)
             x, attn = self.attn_layers[-1](x)
@@ -417,17 +419,18 @@ class EncoderStack(nn.Module):
         self.encoders = nn.ModuleList(encoders)
 
     def forward(self, x, attn_mask=None):
-        # x [B, L, D]
+        # x [batch_size, look_back, n_target]
         x_stack = []
         attns = []
+        # n_stacks
         for i in range(len(self.encoders)):
             # half the input for each stack
             inp_len = x.shape[1] // (2 ** i)
             x_s, attn = self.encoders[i](x[:, -inp_len:, :])
             x_stack.append(x_s)
             attns.append(attn)
+        # concat all-stack output
         x_stack = torch.cat(x_stack, -2)
-
         return x_stack, attns
 
 
