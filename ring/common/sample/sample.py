@@ -35,7 +35,7 @@ class ExpectedNumInstanceSampler(Sampler[int]):
         if not isinstance(self.num_samples, int) or self.num_samples <= 0 or self.num_samples > len(data_source):
             raise ValueError(
                 "num_samples should be a positive integer "
-                "value, but got num_samples={}".format(self.num_samples)
+                "value and should be less than data source,but got num_samples={}".format(self.num_samples)
             )
 
     @property
