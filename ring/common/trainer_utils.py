@@ -107,9 +107,6 @@ def supervised_training_step(
     n_parameters = [loss.n_parameters for loss in loss_fns]
     loss_end_indices = list(itertools.accumulate(n_parameters))
     loss_start_indices = [i - loss_end_indices[0] for i in loss_end_indices]
-    # smaller 2 times each epoch
-    if optimizer_choice:
-        optimizer.defaults["lr"] /= 2
 
     def update(engine: Engine, batch: Sequence[torch.Tensor]) -> Union[Any, Tuple[torch.Tensor]]:
         model.train()

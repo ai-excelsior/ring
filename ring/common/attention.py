@@ -139,10 +139,9 @@ class AttentionLayer(nn.Module):
         self.mix = mix
 
     def forward(self, queries, keys, values, attn_mask):
-        B, L, _ = queries.shape.to(queries.device)
-        _, S, _ = keys.shape.to(keys.device)
-        H = self.n_heads.to(H.device)
-
+        B, L, _ = queries.shape
+        _, S, _ = keys.shape
+        H = self.n_heads
         queries = self.query_projection(queries).view(B, L, H, -1)
         keys = self.key_projection(keys).view(B, S, H, -1)
         values = self.value_projection(values).view(B, S, H, -1)

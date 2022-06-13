@@ -167,15 +167,11 @@ class Predictor:
             train_dataloader = dataset_train.to_dataloader(batch_size, num_workers=self.n_workers)
             val_dataloader = dataset_val.to_dataloader(batch_size, train=False, num_workers=self.n_workers)
 
-        optimizer_choice = False
         lr = self._trainer_cfg.get("lr", 1e-3)
         try:
             weight_decay = float(self._trainer_cfg.get("weight_decay", 0))
         except:
             weight_decay = 0
-            if self._trainer_cfg.get("weight_decay") == "epoch_decay":
-                lr = self._trainer_cfg.get("lr", 1e-3) * 2
-                optimizer_choice = True
 
         model = self.create_model(dataset_train)
         optimizer = torch.optim.Adam(
@@ -190,7 +186,6 @@ class Predictor:
             self._losses,
             normalizers=dataset_train.target_normalizers,
             device=self._device,
-            optimizer_choice=optimizer_choice,
         )
         val_metrics = {
             "val_RMSE": RMSE(device=self._device),
