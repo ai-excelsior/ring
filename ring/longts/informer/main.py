@@ -94,6 +94,7 @@ def predict(
         task_id=task_id,
         additional_tags=predictor._data_cfg.group_ids,
     )
+    validate(kwargs.get("save_state", None), data_val)
 
 
 def serve(load_state, data_cfg):
