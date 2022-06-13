@@ -585,8 +585,10 @@ class BaseLong(BaseModel):
         self.enc_embedding = DataEmbedding(
             len(encoder_cont) + len(encoder_cat), hidden_size, self._freq, dropout
         )
-
-        self.dec_embedding = DataEmbedding(len(self._targets), hidden_size, self._freq, dropout)
+        # because of the `token`, dec_embedding will have the same size of enc_embedding
+        self.dec_embedding = DataEmbedding(
+            len(encoder_cont) + len(encoder_cat), hidden_size, self._freq, dropout
+        )
 
         # factor always equal to 5, which uses to determine top-k, activation always equal to gelu
         self.encoder = Encoder(
@@ -633,7 +635,7 @@ class BaseLong(BaseModel):
             ],
             norm_layer=torch.nn.LayerNorm(hidden_size),
         )
-
+        # target
         self.projection = nn.Linear(hidden_size, output_size, bias=True)
 
     @property
@@ -686,18 +688,26 @@ class BaseLong(BaseModel):
             torch.Tensor: the prediction on the decoding sequence
         """
         self._phase = "decode"
+        # concat cont and cat
+        dec_vector = []
+        if self.cont_size > 0:
+            dec_vector.append(x["encoder_cont"].clone())
+        if self.cat_size > 0:
+            dec_vector.append(x["encoder_cat"].clone())
+        dec_vector = torch.cat(dec_vector, dim=-1)
         # place token_length encoder_target in the start of decoder serires
         # initialize the rest with zero
+        torch.zeros([dec_vector.shape[0], self._prediction_length, dec_vector.shape[-1]]).float()
         decoder_init = (
             torch.cat(
                 [
-                    x["encoder_target"][:, self._context_length - self._token_length :, :],
-                    torch.zeros_like(x["decoder_target"][:, -self._prediction_length :, :]),
+                    dec_vector[:, self._context_length - self._token_length :, :],
+                    torch.zeros([dec_vector.shape[0], self._prediction_length, dec_vector.shape[-1]]).float(),
                 ],
                 dim=1,
             )
             .float()
-            .to(x["encoder_target"].device)
+            .to(dec_vector.device)
         )
         decoder_time_features = torch.cat(
             [
