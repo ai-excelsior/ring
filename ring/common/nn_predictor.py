@@ -167,17 +167,11 @@ class Predictor:
             train_dataloader = dataset_train.to_dataloader(batch_size, num_workers=self.n_workers)
             val_dataloader = dataset_val.to_dataloader(batch_size, train=False, num_workers=self.n_workers)
 
-        lr = self._trainer_cfg.get("lr", 1e-3)
-        try:
-            weight_decay = float(self._trainer_cfg.get("weight_decay", 0))
-        except:
-            weight_decay = 0
-
         model = self.create_model(dataset_train)
         optimizer = torch.optim.Adam(
             model.parameters(),
-            lr=lr,
-            weight_decay=weight_decay,
+            lr=self._trainer_cfg.get("lr", 1e-3),
+            weight_decay=self._trainer_cfg.get("weight_decay", 0),
         )
 
         trainer = create_supervised_trainer(

@@ -22,7 +22,7 @@ def get_train_parser(subparsers):
     parser.add_argument("--lr", type=float, default=1e-3)
     parser.add_argument("--batch_size", type=int, default=64)
     parser.add_argument("--early_stopping_patience", type=int, default=8)
-    parser.add_argument("--weight_decay", type=str, default=None)
+    parser.add_argument("--weight_decay", type=str, default=0)
     parser.add_argument("--max_clip_grad_norm", type=float, default=None)
     parser.add_argument("--max_epochs", type=int, default=1)
     parser.add_argument("--num_workers", type=int, default=1)
