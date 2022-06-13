@@ -416,7 +416,7 @@ class Encoder(nn.Module):
 class EncoderStack(nn.Module):
     def __init__(self, encoders):
         super(EncoderStack, self).__init__()
-        self.encoders = encoders
+        self.encoders = nn.ModuleList(encoders)
 
     def forward(self, x, attn_mask=None):
         # x [batch_size, look_back, n_target]
