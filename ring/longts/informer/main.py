@@ -59,6 +59,7 @@ def train(data_config: DataConfig, data_train: pd.DataFrame, data_val: pd.DataFr
             predictor.upload(kwargs["save_state"])
     else:
         predictor.upload(kwargs["save_state"])
+    validate(kwargs.get("save_state", None), data_val)
 
 
 def validate(load_state: str, data_val: pd.DataFrame):
@@ -84,17 +85,18 @@ def predict(
 
     predictor = Predictor.load(load_state, Informer)
     pred_df = predictor.predict(data, plot=True)
-    predictor.validate(data)
+    pred_df.to_csv("~/Desktop/xyz_warehouse/gitlab/ring/example/xyz/informer/etth2_predict_2.csv")
+    # predictor.validate(data)
 
-    predictions_to_influx(
-        pred_df,
-        time_column=predictor._data_cfg.time,
-        model_name=predictor._model_cls.__module__,
-        measurement=measurement,
-        task_id=task_id,
-        additional_tags=predictor._data_cfg.group_ids,
-    )
-    validate(kwargs.get("save_state", None), data_val)
+    # predictions_to_influx(
+    #     pred_df,
+    #     time_column=predictor._data_cfg.time,
+    #     model_name=predictor._model_cls.__module__,
+    #     measurement=measurement,
+    #     task_id=task_id,
+    #     additional_tags=predictor._data_cfg.group_ids,
+    # )
+    # validate(kwargs.get("save_state", None), data_val)
 
 
 def serve(load_state, data_cfg):
