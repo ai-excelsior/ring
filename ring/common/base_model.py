@@ -610,6 +610,7 @@ class BaseLong(BaseModel):
             norm_layer=torch.nn.LayerNorm(hidden_size),
         )
         self._phase = "encode"
+        d_layers = n_layers - 1 if n_layers > 2 else n_layers
         self.decoder = Decoder(
             attn_layers=[
                 DecoderLayer(
@@ -629,7 +630,7 @@ class BaseLong(BaseModel):
                     dropout,
                     activation="gelu",
                 )
-                for _ in range(n_layers)
+                for _ in range(d_layers)
             ],
             norm_layer=torch.nn.LayerNorm(hidden_size),
         )
