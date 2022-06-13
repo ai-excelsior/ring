@@ -85,18 +85,17 @@ def predict(
 
     predictor = Predictor.load(load_state, Informer)
     pred_df = predictor.predict(data, plot=True)
-    pred_df.to_csv("~/Desktop/xyz_warehouse/gitlab/ring/example/xyz/informer/etth2_predict_full.csv")
-    # predictor.validate(data)
+    predictor.validate(data)
 
-    # predictions_to_influx(
-    #     pred_df,
-    #     time_column=predictor._data_cfg.time,
-    #     model_name=predictor._model_cls.__module__,
-    #     measurement=measurement,
-    #     task_id=task_id,
-    #     additional_tags=predictor._data_cfg.group_ids,
-    # )
-    # validate(kwargs.get("save_state", None), data_val)
+    predictions_to_influx(
+        pred_df,
+        time_column=predictor._data_cfg.time,
+        model_name=predictor._model_cls.__module__,
+        measurement=measurement,
+        task_id=task_id,
+        additional_tags=predictor._data_cfg.group_ids,
+    )
+    validate(kwargs.get("save_state", None), data_val)
 
 
 def serve(load_state, data_cfg):
