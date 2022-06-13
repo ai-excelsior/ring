@@ -621,7 +621,7 @@ class BaseLong(BaseModel):
                         mix=True,
                     ),
                     AttentionLayer(
-                        self.attn_type(mask_flag=False, attention_dropout=dropout, output_attention=False),
+                        FullAttention(mask_flag=False, attention_dropout=dropout, output_attention=False),
                         hidden_size,
                         n_heads,
                     ),
