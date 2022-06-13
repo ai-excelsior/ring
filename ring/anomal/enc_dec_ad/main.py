@@ -82,16 +82,17 @@ def predict(
 
     predictor = Predictor.load(load_state, EncoderDecoderAD)
     pred_df = predictor.predict(data, plot=False)
-    predictor.validate(data)
+    pred_df.to_csv("~/Desktop/xyz_warehouse/gitlab/ring/example/xyz/nasa/nasa_predict_v1.csv")
+    # predictor.validate(data)
 
-    predictions_to_influx(
-        pred_df,
-        time_column=predictor._data_cfg.time,
-        model_name=predictor._model_cls.__module__,
-        measurement=measurement,
-        task_id=task_id,
-        additional_tags=predictor._data_cfg.group_ids,
-    )
+    # predictions_to_influx(
+    #     pred_df,
+    #     time_column=predictor._data_cfg.time,
+    #     model_name=predictor._model_cls.__module__,
+    #     measurement=measurement,
+    #     task_id=task_id,
+    #     additional_tags=predictor._data_cfg.group_ids,
+    # )
 
 
 def serve(load_state, data_cfg):
