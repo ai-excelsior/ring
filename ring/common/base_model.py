@@ -585,9 +585,8 @@ class BaseLong(BaseModel):
         self.enc_embedding = DataEmbedding(
             len(encoder_cont) + len(encoder_cat), hidden_size, self._freq, dropout
         )
-        self.dec_embedding = DataEmbedding(
-            len(decoder_cont) + len(decoder_cat), hidden_size, self._freq, dropout
-        )
+
+        self.dec_embedding = DataEmbedding(len(self._targets), hidden_size, self._freq, dropout)
 
         # factor always equal to 5, which uses to determine top-k, activation always equal to gelu
         self.encoder = Encoder(

@@ -85,7 +85,7 @@ def predict(
 
     predictor = Predictor.load(load_state, Informer)
     pred_df = predictor.predict(data, plot=True)
-    pred_df.to_csv("~/Desktop/xyz_warehouse/gitlab/ring/example/xyz/informer/etth2_predict_2.csv")
+    pred_df.to_csv("~/Desktop/xyz_warehouse/gitlab/ring/example/xyz/informer/etth2_predict_full.csv")
     # predictor.validate(data)
 
     # predictions_to_influx(
