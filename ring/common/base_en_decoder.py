@@ -418,9 +418,9 @@ class EncoderStack(nn.Module):
     def __init__(self, encoders):
         super(EncoderStack, self).__init__()
         # decrease 1 conv layer each stack
-        # for i in range(1, len(encoders)):
-        #     encoders[i] = deepcopy(encoders[i])
-        #     encoders[i].conv_layers = encoders[i].conv_layers[:-i]
+        for i in range(1, len(encoders)):
+            encoders[i] = deepcopy(encoders[i])
+            encoders[i].conv_layers = encoders[i].conv_layers[:-i]
         self.encoders = nn.ModuleList(encoders)
 
     def forward(self, x, attn_mask=None):

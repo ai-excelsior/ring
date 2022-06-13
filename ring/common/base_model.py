@@ -697,17 +697,14 @@ class BaseLong(BaseModel):
         dec_vector = torch.cat(dec_vector, dim=-1)
         # place token_length encoder_target in the start of decoder serires
         # initialize the rest with zero
-        torch.zeros([dec_vector.shape[0], self._prediction_length, dec_vector.shape[-1]]).float()
-        decoder_init = (
-            torch.cat(
-                [
-                    dec_vector[:, self._context_length - self._token_length :, :],
-                    torch.zeros([dec_vector.shape[0], self._prediction_length, dec_vector.shape[-1]]).float(),
-                ],
-                dim=1,
-            )
-            .float()
-            .to(dec_vector.device)
+        decoder_init = torch.cat(
+            [
+                dec_vector[:, self._context_length - self._token_length :, :].float(),
+                torch.zeros([dec_vector.shape[0], self._prediction_length, dec_vector.shape[-1]])
+                .float()
+                .to(dec_vector.device),
+            ],
+            dim=1,
         )
         decoder_time_features = torch.cat(
             [
