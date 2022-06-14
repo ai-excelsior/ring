@@ -634,6 +634,10 @@ class TemporalEmbedding(nn.Module):
 
 
 class TimeFeatureEmbedding(nn.Module):
+    """
+    go through a FC-layer, hidden_size decided by freq
+    """
+
     def __init__(self, hidden_size, embed_type="timeF", freq="h"):
         super(TimeFeatureEmbedding, self).__init__()
         freq_map = defaultdict(lambda: 1)  # default situation
@@ -674,5 +678,5 @@ class DataEmbedding(nn.Module):
         self.dropout = nn.Dropout(p=dropout)
 
     def forward(self, x, x_mark):
-        x = self.value_embedding(x) + self.temporal_embedding(x_mark) + self.position_embedding(x)
+        x = self.value_embedding(x) + self.position_embedding(x) + self.temporal_embedding(x_mark)
         return self.dropout(x)
