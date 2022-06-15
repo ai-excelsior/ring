@@ -245,12 +245,11 @@ class GroupNormalizer(AbstractNormalizer):
 
     def transform_self(self, data: pd.Series, source: pd.DataFrame = None, **kwargs) -> pd.Series:
         assert self._state is not None
-        try:
-            state = source[self._group_ids].join(self._state, on=self._group_ids)
-        except: #new group
-            state = source[self._group_ids]
-            state['center']=self._state.mean()['center']
-            state['scale']=self._state.mean()['scale']
+        # new group
+        self._state.loc[0] = [self._state.mean()["center"], self._state.mean()["scale"]]
+
+        state = source[self._group_ids].join(self._state, on=self._group_ids, how="inner")
+
         return (data - state["center"]) / state["scale"]
 
     def inverse_transform_self(self, data: pd.Series, source: pd.DataFrame = None, **kwargs) -> pd.Series:
