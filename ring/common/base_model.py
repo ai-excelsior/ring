@@ -572,10 +572,10 @@ class BaseLong(BaseModel):
         self._token_length = token_length
         self._context_length = context_length
         self._freq = freq
-        self.hidden_size = hidden_size
+        self.hidden_size = 2 ** hidden_size
         self.n_layers = n_layers
         self.n_heads = n_heads
-        self.fcn_size = fcn_size
+        self.fcn_size = 2 ** fcn_size
         self.attn_type = ProbAttention if attn_type == "prob" else FullAttention
         assert (
             self._targets not in self._decoder_cont

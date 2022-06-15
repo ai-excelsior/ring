@@ -165,8 +165,8 @@ if __name__ == "__main__":
         "--token_length", type=float, default=0.5, help="ratio of token length compared to look back length"
     )
     train_parser.add_argument("--n_heads", type=int, default=2, help="number of multi-attention heads")
-    train_parser.add_argument("--hidden_size", type=int, default=64, help="attention hidden size")
-    train_parser.add_argument("--fcn_size", type=int, default=1024, help="convolution hidden size")
+    train_parser.add_argument("--hidden_size", type=int, default=6, help="attention hidden size")
+    train_parser.add_argument("--fcn_size", type=int, default=10, help="convolution hidden size")
     train_parser.add_argument("--n_layers", type=int, default=1, help="layers of attention in single stack")
     train_parser.add_argument("--dropout", type=float, default=0.1)
     train_parser.add_argument("--n_stacks", type=int, default=1, help="stacks of encoder")

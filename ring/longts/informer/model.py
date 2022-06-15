@@ -15,8 +15,8 @@ class Informer(BaseLong):
         token_length: int = 1,
         # hpyerparameters
         n_heads: int = 2,
-        hidden_size: int = 64,
-        fcn_size: int = 1024,
+        hidden_size: int = 6,
+        fcn_size: int = 10,
         n_layers: int = 1,
         dropout: float = 0.1,
         n_stacks: int = 1,
