@@ -354,14 +354,7 @@ class TimeSeriesDataset(Dataset):
 
         data_to_return = self._data.loc[[*decoder_indices]][columns]
         # inverse `group_id` column
-        if self._group_ids:
-            data_to_return = data_to_return.assign(
-                **{
-                    group: self._categorical_encoders[i].inverse_transform(data_to_return[group])
-                    for i, group in enumerate(self.categoricals)
-                    if group in self._group_ids
-                }
-            )
+
         # only `cont_features` are considered
         if inverse_scale_target:
             data_to_return = data_to_return.assign(
@@ -376,6 +369,14 @@ class TimeSeriesDataset(Dataset):
                 **{
                     target_name: self._categorical_encoders[i].inverse_transform(data_to_return[target_name])
                     for i, target_name in enumerate(self.encoder_cat)
+                }
+            )
+        if self._group_ids:
+            data_to_return = data_to_return.assign(
+                **{
+                    group: self._categorical_encoders[i].inverse_transform(data_to_return[group])
+                    for i, group in enumerate(self.categoricals)
+                    if group in self._group_ids
                 }
             )
         return data_to_return
