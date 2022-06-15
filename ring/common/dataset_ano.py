@@ -348,9 +348,9 @@ class TimeSeriesDataset(Dataset):
         # ]
         if columns is None:
             if self._time is None:
-                columns = [*self.encoder_cont]
+                columns = [*self.encoder_cont, *self._group_ids]
             else:
-                columns = [self._time, *self.encoder_cont, "_time_idx_"]
+                columns = [self._time, *self.encoder_cont, *self._group_ids, "_time_idx_"]
 
         data_to_return = self._data.loc[[*decoder_indices]][columns]
         # inverse `group_id` column
