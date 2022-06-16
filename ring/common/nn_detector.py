@@ -463,9 +463,11 @@ class Detector:
 
         @predictor.on(Events.ITERATION_COMPLETED)
         def record_score():
+            print(f"predict complete, begin score calculate")
             output = model.predict(predictor.state.output, **self._model_states)
             scores.append(output[0])
             y_pred.append(output[1].data.cpu().numpy())
+            print(f"score calculate complete - total batches: {len(dataloader)}")
 
         predictor.run(dataloader)
         scores = np.concatenate(scores)
