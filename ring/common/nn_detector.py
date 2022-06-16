@@ -423,7 +423,7 @@ class Detector:
     ):
         """Do smoke test on given dataset, take all sequences by default"""
         # use `last_only`=True to fetch only last `steps` result or `start_index` =  INT to assign detection start point
-        print(f"begin create dataset")
+
         dataset = self.create_dataset(data, **kwargs)
 
         # load model
@@ -444,7 +444,7 @@ class Detector:
         )
 
         batch_size = self.trainer_cfg.get("batch_size", 1)
-        print(f"begin create dataloader")
+
         if self.enable_gpu:
             dataloader = dataset.to_dataloader(
                 batch_size, train=False, num_workers=self.n_workers, pin_memory=True
@@ -465,11 +465,10 @@ class Detector:
         # each batch
         @predictor.on(Events.ITERATION_COMPLETED)
         def record_score():
-            print(f"predict complete, begin score calculate")
             output = model.predict(predictor.state.output, **self._model_states)
             scores.append(output[0])
             y_pred.append(output[1].data.cpu().numpy())
-            print(f"score calculate complete - total batches: {len(dataloader)}")
+            print(f"score calculate complete - total batches: {len(scores)}")
 
         print(f"begin predict, total batches: {len(dataloader)}")
         predictor.run(dataloader)
