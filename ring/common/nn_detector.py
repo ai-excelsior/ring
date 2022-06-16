@@ -465,11 +465,11 @@ class Detector:
         # each batch
         @predictor.on(Events.ITERATION_COMPLETED)
         def record_score():
+            if predictor.state.iteration % 100 == 1:
+                print(f"predict and score calculate begin on batches: {predictor.state.iteration}")
             output = model.predict(predictor.state.output, **self._model_states)
             scores.append(output[0])
             y_pred.append(output[1].data.cpu().numpy())
-            if predictor.state.iteration % 100 == 1:
-                print(f"score calculate complete - total batches: {len(scores)}")
 
         print(f"begin predict, total batches: {len(dataloader)}")
         predictor.run(dataloader)
