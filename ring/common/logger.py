@@ -12,10 +12,10 @@ class LoggerWriter(object):
         self.kwargs = kwargs
         self.bucket = os.environ.get("INFLUX_LOG_BUCKET_NAME")
 
-    def add_record(self, key, value, phase, event, task_id):
+    def add_record(self, key, value, phase, event, epochs, iterations, task_id):
         record_dic = {
             "measurement": task_id,
-            "tags": {"event": event, "phase": phase},
+            "tags": {"event": event, "phase": phase, "epoch": epochs, "iteration": iterations},
             "fields": {key: value},
             "time": datetime.utcnow().isoformat("T") + "Z",
         }
@@ -78,7 +78,15 @@ class OutputHandler(BaseOutputHandler):
             )
 
         for key, value in metrics.items():
-            logger.writer.add_record(key.split("/")[1], value, phase=phase, event=event, task_id=self.task_id)
+            logger.writer.add_record(
+                key.split("/")[1],
+                value,
+                phase=phase,
+                event=event,
+                epochs=engine.state.epoch,
+                iterations=engine.state.iteration,
+                task_id=self.task_id,
+            )
 
 
 class OptimizerParamsHandler(BaseOptimizerParamsHandler):
@@ -99,5 +107,11 @@ class OptimizerParamsHandler(BaseOptimizerParamsHandler):
 
         for k, v in params.items():
             logger.writer.add_record(
-                k.split("/")[1], v, phase="training", event="iteration", task_id=self.task_id
+                k.split("/")[1],
+                v,
+                phase="training",
+                event="iteration",
+                epochs=engine.state.epoch,
+                iterations=engine.state.iteration,
+                task_id=self.task_id,
             )
