@@ -443,7 +443,7 @@ class Detector:
             checkpoint=torch.load(f"{self.load_dir}/{model_filename}", map_location=torch.device("cpu")),
         )
 
-        batch_size = 1
+        batch_size = self.trainer_cfg.get("batch_size", 1)
         if self.enable_gpu:
             dataloader = dataset.to_dataloader(
                 batch_size, train=False, num_workers=self.n_workers, pin_memory=True

@@ -84,4 +84,4 @@ class EncoderDecoderAD(BaseAnormal):
         self.mvnormal = multivariate_normal(kwargs["mean"], kwargs["cov"], allow_singular=True)
         score = -self.mvnormal.logpdf(output[0].reshape(-1, len(self._encoder_cont)).cpu())
 
-        return score.reshape(1, -1), output[1]
+        return score.reshape(output[1].shape[0], -1), output[1]
