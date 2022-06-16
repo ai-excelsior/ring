@@ -1,0 +1,17 @@
+{
+    "time": "ds",
+    "freq": "1S",
+    "cont_features": [
+        "accelerometers"
+    ],
+    "cat_features": [],
+    "group_ids": [
+        "bearing_id"
+    ],
+    "static_categoricals": [],
+    "indexer": {
+        "name": "slide_window_fixed",
+        "steps": 20
+    },
+    "categoricals": []
+}
