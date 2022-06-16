@@ -468,7 +468,7 @@ class Detector:
             output = model.predict(predictor.state.output, **self._model_states)
             scores.append(output[0])
             y_pred.append(output[1].data.cpu().numpy())
-            if len(scores) % 100 == 1:
+            if predictor.state.iteration % 100 == 1:
                 print(f"score calculate complete - total batches: {len(scores)}")
 
         print(f"begin predict, total batches: {len(dataloader)}")
