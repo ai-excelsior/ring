@@ -360,6 +360,7 @@ def result_prediction_step(
     def prediction_step(engine: Engine, batch: Sequence[torch.Tensor]) -> Union[Any, Tuple[torch.Tensor]]:
         model.eval()
         with torch.no_grad():
+            print("beginnn")
             x, y = prepare_batch(batch, device=device, non_blocking=non_blocking)
             y_pred = model(x, mode="predict")
             reverse_scale = lambda i, loss: loss.scale_prediction(
