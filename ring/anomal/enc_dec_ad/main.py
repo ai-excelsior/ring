@@ -82,17 +82,12 @@ def predict(
 
     predictor = Predictor.load(load_state, EncoderDecoderAD)
     pred_df = predictor.predict(data, plot=False)
+    from ring.common.data_utils import get_bucket_from_oss_url
 
-    predictor.validate(data)
-
-    predictions_to_influx(
-        pred_df,
-        time_column=predictor._data_cfg.time,
-        model_name=predictor._model_cls.__module__,
-        measurement=measurement,
-        task_id=task_id,
-        additional_tags=predictor._data_cfg.group_ids,
-    )
+    predictor = Predictor.load(load_state, EncoderDecoderAD)
+    pred_df = predictor.predict(data, plot=False)
+    bucket, key = get_bucket_from_oss_url(task_id)
+    bucket.put_object_from_file(key, pred_df)
 
 
 def serve(load_state, data_cfg):
