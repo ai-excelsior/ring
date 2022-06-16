@@ -80,8 +80,8 @@ def predict(
     """
     assert load_state is not None, "load_state is required when validate"
 
-    predictor = Predictor.load(load_state, EncoderDecoderAD)
-    pred_df = predictor.predict(data, plot=False)
+    # predictor = Predictor.load(load_state, EncoderDecoderAD)
+    # pred_df = predictor.predict(data, plot=False)
     from ring.common.data_utils import get_bucket_from_oss_url
 
     predictor = Predictor.load(load_state, EncoderDecoderAD)
