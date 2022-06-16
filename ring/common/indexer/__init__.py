@@ -1,9 +1,13 @@
 from typing import Dict, Any, List, Union
 from ..data_config import IndexerConfig, AnomalIndexerConfig
 from .base import BaseIndexer
-from .slide_window import SlideWindowIndexer, SlideWindowIndexer_fixed
+from .slide_window import SlideWindowIndexer, SlideWindowIndexer_bucketSampler, SlideWindowIndexer_fixed
 
-name_to_cls = {"slide_window": SlideWindowIndexer, "slide_window_fixed": SlideWindowIndexer_fixed}
+name_to_cls = {
+    "slide_window": SlideWindowIndexer,
+    "slide_window_fixed": SlideWindowIndexer_fixed,
+    "slide_window_bucket": SlideWindowIndexer_bucketSampler,
+}
 
 
 def create_indexer_from_cfg(
@@ -20,6 +24,13 @@ def create_indexer_from_cfg(
         return SlideWindowIndexer_fixed(
             time_idx=time_idx,
             steps=cfg.steps,
+            group_ids=group_ids,
+        )
+    elif cfg.name == "slide_window_bucket":
+        return SlideWindowIndexer_bucketSampler(
+            time_idx=time_idx,
+            look_back=cfg.look_back,
+            look_forward=cfg.look_forward,
             group_ids=group_ids,
         )
 

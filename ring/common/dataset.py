@@ -21,6 +21,8 @@ from .encoder import LabelEncoder, deserialize_encoder, serialize_encoder
 
 from .utils import get_default_embedding_size, add_time_idx
 from .encoder import create_encoder_from_cfg
+from ring.common.sample.sample import ExpectedNumInstanceSampler
+from torch.utils.data.sampler import RandomSampler
 
 STATIC_UNKNOWN_REAL_NAME = "_ZERO_"
 TIME_IDX = "_time_idx_"
@@ -442,6 +444,8 @@ class TimeSeriesDataset(Dataset):
         )
         kwargs.update(default_kwargs)
         return DataLoader(self, **kwargs)
+        # return DataLoader(self, sampler=RandomSampler(self, num_samples=1000), **kwargs)
+        # return DataLoader(self, sampler=ExpectedNumInstanceSampler(self, num_samples=1100), **kwargs)
 
     def reflect(
         self,

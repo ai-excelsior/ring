@@ -17,7 +17,6 @@ class ExpectedNumInstanceSampler(Sampler[int]):
     """
 
     data_source: Sized
-    replacement: bool
 
     def __init__(self, data_source: Sized, num_samples: Optional[int] = None, generator=None) -> None:
         self.data_source = data_source
@@ -34,7 +33,22 @@ class ExpectedNumInstanceSampler(Sampler[int]):
     def num_samples(self) -> int:
         if self._num_samples is None:
             return len(self.data_source)
-        return self._num_samples
+        else:
+            if len(self.data_source._group_ids) > 0:
+                index_ts = self.data_source._indexer._index
+                unique_group_id = index_ts["group_id"].unique()
+                num_samples_all = 0
+
+                for i in unique_group_id:
+                    df_for_group_i = index_ts[index_ts["group_id"] == i]
+                    length_for_group_i = len(df_for_group_i)
+                    sample_num_group_i = max(
+                        1, int(self._num_samples * (length_for_group_i / len(self.data_source)))
+                    )
+                    num_samples_all += sample_num_group_i
+                return num_samples_all
+            else:
+                return self._num_samples
 
     def __iter__(self) -> Iterator[int]:
 
@@ -51,20 +65,30 @@ class ExpectedNumInstanceSampler(Sampler[int]):
 
         if len(self.data_source._group_ids) > 0:
             index_ts = self.data_source._indexer._index
+            index_ts = index_ts.reset_index(drop=True)
             unique_group_id = index_ts["group_id"].unique()
 
             for i in unique_group_id:
                 df_for_group_i = index_ts[index_ts["group_id"] == i]
                 length_for_group_i = len(df_for_group_i)
-                sample_num_group_i = max(2, int(self.num_samples * (length_for_group_i / length_data_source)))
-                p = sample_num_group_i / length_for_group_i
+                sample_num_group_i = max(
+                    1, int(self._num_samples * (length_for_group_i / length_data_source))
+                )
 
-                (indices,) = np.where(np.random.random_sample(length_for_group_i) < p)
+                L = df_for_group_i["time_idx"].min()
+                H = df_for_group_i["time_idx"].max()
+                indices = []
+
+                while len(indices) < sample_num_group_i:
+                    indice = np.array(torch.randint(L, H, (1,)).flatten())[0]
+                    if indice not in np.unique(indices):
+                        indices.append(indice)
+
                 sample_group_i = df_for_group_i.loc[df_for_group_i["time_idx"].isin(indices)]
                 sample_group_all.append(sample_group_i)
 
             sample_data = pd.concat(sample_group_all)
-            yield from range(len(sample_data))
+            yield from sample_data.index.values.tolist()
 
         else:
             for _ in range(self.num_samples // length_data_source):
