@@ -80,18 +80,19 @@ def predict(
     """
     assert load_state is not None, "load_state is required when validate"
 
+    # predictor = Predictor.load(load_state, EncoderDecoderAD)
+    # pred_df = predictor.predict(data, plot=False)
+    from ring.common.data_utils import get_bucket_from_oss_url
+    import os
+    import shutil
+
     predictor = Predictor.load(load_state, EncoderDecoderAD)
     pred_df = predictor.predict(data, plot=False)
-    predictor.validate(data)
-
-    predictions_to_influx(
-        pred_df,
-        time_column=predictor._data_cfg.time,
-        model_name=predictor._model_cls.__module__,
-        measurement=measurement,
-        task_id=task_id,
-        additional_tags=predictor._data_cfg.group_ids,
-    )
+    bucket, key = get_bucket_from_oss_url(task_id)
+    os.makedirs("/tmp/xyz", exist_ok=True)
+    pred_df.to_csv("/tmp/xyz/" + key.split("/")[1])
+    bucket.put_object_from_file(key, "/tmp/xyz/" + key.split("/")[1])
+    shutil.rmtree("/tmp/xyz/")
 
 
 def serve(load_state, data_cfg):
