@@ -83,11 +83,16 @@ def predict(
     # predictor = Predictor.load(load_state, EncoderDecoderAD)
     # pred_df = predictor.predict(data, plot=False)
     from ring.common.data_utils import get_bucket_from_oss_url
+    import os
+    import shutil
 
-    predictor = Predictor.load(load_state, EncoderDecoderAD)
-    pred_df = predictor.predict(data, plot=False)
+    # predictor = Predictor.load(load_state, EncoderDecoderAD)
+    # pred_df = predictor.predict(data, plot=False)
     bucket, key = get_bucket_from_oss_url(task_id)
-    bucket.put_object_from_file(key, pred_df)
+    os.makedirs("/tmp/xyz", exist_ok=True)
+    data.to_csv("/tmp/xyz/" + key.split("/")[1])
+    bucket.put_object_from_file(key, "/tmp/xyz/" + key.split("/")[1])
+    shutil.rmtree("/tmp/xyz/")
 
 
 def serve(load_state, data_cfg):
