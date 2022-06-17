@@ -437,15 +437,15 @@ class TimeSeriesDataset(Dataset):
 
     def to_dataloader(self, batch_size: int, train: bool = True, **kwargs) -> DataLoader:
         default_kwargs = dict(
-            shuffle=train,
+            # shuffle=train,
             drop_last=train and len(self) > batch_size,
             collate_fn=self._collate_fn,
             batch_size=batch_size,
         )
         kwargs.update(default_kwargs)
-        return DataLoader(self, **kwargs)
-        # return DataLoader(self, sampler=RandomSampler(self, num_samples=1000), **kwargs)
-        # return DataLoader(self, sampler=ExpectedNumInstanceSampler(self, num_samples=1100), **kwargs)
+        # return DataLoader(self, **kwargs)
+        return DataLoader(self, sampler=RandomSampler(self, num_samples=50 * batch_size), **kwargs)
+        # return DataLoader(self, sampler=ExpectedNumInstanceSampler(self, num_samples=1000), **kwargs)
 
     def reflect(
         self,
