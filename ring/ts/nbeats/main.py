@@ -43,7 +43,7 @@ def train(data_config: DataConfig, data_train: pd.DataFrame, data_val: pd.DataFr
                 "dropout": kwargs["dropout"],
                 "backcast_loss_ratio": kwargs["backcast_loss_ratio"],
             },
-            loss_cfg=kwargs.get("loss", None),
+            metric_cfg=kwargs.get("metric", None),
             trainer_cfg=trainer_cfg,
             save_dir=kwargs["save_state"],
             load_dir=kwargs["load_state"],

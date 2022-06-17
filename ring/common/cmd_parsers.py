@@ -18,7 +18,7 @@ def get_train_parser(subparsers):
     )
 
     # common trainer config
-    parser.add_argument("--loss", type=str, default="MSE")
+    parser.add_argument("--metric", type=str, default="MSE")
     parser.add_argument("--lr", type=float, default=1e-3)
     parser.add_argument("--batch_size", type=int, default=64)
     parser.add_argument("--early_stopping_patience", type=int, default=8)

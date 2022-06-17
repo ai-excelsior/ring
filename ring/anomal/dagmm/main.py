@@ -45,7 +45,7 @@ def train(data_config: DataConfig, data_train: pd.DataFrame, data_val: pd.DataFr
                 "k_clusters": kwargs["k_clusters"],
                 "encoderdecodertype": kwargs["encoderdecodertype"],
             },
-            loss_cfg=kwargs.get("loss", None),
+            metric_cfg=kwargs.get("metric", None),
             trainer_cfg=trainer_cfg,
             save_dir=kwargs["save_state"],
             load_dir=kwargs["load_state"],

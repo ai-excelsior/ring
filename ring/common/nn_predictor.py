@@ -45,7 +45,7 @@ class Predictor:
         data_cfg: DataConfig,
         model_cls: BaseModel,
         model_params: Dict = {},
-        loss_cfg: str = "MSE",
+        metric_cfg: str = "MSE",
         trainer_cfg: Dict = {},
         save_dir: str = None,
         load_dir: str = None,
@@ -57,7 +57,7 @@ class Predictor:
         """
         Initialize
         """
-        self._losses = cfg_to_losses(loss_cfg, len(data_cfg.targets))
+        self._losses = cfg_to_losses(model_cls.__name__, len(data_cfg.targets))
         model_params = deepcopy(model_params)
         model_params["output_size"] = sum([loss.n_parameters for loss in self._losses])
 
@@ -71,7 +71,7 @@ class Predictor:
         self.load_dir = load_dir
         self._data_cfg = data_cfg
         self._trainer_cfg = trainer_cfg
-        self._loss_cfg = loss_cfg
+        self._loss_cfg = metric_cfg
         self._model_cls = model_cls
         self._model_params = model_params
         self._num_workers = num_workers

@@ -49,7 +49,7 @@ class Detector:
         model_cls: BaseModel,
         model_params: Dict = {},
         model_states: Dict = {},
-        loss_cfg: str = "MSE",
+        metric_cfg: str = "MSE",
         trainer_cfg: Dict = {},
         save_dir: str = None,
         load_dir: str = None,
@@ -65,13 +65,15 @@ class Detector:
         # because `dataset.target` = `dataset.cont` + `dataset.cat`
         if data_cfg.cat_features:
             if data_cfg.categoricals:  # already one-hot encoded
-                self._losses = cfg_to_losses(loss_cfg, len(data_cfg.cont_features + data_cfg.cat_features))
+                self._losses = cfg_to_losses(
+                    model_cls.__name__, len(data_cfg.cont_features + data_cfg.cat_features)
+                )
             else:  # need to be encoded lately by dataset_ano
-                self._losses = cfg_to_losses(loss_cfg, len(data_cfg.cont_features)) + cfg_to_losses(
+                self._losses = cfg_to_losses(model_cls.__name__, len(data_cfg.cont_features)) + cfg_to_losses(
                     "BCE", len(data_cfg.cat_features)
                 )
         else:
-            self._losses = cfg_to_losses(loss_cfg, len(data_cfg.cont_features))
+            self._losses = cfg_to_losses(model_cls.__name__, len(data_cfg.cont_features))
 
         model_params = deepcopy(model_params)
         model_params["output_size"] = sum([loss.n_parameters for loss in self._losses])
@@ -86,7 +88,7 @@ class Detector:
 
         self._data_cfg = data_cfg
         self._trainer_cfg = trainer_cfg
-        self._loss_cfg = loss_cfg
+        self._loss_cfg = metric_cfg
         self._model_cls = model_cls
         self._model_params = model_params
         self._model_states = model_states

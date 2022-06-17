@@ -38,7 +38,7 @@ def train(data_config: DataConfig, data_train: pd.DataFrame, data_val: pd.DataFr
                 "dropout": kwargs["dropout"],
                 "n_heads": kwargs["n_heads"],
             },
-            loss_cfg=kwargs.get("loss", None),
+            metric_cfg=kwargs.get("metric", None),
             trainer_cfg=trainer_cfg,
             save_dir=kwargs["save_state"],
             num_workers=kwargs["num_workers"],

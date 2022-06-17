@@ -7,7 +7,7 @@ import numpy as np
 from scipy import stats
 from torch import distributions
 from typing import List, Dict
-
+from collections import defaultdict
 from .utils import register
 from .normalizers import AbstractNormalizer
 from .dtw import pairwise_distances, SoftDTW, PathDTW
@@ -226,7 +226,7 @@ class DilateLoss(AbstractLoss):
 
         path = PathDTW.apply(distances_matrix, self._gamma)
         omega = pairwise_distances(torch.arange(1, sequence_length + 1, dtype=torch.float).to(y_pred.device))
-        loss_temporal = torch.sum(path * omega) / (sequence_length**2)
+        loss_temporal = torch.sum(path * omega) / (sequence_length ** 2)
 
         return self._alpha * loss_shape + (1 - self._alpha) * loss_temporal
 
@@ -533,7 +533,24 @@ def cfg_to_losses(cfg: str, n=1) -> List[AbstractLoss]:
     convert config to loss class' instance, config looks like: 'Quantile,0.02,0.1,0.25,0.5,0.75,0.9,0.98'
     """
     cfg = cfg.split(",")
-    loss_name = f"{cfg[0]}Loss"
+    loss_dict = defaultdict(lambda: "MSE")
+    loss_dict.update(
+        {
+            "NbeatsNetwork": "SMAPE",
+            "ReccurentNetwork": "MAE",
+            "DeepAR": "NormalDistrubution",
+            "BCE": "BCE",
+            "MAE": "MAE",
+            "SMAPE": "SMAPE",
+            "RMSE": "RMSE",
+            "MAPE": "MAPE",
+            "Dilate": "Dilate",
+            "Quantile": "Quantile",
+            "NormalDistrubution": "NormalDistrubution",
+            "NegativeBinomialDistrubution": "NegativeBinomialDistrubution",
+        }
+    )
+    loss_name = f"{loss_dict[cfg[0]]}Loss"
     loss_params = cfg[1:]
     params = []
     for param in loss_params:
