@@ -58,9 +58,9 @@ class Informer(BaseLong):
 
     def forward(self, x: Dict[str, torch.Tensor], **kwargs):
         enc_out, _ = self.encode(x)
-        prediction = self.decode(x, enc_out)
+        prediction, _ = self.decode(x, enc_out)
 
-        return self.projection(prediction)
+        return prediction
 
     @classmethod
     def from_dataset(cls, dataset: TimeSeriesDataset, **kwargs) -> "Informer":

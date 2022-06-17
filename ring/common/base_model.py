@@ -3,7 +3,7 @@ import torch
 from .dataset import TimeSeriesDataset
 from functools import cached_property
 from typing import Callable, Dict, List, Tuple, Union
-from ring.common.ml.embeddings import MultiEmbedding, DataEmbedding
+from ring.common.ml.embeddings import MultiEmbedding, DataEmbedding, DataEmbedding_wo_pos
 from ring.common.ml.utils import to_list
 from ring.common.ml.rnn import get_rnn
 from ring.common.base_en_decoder import (
@@ -16,7 +16,12 @@ from ring.common.base_en_decoder import (
     EncoderLayer,
     Encoder,
 )
-from ring.common.attention import AttentionLayer, ProbAttention, FullAttention
+from ring.common.attention import (
+    AttentionLayer,
+    AutoCorrelation,
+    ProbAttention,
+    FullAttention,
+)
 
 HIDDENSTATE = Union[Tuple[torch.Tensor, torch.Tensor], torch.Tensor]
 
@@ -558,6 +563,9 @@ class BaseLong(BaseModel):
         decoder_cat: List[str] = [],
         target_lags: Dict = {},
         freq: str = "h",
+        embed_type: str = "position",
+        attn_layer: str = "attention",
+        strides: int = None,
     ):
         super().__init__()
 
@@ -577,20 +585,33 @@ class BaseLong(BaseModel):
         self.n_heads = n_heads
         self.fcn_size = 2 ** fcn_size
         self.attn_type = ProbAttention if attn_type == "prob" else FullAttention
+
         assert (
             self._targets not in self._decoder_cont
         ), f"Target: {self._targets} should not in decoder_cont, which contains: {self._decoder_cont}"
+        if embed_type == "without_position":
+            self.embed_type = DataEmbedding_wo_pos
+        else:
+            self.embed_type = DataEmbedding
+
+        if attn_type == "correlation":
+            self.attn_type = AutoCorrelation
+        elif attn_type == "prob":
+            self.attn_type = ProbAttention
+        else:
+            self.attn_type = FullAttention
 
         # embedding both `cont` and `cat`
-        self.enc_embedding = DataEmbedding(
+        self.enc_embedding = self.embed_type(
             len(encoder_cont) + len(encoder_cat), hidden_size, self._freq, dropout
         )
         # because of the `token`, dec_embedding will have the same size of enc_embedding
-        self.dec_embedding = DataEmbedding(
+        self.dec_embedding = self.embed_type(
             len(encoder_cont) + len(encoder_cat), hidden_size, self._freq, dropout
         )
 
-        # factor always equal to 5, which uses to determine top-k, activation always equal to gelu
+        # Probattention: factor always equal to 5, which uses to determine top-k, activation always equal to gelu
+        # Autocorrelation: factor always equal to 3
         self.encoder = Encoder(
             attn_layers=[
                 EncoderLayer(
@@ -603,11 +624,16 @@ class BaseLong(BaseModel):
                     fcn_size,
                     dropout,
                     activation="gelu",
+                    attn_type=attn_type,
+                    strides=strides,
                 )
                 for _ in range(n_layers)
             ],
-            # last attention dont need cov, so n_cov=n_atten - 1
-            conv_layers=[ConvLayer(hidden_size) for _ in range(n_layers - 1)],
+            # when use attention: last attention dont need cov, so n_cov=n_atten - 1
+            # when use autocorrealtion, no conv_layers
+            conv_layers=[ConvLayer(hidden_size) for _ in range(n_layers - 1)]
+            if attn_type != "correlation"
+            else [],
             norm_layer=torch.nn.LayerNorm(hidden_size),
         )
         self._phase = "encode"
@@ -619,7 +645,7 @@ class BaseLong(BaseModel):
                         self.attn_type(mask_flag=True, attention_dropout=dropout, output_attention=False),
                         hidden_size,
                         n_heads,
-                        mix=True,
+                        mix=attn_type == "prob",
                     ),
                     AttentionLayer(
                         self.attn_type(mask_flag=False, attention_dropout=dropout, output_attention=False),
@@ -630,6 +656,9 @@ class BaseLong(BaseModel):
                     fcn_size,
                     dropout,
                     activation="gelu",
+                    attn_type=attn_type,
+                    strides=strides,
+                    output_size=output_size,
                 )
                 for _ in range(d_layers)
             ],
@@ -646,6 +675,29 @@ class BaseLong(BaseModel):
     def cat_size(self):
         return len(self._encoder_cat)
 
+    @property
+    def target_positions(self) -> torch.LongTensor:
+        """Target positions in the encoder tensor
+        because we always concat `x_cat` after `x_cont`, so the index can be found 
+        and this property is only used when initializing decoder_input, which is derived from encoder sequence
+        so the target position need is always that in encoder
+        """
+        features =  self._encoder_cont + self._encoder_cat
+        pos = torch.tensor(
+            [features.index(name) for name in to_list(self._targets)],
+            dtype=torch.long,
+        )
+        return pos
+
+    def construct_vector(self, x_cat, x_cont)->torch.Tensor:
+        vector = []
+        if self.cont_size > 0:
+            vector.append(x_cont.clone())
+        if self.cat_size > 0:
+            vector.append(x_cat.clone())
+        vector = torch.cat(vector, dim=-1)
+        return vector
+
     def encode(self, x: Dict[str, torch.Tensor]) -> Tuple[torch.Tensor, HIDDENSTATE]:
         """Encode a sequence into hidden state and make backcasting predictions
 
@@ -658,14 +710,7 @@ class BaseLong(BaseModel):
                 * the last hidden state
         """
         self._phase = "encode"
-        input_vector = []
-        # NOTE: the real-valued variables always come first in the input vector
-        if self.cont_size > 0:
-            input_vector.append(x["encoder_cont"].clone())
-        if self.cat_size > 0:
-            input_vector.append(x["encoder_cat"].clone())
-
-        input_vector = torch.cat(input_vector, dim=-1)
+        input_vector = self.construct_vector(x["encoder_cat"], x["encoder_cont"])
         enc_out = self.enc_embedding(input_vector, x["encoder_time_features"])
         # output_attention = False which is default leading to attns = []
         enc_out, attns = self.encoder(enc_out, attn_mask=None)
@@ -689,17 +734,13 @@ class BaseLong(BaseModel):
         """
         self._phase = "decode"
         # concat cont and cat
-        dec_vector = []
-        if self.cont_size > 0:
-            dec_vector.append(x["encoder_cont"].clone())
-        if self.cat_size > 0:
-            dec_vector.append(x["encoder_cat"].clone())
-        dec_vector = torch.cat(dec_vector, dim=-1)
-        # place token_length encoder_target in the start of decoder serires
+        dec_vector = self.construct_vector(x["encoder_cat"], x["encoder_cont"])
+        # place `token_length` encoder sequence in the start of decoder serires
         # initialize the rest with zero
+        # TODO: time_varing_known features can be added in decoder_init replacing zeroes accordingly
         decoder_init = torch.cat(
             [
-                dec_vector[:, self._context_length - self._token_length :, :].float(),
+                dec_vector[:, -self._token_length :, :].float(),
                 torch.zeros([dec_vector.shape[0], self._prediction_length, dec_vector.shape[-1]])
                 .float()
                 .to(dec_vector.device),
@@ -708,13 +749,15 @@ class BaseLong(BaseModel):
         )
         decoder_time_features = torch.cat(
             [
-                x["encoder_time_features"][:, self._context_length - self._token_length :, :],
+                x["encoder_time_features"][:, -self._token_length :, :],
                 x["decoder_time_features"],
             ],
             dim=1,
         )
 
         dec_out = self.dec_embedding(decoder_init, decoder_time_features)
-        dec_out = self.decoder(dec_out, hidden_state, x_mask=None, cross_mask=None)
+        dec_out1, dec_out2 = self.decoder(dec_out, hidden_state, x_mask=None, cross_mask=None)
 
-        return dec_out[:, -self._prediction_length :, :]
+        return self.projection(dec_out1)[:, -self._prediction_length :, :], dec_out2
+
+    

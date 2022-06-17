@@ -5,7 +5,7 @@ import torch
 from typing import Callable, Dict, List, Tuple, Union
 from ring.common.ml.embeddings import MultiEmbedding
 from ring.common.ml.rnn import get_rnn
-from ring.common.mask import ProbMask, TriangularCausalMask
+from ring.common.decompose import series_decomp
 import numpy as np
 
 
@@ -362,26 +362,36 @@ class ConvLayer(nn.Module):
 
 
 class EncoderLayer(nn.Module):
-    def __init__(self, attention, hidden_size, fcn_size=None, dropout=0.1, activation="relu"):
+    def __init__(
+        self,
+        attention,
+        hidden_size,
+        fcn_size=None,
+        dropout=0.1,
+        activation="relu",
+        strides=None,
+        attn_type="attention",
+    ):
         super(EncoderLayer, self).__init__()
         fcn_size = fcn_size or 4 * hidden_size
         self.attention = attention
-        self.conv1 = nn.Conv1d(in_channels=hidden_size, out_channels=fcn_size, kernel_size=1)
-        self.conv2 = nn.Conv1d(in_channels=fcn_size, out_channels=hidden_size, kernel_size=1)
-        self.norm1 = nn.LayerNorm(hidden_size)
-        self.norm2 = nn.LayerNorm(hidden_size)
+        self.conv1 = nn.Conv1d(in_channels=hidden_size, out_channels=fcn_size, kernel_size=1, bias=False)
+        self.conv2 = nn.Conv1d(in_channels=fcn_size, out_channels=hidden_size, kernel_size=1, bias=False)
+        self.norm1 = nn.LayerNorm(hidden_size) if attn_type != "correlation" else series_decomp(strides)
+        self.norm2 = nn.LayerNorm(hidden_size) if attn_type != "correlation" else series_decomp(strides)
         self.dropout = nn.Dropout(dropout)
         self.activation = F.relu if activation == "relu" else F.gelu
+        self.attn_type = attn_type
 
     def forward(self, x, attn_mask=None):
         new_x, attn = self.attention(x, x, x, attn_mask=attn_mask)
         x = x + self.dropout(new_x)
 
-        y = x = self.norm1(x)
+        y = x = self.norm1(x) if self.attn_type != "correlation" else self.norm1(x)[0]
         y = self.dropout(self.activation(self.conv1(y.transpose(-1, 1))))
         y = self.dropout(self.conv2(y).transpose(-1, 1))
 
-        return self.norm2(x + y), attn
+        return self.norm2(x + y) if self.attn_type != "correlation" else self.norm2(x + y)[0], attn
 
 
 class Encoder(nn.Module):
@@ -442,31 +452,58 @@ class EncoderStack(nn.Module):
 
 class DecoderLayer(nn.Module):
     def __init__(
-        self, self_attention, cross_attention, hidden_size, fcn_size=None, dropout=0.1, activation="relu"
+        self,
+        self_attention,
+        cross_attention,
+        hidden_size,
+        fcn_size=None,
+        dropout=0.1,
+        activation="relu",
+        attn_type="attention",
+        strides=None,
+        output_size=1,
     ):
         super(DecoderLayer, self).__init__()
         fcn_size = fcn_size or 4 * hidden_size
         self.self_attention = self_attention
         self.cross_attention = cross_attention
-        self.conv1 = nn.Conv1d(in_channels=hidden_size, out_channels=fcn_size, kernel_size=1)
-        self.conv2 = nn.Conv1d(in_channels=fcn_size, out_channels=hidden_size, kernel_size=1)
-        self.norm1 = nn.LayerNorm(hidden_size)
-        self.norm2 = nn.LayerNorm(hidden_size)
-        self.norm3 = nn.LayerNorm(hidden_size)
+        self.conv1 = nn.Conv1d(in_channels=hidden_size, out_channels=fcn_size, kernel_size=1, bias=False)
+        self.conv2 = nn.Conv1d(in_channels=fcn_size, out_channels=hidden_size, kernel_size=1, bias=False)
+        self.norm1 = nn.LayerNorm(hidden_size) if attn_type != "correlation" else series_decomp(strides)
+        self.norm2 = nn.LayerNorm(hidden_size) if attn_type != "correlation" else series_decomp(strides)
+        self.norm3 = nn.LayerNorm(hidden_size) if attn_type != "correlation" else series_decomp(strides)
         self.dropout = nn.Dropout(dropout)
         self.activation = F.relu if activation == "relu" else F.gelu
+        self.attn_type = attn_type
+        self.projection_trend = nn.Conv1d(
+            in_channels=hidden_size,
+            out_channels=output_size,
+            kernel_size=3,
+            stride=1,
+            padding=1,
+            padding_mode="circular",
+            bias=False,
+        )
 
     def forward(self, x, cross, x_mask=None, cross_mask=None):
         x = x + self.dropout(self.self_attention(x, x, x, attn_mask=x_mask)[0])
-        x = self.norm1(x)
-
-        x = x + self.dropout(self.cross_attention(x, cross, cross, attn_mask=cross_mask)[0])
-
-        y = x = self.norm2(x)
-        y = self.dropout(self.activation(self.conv1(y.transpose(-1, 1))))
-        y = self.dropout(self.conv2(y).transpose(-1, 1))
-
-        return self.norm3(x + y)
+        if self.attn_type != "correlation":
+            x = self.norm1(x)
+            x = x + self.dropout(self.cross_attention(x, cross, cross, attn_mask=cross_mask)[0])
+            y = x = self.norm2(x)
+            y = self.dropout(self.activation(self.conv1(y.transpose(-1, 1))))
+            y = self.dropout(self.conv2(y).transpose(-1, 1))
+            return self.norm3(x + y), None
+        else:
+            x, trend1 = self.norm1(x)
+            x = x + self.dropout(self.cross_attention(x, cross, cross, attn_mask=cross_mask)[0])
+            x, trend2 = self.norm2(x)
+            y = x
+            y = self.dropout(self.activation(self.conv1(y.transpose(-1, 1))))
+            y = self.dropout(self.conv2(y).transpose(-1, 1))
+            x, trend3 = self.norm3(x + y)
+            residual_trend = trend1 + trend2 + trend3
+            return x, self.projection_trend(residual_trend.permute(0, 2, 1)).transpose(1, 2)
 
 
 class Decoder(nn.Module):
@@ -476,13 +513,21 @@ class Decoder(nn.Module):
         self.norm = norm_layer
         self.projection = projection
 
-    def forward(self, x, cross, x_mask=None, cross_mask=None):
+    def forward(self, x, cross, x_mask=None, cross_mask=None, trend=None):
+
         for layer in self.attn_layers:
-            x = layer(x, cross, x_mask=x_mask, cross_mask=cross_mask)
+            x, residual_trend = layer(x, cross, x_mask=x_mask, cross_mask=cross_mask)
+            try:
+                # if `autocorrelation`, then process `+`
+                trend = trend + residual_trend
+            except:
+                # if `attention`, then `trend` and `residual_trend` are None, unable to process `+`
+                pass
 
         if self.norm is not None:
             x = self.norm(x)
 
         if self.projection is not None:
             x = self.projection(x)
-        return x
+
+        return x, trend
