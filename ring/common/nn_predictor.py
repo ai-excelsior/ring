@@ -73,6 +73,7 @@ class Predictor:
         self._trainer_cfg = trainer_cfg
         self._loss_cfg = metric_cfg
         self._model_params = model_params
+        self._model_cls = model_cls
         self._num_workers = num_workers
         self._logger = logger_mode
         self.task_id = task_id
