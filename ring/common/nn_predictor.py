@@ -267,7 +267,7 @@ class Predictor:
                 evaluator,
                 event_name=Events.EPOCH_COMPLETED(every=1),
                 tag="validation_epoch",
-                metric_names=list(val_metrics.keys()),
+                metric_names=["val_" + self._metric_cfg],
                 global_step_transform=global_step_from_engine(trainer),
             )
             # optimizer_iteration
