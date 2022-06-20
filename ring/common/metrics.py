@@ -140,8 +140,11 @@ class MSE(Metric):
 class RSquare(Metric):
     @reinit__is_reduced
     def reset(self) -> None:
-        self._sum_squared_errors = torch.tensor(0.0, device=self._device)
-        self._sum_sst = []
+        self._mean_multi = torch.tensor(0.0, device=self._device)
+        self._sum_y = torch.tensor(0.0, device=self._device)
+        self._sum_y2 = torch.tensor(0.0, device=self._device)
+        self._sum_ypred = torch.tensor(0.0, device=self._device)
+        self._sum_ypred2 = torch.tensor(0.0, device=self._device)
         self._num_examples = 0
 
     @reinit__is_reduced
@@ -149,10 +152,12 @@ class RSquare(Metric):
         y_pred, y = output[0].detach(), output[1].detach()
 
         # mean of steps
-        mean_squared_errors = torch.mean(torch.pow(y_pred - y.view_as(y_pred), 2))
-
-        self._sum_sst.append(y)
-        self._sum_squared_errors += mean_squared_errors
+        mean_multi = torch.mean(torch.mul(y_pred, y.view_as(y_pred)))
+        self._sum_y += torch.mean(y)
+        self._sum_y2 += torch.mean(torch.pow(y, 2))
+        self._sum_ypred += torch.mean(y_pred)
+        self._sum_ypred2 += torch.mean(torch.pow(y_pred, 2))
+        self._mean_multi += mean_multi
         self._num_examples += 1
 
     @sync_all_reduce("_sum_of_mean_squared_errors", "_num_examples")
@@ -161,5 +166,8 @@ class RSquare(Metric):
             raise NotComputableError(
                 "R Square (R2) must have at least one example before it can be computed."
             )
-        self._sum_sst = torch.cat(self._sum_sst, dim=0)
-        return 1 - self._sum_squared_errors.item() / self._sum_sst.var()
+
+        return (self._num_examples * self._mean_multi - self._sum_ypred * self._sum_y) / (
+            torch.pow(self._num_examples * self._sum_ypred2 - torch.pow(self._sum_ypred, 2), 0.5)
+            * torch.pow(self._num_examples * self._sum_y2 - torch.pow(self._sum_y, 2), 0.5)
+        )
