@@ -85,7 +85,6 @@ def predict(
 
     predictor = Predictor.load(load_state, Informer)
     pred_df = predictor.predict(data, plot=True)
-    predictor.validate(data)
 
     predictions_to_influx(
         pred_df,
@@ -95,7 +94,7 @@ def predict(
         task_id=task_id,
         additional_tags=predictor._data_cfg.group_ids,
     )
-    validate(kwargs.get("save_state", None), data)
+    validate(load_state, data)
 
 
 def serve(load_state, data_cfg):
