@@ -16,7 +16,7 @@ from ignite.engine import Events
 from ignite.contrib.handlers.tensorboard_logger import TensorboardLogger, global_step_from_engine
 from ignite.handlers import Checkpoint, EarlyStopping, DiskSaver
 from .loss import cfg_to_losses
-from .metrics import RMSE, SMAPE, MAE, MSE, MAPE
+from .metrics import RMSE, SMAPE, MAE, MSE, MAPE, RSquare
 from .dataset_ano import TimeSeriesDataset
 from .serializer import dumps, loads
 from .utils import get_latest_updated_file, remove_prefix
@@ -88,7 +88,7 @@ class Detector:
 
         self._data_cfg = data_cfg
         self._trainer_cfg = trainer_cfg
-        self._loss_cfg = metric_cfg
+        self._metric_cfg = metric_cfg
         self._model_cls = model_cls
         self._model_params = model_params
         self._model_states = model_states
@@ -229,6 +229,7 @@ class Detector:
             "val_SMAPE": SMAPE(device=self._device),  # percentage
             "val_MAPE": MAPE(device=self._device),  # percentage
             "val_MAE": MAE(device=self._device),
+            "val_R2": RSquare(device=self._device),
         }
         evaluator = create_supervised_evaluator(
             model,
@@ -252,9 +253,9 @@ class Detector:
                 epoch_length=max(len(val_dataloader) // self._trainer_cfg.get("max_epochs", 100), 100),
             )
             metrics = evaluator.state.metrics
-            print(f"Training Results - Epoch: {trainer.state.epoch}, Loss: {trainer.state.output:.2f}")
+            print(f"Training Results - Epoch: {trainer.state.epoch}, Loss: {trainer.state.output:.3f}")
             print(
-                f"Val RMSE: {metrics['val_RMSE']:.2f},Val MSE: {metrics['val_MSE']:.2f},Val SMAPE: {metrics['val_SMAPE']:.2f},Val MAPE: {metrics['val_MAPE']:.2f},Val MAE: {metrics['val_MAE']:.2f}"
+                f"Val RMSE: {metrics['val_RMSE']:.3f},Val MSE: {metrics['val_MSE']:.3f},Val SMAPE: {metrics['val_SMAPE']:.3f},Val MAPE: {metrics['val_MAPE']:.3f},Val MAE: {metrics['val_MAE']:.3f},Val R2: {metrics['val_R2']:.3f}"
             )
 
         # checkpoint
@@ -267,7 +268,7 @@ class Detector:
                 require_empty=False,
             ),
             filename_prefix="best",
-            score_function=lambda x: -x.state.metrics["val_" + self._loss_cfg],
+            score_function=lambda x: -x.state.metrics["val_" + self._metric_cfg],
             global_step_transform=global_step_from_engine(trainer),
         )
         evaluator.add_event_handler(
@@ -278,7 +279,7 @@ class Detector:
         # early stop
         early_stopping = EarlyStopping(
             patience=self._trainer_cfg.get("early_stopping_patience", 6),
-            score_function=lambda engine: -engine.state.metrics["val_" + self._loss_cfg],
+            score_function=lambda engine: -engine.state.metrics["val_" + self._metric_cfg],
             min_delta=1e-8,
             trainer=trainer,
         )

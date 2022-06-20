@@ -135,3 +135,33 @@ class MSE(Metric):
                 "Mean Squared Error(MSE) must have at least one example before it can be computed."
             )
         return self._sum_of_errors.item() / self._num_examples
+
+
+class RSquare(Metric):
+    @reinit__is_reduced
+    def reset(self) -> None:
+        self._sum_squared_errors = torch.tensor(0.0, device=self._device)
+        self._sum_sst = torch.tensor(0.0, device=self._device)
+        self._num_examples = 0
+
+    @reinit__is_reduced
+    def update(self, output: Sequence[torch.Tensor]) -> None:
+        y_pred, y = output[0].detach(), output[1].detach()
+
+        # mean of steps
+        mean_squared_errors = torch.mean(torch.pow(y_pred - y.view_as(y_pred), 2))
+
+        self._sum_squared_errors += mean_squared_errors
+        self._sum_sst += y.var()
+        self._num_examples += 1
+
+    @sync_all_reduce("_sum_of_mean_squared_errors", "_num_examples")
+    def compute(self) -> Union[float, torch.Tensor]:
+        if self._num_examples == 0:
+            raise NotComputableError(
+                "R Squared (R2) must have at least one example before it can be computed."
+            )
+
+        return 1 - (self._sum_squared_errors.item() / self._num_examples) / (
+            self._sum_sst / self._num_examples
+        )
