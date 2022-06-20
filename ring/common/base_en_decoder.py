@@ -207,41 +207,23 @@ class AutoencoderType(BaseType):
 
         # flatten
         initial_size = sequence_length * (cont_size + encoder_embeddings.total_embedding_size())
-        # encoder_layer += [nn.Tanh()]
-        encoder_layer = []
-        encoder_layer += [nn.Linear(118, 60)]
-        encoder_layer += [nn.Tanh()]
-        encoder_layer += [nn.Linear(60, 30)]
-        encoder_layer += [nn.Tanh()]
-        encoder_layer += [nn.Linear(30, 10)]
-        encoder_layer += [nn.Tanh()]
-        encoder_layer += [nn.Linear(10, 1)]
-        # if not self.n_layers:
-        #     hidden_list = (
-        #         2 ** np.arange(max(np.ceil(np.log2(hidden_size)), 2), np.log2(initial_size))[1:][::-1]
-        #     )
-        # else:
-        #     hidden_list = [int(initial_size // (2 ** i)) for i in range(n_layers)][1:]
-        # # encoder part
-        # encoder_layer = [nn.Linear(initial_size, hidden_list[0]), nn.Tanh()]
-        # for i in range(len(hidden_list) - 1):
-        #     encoder_layer.extend([nn.Linear(hidden_list[i], hidden_list[i + 1]), nn.Tanh()])
-        # encoder_layer.extend([nn.Linear(hidden_list[i + 1], hidden_size)])
+        if not self.n_layers:
+            hidden_list = (
+                2 ** np.arange(max(np.ceil(np.log2(hidden_size)), 2), np.log2(initial_size))[1:][::-1]
+            )
+        else:
+            hidden_list = [int(initial_size // (2 ** i)) for i in range(n_layers)][1:]
+        # encoder part
+        encoder_layer = [nn.Linear(initial_size, hidden_list[0]), nn.Tanh()]
+        for i in range(len(hidden_list) - 1):
+            encoder_layer.extend([nn.Linear(hidden_list[i], hidden_list[i + 1]), nn.Tanh()])
+        encoder_layer.extend([nn.Linear(hidden_list[i + 1], hidden_size)])
         self.encoder = nn.Sequential(*encoder_layer)
         # # decoder part
-        # decoder_layer = [nn.Linear(hidden_size, hidden_list[-1]), nn.Tanh()]
-        # for i in range(len(hidden_list) - 1, 0, -1):
-        #     decoder_layer.extend([nn.Linear(hidden_list[i], hidden_list[i - 1]), nn.Tanh()])
-        # decoder_layer.extend([nn.Linear(hidden_list[i - 1], initial_size)])
-
-        decoder_layer = []
-        decoder_layer += [nn.Linear(1, 10)]
-        decoder_layer += [nn.Tanh()]
-        decoder_layer += [nn.Linear(10, 30)]
-        decoder_layer += [nn.Tanh()]
-        decoder_layer += [nn.Linear(30, 60)]
-        decoder_layer += [nn.Tanh()]
-        decoder_layer += [nn.Linear(60, 118)]
+        decoder_layer = [nn.Linear(hidden_size, hidden_list[-1]), nn.Tanh()]
+        for i in range(len(hidden_list) - 1, 0, -1):
+            decoder_layer.extend([nn.Linear(hidden_list[i], hidden_list[i - 1]), nn.Tanh()])
+        decoder_layer.extend([nn.Linear(hidden_list[i - 1], initial_size)])
         self.decoder = nn.Sequential(*decoder_layer)
 
     def forward(self, x):
