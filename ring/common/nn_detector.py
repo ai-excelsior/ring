@@ -252,9 +252,7 @@ class Detector:
                 epoch_length=max(len(val_dataloader) // self._trainer_cfg.get("max_epochs", 100), 100),
             )
             metrics = evaluator.state.metrics
-            print(
-                f"Training Results - Epoch: {trainer.state.epoch}, {self._loss_cfg} Loss: {trainer.state.output:.2f}"
-            )
+            print(f"Training Results - Epoch: {trainer.state.epoch}, Loss: {trainer.state.output:.2f}")
             print(
                 f"Val RMSE: {metrics['val_RMSE']:.2f},Val MSE: {metrics['val_MSE']:.2f},Val SMAPE: {metrics['val_SMAPE']:.2f},Val MAPE: {metrics['val_MAPE']:.2f},Val MAE: {metrics['val_MAE']:.2f}"
             )
@@ -269,9 +267,7 @@ class Detector:
                 require_empty=False,
             ),
             filename_prefix="best",
-            score_function=lambda x: -x.state.metrics["val_" + self._loss_cfg]
-            if "val_" + self._loss_cfg in x.state.metrics
-            else -x.state.metrics["val_SMAPE"],
+            score_function=lambda x: -x.state.metrics["val_" + self._loss_cfg],
             global_step_transform=global_step_from_engine(trainer),
         )
         evaluator.add_event_handler(
@@ -282,9 +278,7 @@ class Detector:
         # early stop
         early_stopping = EarlyStopping(
             patience=self._trainer_cfg.get("early_stopping_patience", 6),
-            score_function=lambda engine: -engine.state.metrics["val_" + self._loss_cfg]
-            if "val_" + self._loss_cfg in engine.state.metrics
-            else -engine.state.metrics["val_RMSE"],
+            score_function=lambda engine: -engine.state.metrics["val_" + self._loss_cfg],
             min_delta=1e-8,
             trainer=trainer,
         )

@@ -9,7 +9,7 @@
     "static_categoricals": [],
     "indexer": {
         "name": "slide_window_fixed",
-        "steps": 1
+        "steps": 2
     },
     "categoricals": []
 }
