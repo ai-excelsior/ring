@@ -18,7 +18,7 @@ from .normalizers import (
     deserialize_normalizer,
 )
 from .encoder import LabelEncoder, PlainEncoder, deserialize_encoder, serialize_encoder
-
+from torch.utils.data.sampler import RandomSampler
 from .utils import get_default_embedding_size, add_time_idx
 from .encoder import create_encoder_from_cfg
 
@@ -334,7 +334,9 @@ class TimeSeriesDataset(Dataset):
             sampler=sampler,
         )
         kwargs.update(default_kwargs)
-        return DataLoader(self, **kwargs)
+        return DataLoader(
+            self, sampler=RandomSampler(self, num_samples=50 * batch_size) if train else None, **kwargs
+        )
 
     def reflect(
         self,
