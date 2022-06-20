@@ -85,7 +85,7 @@ def test_nbeats():
             "dropout": kwargs["dropout"],
             "backcast_loss_ratio": kwargs["backcast_loss_ratio"],
         },
-        loss_cfg=kwargs.get("loss", None),
+        metric_cfg=kwargs.get("loss", None),
         trainer_cfg={
             "batch_size": kwargs["batch_size"],
             "lr": kwargs["lr"],
