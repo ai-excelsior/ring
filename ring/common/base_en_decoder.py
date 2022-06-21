@@ -207,12 +207,10 @@ class AutoencoderType(BaseType):
 
         # flatten
         initial_size = sequence_length * (cont_size + encoder_embeddings.total_embedding_size())
-        if not self.n_layers:
-            hidden_list = (
-                2 ** np.arange(max(np.ceil(np.log2(hidden_size)), 2), np.log2(initial_size))[1:][::-1]
-            )
-        else:
-            hidden_list = [int(initial_size // (2 ** i)) for i in range(n_layers)][1:]
+        # if not self.n_layers:
+        hidden_list = 2 ** np.arange(max(np.ceil(np.log2(hidden_size)), 2), np.log2(initial_size))[1:][::-1]
+        # else:
+        #     hidden_list = [int(initial_size // (2 ** i)) for i in range(n_layers)][1:]
         if not hidden_list:
             hidden_list = [hidden_size, initial_size]
             encoder_layer = [nn.Linear(initial_size, hidden_list[0])]
