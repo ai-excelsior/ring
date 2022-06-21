@@ -176,7 +176,6 @@ class Detector:
             train_dataloader = dataset_train.to_dataloader(
                 batch_size,
                 num_workers=self.n_workers,
-                shuffle=True,
                 pin_memory=True,
             )
             val_dataloader = dataset_val.to_dataloader(
@@ -194,7 +193,6 @@ class Detector:
             train_dataloader = dataset_train.to_dataloader(
                 batch_size,
                 num_workers=self.n_workers,
-                shuffle=True,
             )
             val_dataloader = dataset_val.to_dataloader(  # for early_stop
                 batch_size,

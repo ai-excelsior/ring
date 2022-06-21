@@ -15,6 +15,7 @@ from ring.common.influx_utils import predictions_to_influx
 from ring.common.data_utils import read_from_url
 from ring.anomal.dagmm.model import dagmm
 from fastapi import FastAPI
+from ring.common.oss_utils import get_bucket_from_oss_url
 
 
 def train(data_config: DataConfig, data_train: pd.DataFrame, data_val: pd.DataFrame, **kwargs):
@@ -83,19 +84,26 @@ def predict(
     load a model and predict with given dataset
     """
     assert load_state is not None, "load_state is required when validate"
+    import os
+    import shutil
 
     predictor = Predictor.load(load_state, dagmm)
     pred_df = predictor.predict(data, plot=False)
-    predictor.validate(data)
+    bucket, key = get_bucket_from_oss_url(task_id)
+    dir = os.makedirs("/tmp/xyz/", exist_ok=True)
+    pred_df.to_csv(dir + "result_down200_dagmm.csv")
+    bucket.put_object_from_file(key, dir)
+    shutil.rmtree(dir)
+    # predictor.validate(data)
 
-    predictions_to_influx(
-        pred_df,
-        time_column=predictor._data_cfg.time,
-        model_name=predictor._model_cls.__module__,
-        measurement=measurement,
-        task_id=task_id,
-        additional_tags=predictor._data_cfg.group_ids,
-    )
+    # predictions_to_influx(
+    #     pred_df,
+    #     time_column=predictor._data_cfg.time,
+    #     model_name=predictor._model_cls.__module__,
+    #     measurement=measurement,
+    #     task_id=task_id,
+    #     additional_tags=predictor._data_cfg.group_ids,
+    # )
 
 
 def serve(load_state, data_cfg):
