@@ -244,6 +244,8 @@ class AutoencoderType(BaseType):
         # `input_vector` have been flattened to batch_size * (steps * features)
         # so `dec`::batch_size * (steps * features) should be reshape to match the reconstruction format of `RnnType`::batch_size * steps * features
         if self.return_enc:
+            g = enc.unsqueeze(1)
+            f = dec.view(input_vector.size())
             return enc.unsqueeze(1), dec.view(input_vector.size())
         else:
             return dec
