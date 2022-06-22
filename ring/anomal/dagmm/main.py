@@ -89,21 +89,17 @@ def predict(
 
     predictor = Predictor.load(load_state, dagmm)
     pred_df = predictor.predict(data, plot=False)
-    bucket, key = get_bucket_from_oss_url(task_id)
-    dir = os.makedirs("/tmp/xyz/", exist_ok=True)
-    pred_df.to_csv(dir + "result_down200_dagmm.csv")
-    bucket.put_object_from_file(key, dir)
-    shutil.rmtree(dir)
-    # predictor.validate(data)
 
-    # predictions_to_influx(
-    #     pred_df,
-    #     time_column=predictor._data_cfg.time,
-    #     model_name=predictor._model_cls.__module__,
-    #     measurement=measurement,
-    #     task_id=task_id,
-    #     additional_tags=predictor._data_cfg.group_ids,
-    # )
+    predictor.validate(data)
+
+    predictions_to_influx(
+        pred_df,
+        time_column=predictor._data_cfg.time,
+        model_name=predictor._model_cls.__module__,
+        measurement=measurement,
+        task_id=task_id,
+        additional_tags=predictor._data_cfg.group_ids,
+    )
 
 
 def serve(load_state, data_cfg):
