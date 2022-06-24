@@ -12,16 +12,18 @@ class LoggerWriter(object):
         self.kwargs = kwargs
         self.bucket = os.environ.get("INFLUX_LOG_BUCKET_NAME")
 
-    def add_record(self, key, value, phase, event, epochs, iterations, task_id):
-        record_dic = {
-            "measurement": task_id,
-            "tags": {"event": event, "phase": phase, "epoch": epochs, "iteration": iterations},
-            "fields": {key: value},
-            "time": datetime.utcnow().isoformat("T") + "Z",
-        }
+    def add_record(self, key, value, phase, event, epoch, iteration, task_id):
         with get_influx_client(**self.kwargs) as client:
             with client.write_api() as write_api:
-                write_api.write(bucket=self.bucket, record=record_dic)
+                write_api.write(
+                    bucket=self.bucket,
+                    record={
+                        "measurement": task_id,
+                        "tags": {"event": event, "phase": phase},
+                        "fields": {key: value, "epoch": epoch, "iteration": iteration},
+                        "time": datetime.utcnow().isoformat("T") + "Z",
+                    },
+                )
 
 
 class Fluxlogger(BaseLogger):
@@ -83,8 +85,8 @@ class OutputHandler(BaseOutputHandler):
                 value,
                 phase=phase,
                 event=event,
-                epochs=engine.state.epoch,
-                iterations=engine.state.iteration,
+                epoch=engine.state.epoch,
+                iteration=engine.state.iteration,
                 task_id=self.task_id,
             )
 
@@ -111,7 +113,7 @@ class OptimizerParamsHandler(BaseOptimizerParamsHandler):
                 v,
                 phase="training",
                 event="iteration",
-                epochs=engine.state.epoch,
-                iterations=engine.state.iteration,
+                epoch=engine.state.epoch,
+                iteration=engine.state.iteration,
                 task_id=self.task_id,
             )
