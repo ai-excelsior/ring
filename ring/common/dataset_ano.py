@@ -6,7 +6,7 @@ import inspect
 from copy import deepcopy
 from typing import Any, Dict, List, Tuple
 from torch.utils.data import Dataset, DataLoader
-
+from ring.common.time_features import time_feature
 from ring.common.data_config import DataConfig
 from .indexer import BaseIndexer, create_indexer_from_cfg, serialize_indexer, deserialize_indexer
 from .normalizers import (
@@ -41,6 +41,7 @@ class TimeSeriesDataset(Dataset):
         # normalizers
         categorical_encoders: List[PlainEncoder] = [],
         cont_scalars: List[MinMaxNormalizer] = [],
+        time_features: pd.DataFrame = None,
         # toggles
         last_only=False,  # using last_only mode to index
         start_index=None,  # specify start point to detect
@@ -58,6 +59,15 @@ class TimeSeriesDataset(Dataset):
         self._static_categoricals = []
         self._cat_feature = cat_feature
         self._cont_feature = cont_feature
+
+        # `time_features` will not be added in `decoder_cont` or `encoder_cont`
+        # if need, it will be processed in model
+        if time_features and not sum([item not in data.columns for item in time_features]):
+            self._time_features = time_features
+        else:
+            time_feature_data = time_feature(pd.to_datetime(data[self._time].values), freq=self._freq)
+            self._time_features = list(time_feature_data.columns)
+            data = pd.concat([data, time_feature_data], axis=1)
 
         # add `groupd_ids` to _static_categoricals
         for group_id in group_ids:
@@ -145,6 +155,10 @@ class TimeSeriesDataset(Dataset):
     def lags(self):
         return self._lags
 
+    @property
+    def time_features(self):
+        return self._time_features
+
     def get_parameters(self) -> Dict[str, Any]:
         """
         Get parameters that can be used with :py:meth:`~from_parameters` to create a new dataset with the same scalers.
@@ -218,7 +232,9 @@ class TimeSeriesDataset(Dataset):
         )
 
         encoder_target = torch.tensor(encoder_period[self.targets].to_numpy(np.float64), dtype=torch.float)
-
+        time_feature = torch.tensor(
+            encoder_period[self.time_features].to_numpy(np.float64), dtype=torch.float
+        )
         # inverse `cont` to calculate loss, which is disabled in anomal_detection
         # targets = torch.stack(
         #     [
@@ -295,6 +311,7 @@ class TimeSeriesDataset(Dataset):
                 encoder_time_idx=encoder_time_idx,
                 encoder_idx=torch.tensor(encoder_idx, dtype=torch.long),
                 encoder_target=encoder_target,
+                time_feature=time_feature,
                 target_scales=target_scales,
             ),
             targets,
@@ -307,7 +324,7 @@ class TimeSeriesDataset(Dataset):
         encoder_idx = torch.stack([batch[0]["encoder_idx"] for batch in batches])
         encoder_target = torch.stack([batch[0]["encoder_target"] for batch in batches])
         encoder_length = torch.tensor([len(batch[0]["encoder_target"]) for batch in batches])
-
+        time_feature = torch.tensor([len(batch[0]["time_feature"]) for batch in batches])
         target_scales = torch.stack([batch[0]["target_scales"] for batch in batches])
         targets = torch.stack([batch[1] for batch in batches])
 
@@ -319,6 +336,7 @@ class TimeSeriesDataset(Dataset):
                 encoder_idx=encoder_idx,
                 encoder_target=encoder_target,
                 encoder_length=encoder_length,
+                time_feature=time_feature,
                 target_scales=target_scales,
             ),
             targets,

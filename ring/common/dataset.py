@@ -44,6 +44,7 @@ class TimeSeriesDataset(Dataset):
         time_varying_unknown_categoricals: List[str] = [],
         time_varying_unknown_reals: List[str] = [],
         embedding_sizes: Dict[str, Tuple[str, str]] = None,
+        time_features: List = [],
         # normalizers
         target_normalizers: List[Normalizer] = [],
         categorical_encoders: List[LabelEncoder] = [],
@@ -75,9 +76,14 @@ class TimeSeriesDataset(Dataset):
         self._cont_scalars = cont_scalars
         self._lags = lags
 
-        # time_features will not be added in decoder_cont or encoder_cont
-        self.time_features = time_feature(pd.to_datetime(data[self._time].values), freq=self._freq)
-        data = pd.concat([data, self.time_features], axis=1)
+        # `time_features` will not be added in `decoder_cont` or `encoder_cont`
+        # if need, it will be processed in model
+        if time_features and not sum([item not in data.columns for item in time_features]):
+            self._time_features = time_features
+        else:
+            time_feature_data = time_feature(pd.to_datetime(data[self._time].values), freq=self._freq)
+            self._time_features = list(time_feature_data.columns)
+            data = pd.concat([data, time_feature_data], axis=1)
 
         # target normalizer
         if len(self._target_normalizers) == 0:
@@ -247,8 +253,8 @@ class TimeSeriesDataset(Dataset):
         return self._lags
 
     @property
-    def time_derive(self):
-        return list(self.time_features.columns)
+    def time_features(self):
+        return self._time_features
 
     def get_parameters(self) -> Dict[str, Any]:
         """
@@ -306,6 +312,7 @@ class TimeSeriesDataset(Dataset):
             time_varying_unknown_reals=data_cfg.time_varying_unknown_reals,
             embedding_sizes=embedding_sizes,
             lags=data_cfg.lags,
+            time_features=data_cfg.time_features,
             **kwargs,
         )
 
@@ -329,7 +336,7 @@ class TimeSeriesDataset(Dataset):
         )
         encoder_target = torch.tensor(encoder_period[self.targets].to_numpy(np.float64), dtype=torch.float)
         encoder_time_features = torch.tensor(
-            encoder_period[self.time_derive].to_numpy(np.float64), dtype=torch.float
+            encoder_period[self.time_features].to_numpy(np.float64), dtype=torch.float
         )
 
         decoder_cont = torch.tensor(decoder_period[self.decoder_cont].to_numpy(np.float64), dtype=torch.float)
@@ -341,7 +348,7 @@ class TimeSeriesDataset(Dataset):
 
         decoder_target = torch.tensor(decoder_period[self.targets].to_numpy(np.float64), dtype=torch.float)
         decoder_time_features = torch.tensor(
-            decoder_period[self.time_derive].to_numpy(np.float64), dtype=torch.float
+            decoder_period[self.time_features].to_numpy(np.float64), dtype=torch.float
         )
         # [sequence_length, n_targets]
         targets = torch.stack(

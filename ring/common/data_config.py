@@ -41,6 +41,7 @@ class DataConfig:
     time_varying_known_reals: List[str] = field(default_factory=list)
     time_varying_unknown_categoricals: List[str] = field(default_factory=list)
     time_varying_unknown_reals: List[str] = field(default_factory=list)
+    time_features: List[str] = field(default_factory=list)
 
 
 @dataclass
@@ -54,6 +55,7 @@ class AnomalDataConfig:
     static_categoricals: List[str] = field(default_factory=list)
     cont_features: List[str] = field(default_factory=list)
     cat_features: List[str] = field(default_factory=list)
+    time_features: List[str] = field(default_factory=list)
 
 
 def dict_to_data_config(cfg: Dict) -> DataConfig:
@@ -77,6 +79,7 @@ def dict_to_data_config(cfg: Dict) -> DataConfig:
         time_varying_unknown_reals=cfg.get("time_varying_unknown_reals", []),
         categoricals=cats,
         lags=cfg.get("lags", {}),
+        time_features=cfg.get("time_features", []),
     )
     return data_config
 
@@ -98,6 +101,7 @@ def dict_to_data_config_anomal(cfg: Dict) -> DataConfig:
         cat_features=cfg.get("cat_features", []),
         categoricals=cats,
         lags=cfg.get("lags", {}),
+        time_features=cfg.get("time_features", []),
     )
     return data_config
 
