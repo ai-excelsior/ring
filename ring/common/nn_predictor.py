@@ -187,7 +187,6 @@ class Predictor:
             "val_SMAPE": SMAPE(device=self._device),  # percentage
             "val_MAPE": MAPE(device=self._device),  # percentage
             "val_MAE": MAE(device=self._device),
-            "val_R2": RSquare(device=self._device),
         }
         evaluator = create_supervised_evaluator(
             model,
@@ -203,7 +202,7 @@ class Predictor:
             metrics = evaluator.state.metrics
             print(f"Training Results - Epoch: {trainer.state.epoch},  Loss: {trainer.state.output:.3f}")
             print(
-                f"Val RMSE: {metrics['val_RMSE']:.3f},Val MSE: {metrics['val_MSE']:.3f},Val SMAPE: {metrics['val_SMAPE']:.3f},Val MAPE: {metrics['val_MAPE']:.3f},Val MAE: {metrics['val_MAE']:.3f},Val R2: {metrics['val_R2']:.3f}"
+                f"Val RMSE: {metrics['val_RMSE']:.3f},Val MSE: {metrics['val_MSE']:.3f},Val SMAPE: {metrics['val_SMAPE']:.3f},Val MAPE: {metrics['val_MAPE']:.3f},Val MAE: {metrics['val_MAE']:.3f}"
             )
 
         # checkpoint
@@ -267,7 +266,7 @@ class Predictor:
                 evaluator,
                 event_name=Events.EPOCH_COMPLETED(every=1),
                 tag="validation_epoch",
-                metric_names=["val_" + self._metric_cfg],
+                metric_names=list(val_metrics),
                 global_step_transform=global_step_from_engine(trainer),
             )
             # optimizer_iteration
