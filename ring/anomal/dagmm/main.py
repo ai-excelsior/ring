@@ -84,8 +84,6 @@ def predict(
     load a model and predict with given dataset
     """
     assert load_state is not None, "load_state is required when validate"
-    import os
-    import shutil
 
     predictor = Predictor.load(load_state, dagmm)
     pred_df = predictor.predict(data, plot=False)
