@@ -550,9 +550,9 @@ class BaseLong(BaseModel):
         prediction_length: int,
         token_length: int,
         # hpyerparameters
-        fcn_size: int = 1024,
+        fcn_size: int = 8,
         n_heads: int = 0,
-        hidden_size: int = 64,
+        hidden_size: int = 5,
         n_layers: int = 1,
         dropout: float = 0.1,
         attn_type: str = "prob",
@@ -564,7 +564,6 @@ class BaseLong(BaseModel):
         target_lags: Dict = {},
         freq: str = "h",
         embed_type: str = "position",
-        attn_layer: str = "attention",
         strides: int = None,
     ):
         super().__init__()
@@ -603,11 +602,11 @@ class BaseLong(BaseModel):
 
         # embedding both `cont` and `cat`
         self.enc_embedding = self.embed_type(
-            len(encoder_cont) + len(encoder_cat), hidden_size, self._freq, dropout
+            len(encoder_cont) + len(encoder_cat), self.hidden_size , self._freq, dropout
         )
         # because of the `token`, dec_embedding will have the same size of enc_embedding
         self.dec_embedding = self.embed_type(
-            len(encoder_cont) + len(encoder_cat), hidden_size, self._freq, dropout
+            len(encoder_cont) + len(encoder_cat), self.hidden_size , self._freq, dropout
         )
 
         # Probattention: factor always equal to 5, which uses to determine top-k, activation always equal to gelu
@@ -620,8 +619,8 @@ class BaseLong(BaseModel):
                         hidden_size,
                         n_heads,
                     ),
-                    hidden_size,
-                    fcn_size,
+                    self.hidden_size ,
+                    self.fcn_size,
                     dropout,
                     activation="gelu",
                     attn_type=attn_type,
@@ -631,10 +630,10 @@ class BaseLong(BaseModel):
             ],
             # when use attention: last attention dont need cov, so n_cov=n_atten - 1
             # when use autocorrealtion, no conv_layers
-            conv_layers=[ConvLayer(hidden_size) for _ in range(n_layers - 1)]
+            conv_layers=[ConvLayer(self.hidden_size ) for _ in range(n_layers - 1)]
             if attn_type != "correlation"
             else [],
-            norm_layer=torch.nn.LayerNorm(hidden_size),
+            norm_layer=torch.nn.LayerNorm(self.hidden_size ),
         )
         self._phase = "encode"
         d_layers = n_layers - 1 if n_layers > 2 else n_layers
@@ -643,17 +642,17 @@ class BaseLong(BaseModel):
                 DecoderLayer(
                     AttentionLayer(
                         self.attn_type(mask_flag=True, attention_dropout=dropout, output_attention=False),
-                        hidden_size,
+                        self.hidden_size ,
                         n_heads,
                         mix=attn_type == "prob",
                     ),
                     AttentionLayer(
                         self.attn_type(mask_flag=False, attention_dropout=dropout, output_attention=False),
-                        hidden_size,
+                        self.hidden_size ,
                         n_heads,
                     ),
-                    hidden_size,
-                    fcn_size,
+                    self.hidden_size ,
+                    self.fcn_size,
                     dropout,
                     activation="gelu",
                     attn_type=attn_type,
@@ -662,10 +661,10 @@ class BaseLong(BaseModel):
                 )
                 for _ in range(d_layers)
             ],
-            norm_layer=torch.nn.LayerNorm(hidden_size),
+            norm_layer=torch.nn.LayerNorm(self.hidden_size ),
         )
         # target
-        self.projection = nn.Linear(hidden_size, output_size, bias=True)
+        self.projection = nn.Linear(self.hidden_size , output_size, bias=True)
 
     @property
     def cont_size(self):
