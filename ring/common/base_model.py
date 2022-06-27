@@ -616,7 +616,7 @@ class BaseLong(BaseModel):
                 EncoderLayer(
                     AttentionLayer(
                         self.attn_type(mask_flag=False, attention_dropout=dropout, output_attention=False),
-                        hidden_size,
+                        self.hidden_size,
                         n_heads,
                     ),
                     self.hidden_size ,
