@@ -551,7 +551,7 @@ class BaseLong(BaseModel):
         token_length: int,
         # hpyerparameters
         fcn_size: int = 8,
-        n_heads: int = 0,
+        n_heads: int = 1,
         hidden_size: int = 5,
         n_layers: int = 1,
         dropout: float = 0.1,
@@ -580,8 +580,8 @@ class BaseLong(BaseModel):
         self._context_length = context_length
         self._freq = freq
         self.hidden_size = 2 ** hidden_size
-        self.n_layers = n_layers
-        self.n_heads = n_heads
+        self.n_layers = n_layers 
+        self.n_heads = 2 ** n_heads
         self.fcn_size = 2 ** fcn_size
         self.attn_type = ProbAttention if attn_type == "prob" else FullAttention
 
@@ -617,7 +617,7 @@ class BaseLong(BaseModel):
                     AttentionLayer(
                         self.attn_type(mask_flag=False, attention_dropout=dropout, output_attention=False),
                         self.hidden_size,
-                        n_heads,
+                        self.n_heads,
                     ),
                     self.hidden_size ,
                     self.fcn_size,
@@ -643,13 +643,13 @@ class BaseLong(BaseModel):
                     AttentionLayer(
                         self.attn_type(mask_flag=True, attention_dropout=dropout, output_attention=False),
                         self.hidden_size ,
-                        n_heads,
+                        self.n_heads,
                         mix=attn_type == "prob",
                     ),
                     AttentionLayer(
                         self.attn_type(mask_flag=False, attention_dropout=dropout, output_attention=False),
                         self.hidden_size ,
-                        n_heads,
+                        self.n_heads,
                     ),
                     self.hidden_size ,
                     self.fcn_size,
