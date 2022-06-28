@@ -5,7 +5,6 @@ import inspect
 from copy import deepcopy
 from typing import Any, Dict, List, Tuple
 from torch.utils.data import Dataset, DataLoader
-
 from ring.common.data_config import DataConfig
 from ring.common.time_features import time_feature
 from .indexer import BaseIndexer, create_indexer_from_cfg, serialize_indexer, deserialize_indexer
@@ -18,7 +17,6 @@ from .normalizers import (
     deserialize_normalizer,
 )
 from .encoder import LabelEncoder, deserialize_encoder, serialize_encoder
-
 from .utils import get_default_embedding_size, add_time_idx
 from .encoder import create_encoder_from_cfg
 from torch.utils.data.sampler import RandomSampler

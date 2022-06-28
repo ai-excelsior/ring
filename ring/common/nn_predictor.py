@@ -18,7 +18,6 @@ from ignite.handlers import Checkpoint, EarlyStopping
 from .loss import cfg_to_losses
 from .metrics import RMSE, SMAPE, MAE, MSE, MAPE
 from .dataset import TimeSeriesDataset
-
 from .logger import Fluxlogger
 from .oss_utils import DiskSaverAdd
 from .serializer import dumps, loads

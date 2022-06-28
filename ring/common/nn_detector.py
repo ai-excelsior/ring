@@ -6,7 +6,6 @@ import inspect
 import numpy as np
 import zipfile
 import tempfile
-from math import inf
 from .oss_utils import DiskSaverAdd
 from oss2 import Bucket
 from glob import glob

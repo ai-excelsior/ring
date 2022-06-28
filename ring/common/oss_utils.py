@@ -3,10 +3,10 @@ import os
 from typing import Tuple, Mapping, Callable, Optional, IO, Any
 import oss2
 import stat
-from .utils import remove_prefix
 import tempfile
 import zipfile
 from ignite.handlers import DiskSaver
+from .utils import remove_prefix
 
 
 @functools.lru_cache(maxsize=64)
