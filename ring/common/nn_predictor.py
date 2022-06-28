@@ -19,7 +19,7 @@ from .loss import cfg_to_losses
 from .metrics import RMSE, SMAPE, MAE, MSE, MAPE
 from .dataset import TimeSeriesDataset
 from .logger import Fluxlogger
-from .oss_utils import DiskSaverAdd
+from .oss_utils import DiskAndOssSaverAdd
 from .serializer import dumps, loads
 from .utils import get_latest_updated_file, remove_prefix
 from .trainer_utils import create_supervised_trainer, prepare_batch, create_supervised_evaluator
@@ -211,7 +211,7 @@ class Predictor:
         self.save()
         checkpoint = Checkpoint(
             to_save,
-            save_handler=DiskSaverAdd(
+            save_handler=DiskAndOssSaverAdd(
                 dirname=self.save_dir,
                 ossaddress=self.save_state,
                 create_dir=True,
@@ -522,29 +522,3 @@ class Predictor:
         parameters = self.get_parameters()
         with open(f"{self.save_dir}/state.json", "wb") as f:
             f.write(dumps(parameters))
-
-    # def upload(self, url: str):
-    #     """upload model state to oss if given url is an oss file, else do nothing,
-    #     deprecated due to we automatically upload during checkpoint"""
-    #     if url.startswith("oss://"):
-    #         bucket, key = get_bucket_from_oss_url(url)
-    #         zipfilepath = self.zip()
-    #         bucket.put_object_from_file(key, zipfilepath)
-    #         shutil.rmtree(self.save_dir)
-
-    # def zip(self, filepath: str = None):
-    #     """zip last updated model file and state.json"""
-
-    #     files = glob(f"{self.save_dir}{os.sep}*.pt")
-    #     model_file = get_latest_updated_file(files)
-    #     state_file = f"{self.save_dir}{os.sep}state.json"
-
-    #     if filepath is None:
-    #         filepath = os.path.join(self.save_dir, "model.zip")
-
-    #     with zipfile.ZipFile(filepath, "w", compression=zipfile.ZIP_BZIP2) as archive:
-    #         if model_file is not None:
-    #             archive.write(model_file, os.path.basename(model_file))
-    #         archive.write(state_file, os.path.basename(state_file))
-
-    #     return filepath

@@ -6,7 +6,7 @@ import inspect
 import numpy as np
 import zipfile
 import tempfile
-from .oss_utils import DiskSaverAdd
+from .oss_utils import DiskAndOssSaverAdd
 from oss2 import Bucket
 from glob import glob
 from copy import deepcopy
@@ -261,7 +261,7 @@ class Detector:
         to_save = {"model": model, "optimizer": optimizer, "trainer": trainer}
         checkpoint = Checkpoint(
             to_save,
-            save_handler=DiskSaverAdd(
+            save_handler=DiskAndOssSaverAdd(
                 dirname=self.save_dir,
                 ossaddress=self.save_state,
                 create_dir=True,
