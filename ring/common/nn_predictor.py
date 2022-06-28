@@ -7,7 +7,6 @@ import numpy as np
 import zipfile
 import tempfile
 import itertools
-import shutil
 from math import inf
 from oss2 import Bucket
 from glob import glob
@@ -15,12 +14,13 @@ from copy import deepcopy
 from typing import Optional, Union, Dict, Any
 from ignite.engine import Events
 from ignite.contrib.handlers.tensorboard_logger import TensorboardLogger, global_step_from_engine
-from ignite.handlers import Checkpoint, EarlyStopping, DiskSaver
+from ignite.handlers import Checkpoint, EarlyStopping
 from .loss import cfg_to_losses
-from .metrics import RMSE, SMAPE, MAE, MSE, MAPE, RSquare
+from .metrics import RMSE, SMAPE, MAE, MSE, MAPE
 from .dataset import TimeSeriesDataset
 
 from .logger import Fluxlogger
+from .oss_utils import DiskSaverAdd
 from .serializer import dumps, loads
 from .utils import get_latest_updated_file, remove_prefix
 from .trainer_utils import create_supervised_trainer, prepare_batch, create_supervised_evaluator
@@ -65,8 +65,10 @@ class Predictor:
         # default model_save_dir
         if save_dir is None or save_dir.startswith("oss://"):
             self.save_dir = tempfile.mkdtemp(prefix=self.DEFAULT_ROOT_DIR)
+            self.save_state = save_dir  # oss address
         else:
             self.save_dir = remove_prefix(save_dir, "file://")
+            self.save_state = None
 
         self.load_dir = load_dir
         self._data_cfg = data_cfg
@@ -210,8 +212,9 @@ class Predictor:
         self.save()
         checkpoint = Checkpoint(
             to_save,
-            save_handler=DiskSaver(
-                self.save_dir,
+            save_handler=DiskSaverAdd(
+                dirname=self.save_dir,
+                ossaddress=self.save_state,
                 create_dir=True,
                 require_empty=False,
             ),
@@ -513,14 +516,6 @@ class Predictor:
             bucket, key = get_bucket_from_oss_url(url)
             return Predictor.load_from_oss_bucket(bucket, key, model_cls, new_save_dir)
 
-    def upload(self, url: str):
-        """upload model state to oss if given url is an oss file, else do nothing"""
-        if url.startswith("oss://"):
-            bucket, key = get_bucket_from_oss_url(url)
-            zipfilepath = self.zip()
-            bucket.put_object_from_file(key, zipfilepath)
-            shutil.rmtree(self.save_dir)
-
     def save(self):
         """
         Save predictor's state to save_dir
@@ -529,19 +524,28 @@ class Predictor:
         with open(f"{self.save_dir}/state.json", "wb") as f:
             f.write(dumps(parameters))
 
-    def zip(self, filepath: str = None):
-        """zip last updated model file and state.json"""
+    # def upload(self, url: str):
+    #     """upload model state to oss if given url is an oss file, else do nothing,
+    #     deprecated due to we automatically upload during checkpoint"""
+    #     if url.startswith("oss://"):
+    #         bucket, key = get_bucket_from_oss_url(url)
+    #         zipfilepath = self.zip()
+    #         bucket.put_object_from_file(key, zipfilepath)
+    #         shutil.rmtree(self.save_dir)
 
-        files = glob(f"{self.save_dir}{os.sep}*.pt")
-        model_file = get_latest_updated_file(files)
-        state_file = f"{self.save_dir}{os.sep}state.json"
+    # def zip(self, filepath: str = None):
+    #     """zip last updated model file and state.json"""
 
-        if filepath is None:
-            filepath = os.path.join(self.save_dir, "model.zip")
+    #     files = glob(f"{self.save_dir}{os.sep}*.pt")
+    #     model_file = get_latest_updated_file(files)
+    #     state_file = f"{self.save_dir}{os.sep}state.json"
 
-        with zipfile.ZipFile(filepath, "w", compression=zipfile.ZIP_BZIP2) as archive:
-            if model_file is not None:
-                archive.write(model_file, os.path.basename(model_file))
-            archive.write(state_file, os.path.basename(state_file))
+    #     if filepath is None:
+    #         filepath = os.path.join(self.save_dir, "model.zip")
 
-        return filepath
+    #     with zipfile.ZipFile(filepath, "w", compression=zipfile.ZIP_BZIP2) as archive:
+    #         if model_file is not None:
+    #             archive.write(model_file, os.path.basename(model_file))
+    #         archive.write(state_file, os.path.basename(state_file))
+
+    #     return filepath

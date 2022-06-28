@@ -1,9 +1,12 @@
 import functools
 import os
-from typing import Tuple
+from typing import Tuple, Mapping, Callable, Optional, IO, Any
 import oss2
-
-from ring.common.utils import remove_prefix
+import stat
+from .utils import remove_prefix
+import tempfile
+import zipfile
+from ignite.handlers import DiskSaver
 
 
 @functools.lru_cache(maxsize=64)
@@ -46,3 +49,55 @@ def get_pandas_storage_options():
         },
         # "config_kwargs": {"s3": {"addressing_style": "virtual"}},
     }
+
+
+class DiskSaverAdd(DiskSaver):
+    def __init__(
+        self,
+        dirname: str,
+        ossaddress: str = None,
+        atomic: bool = True,
+        create_dir: bool = True,
+        require_empty: bool = True,
+        **kwargs: Any,
+    ):
+        super().__init__(
+            dirname=dirname, atomic=atomic, create_dir=create_dir, require_empty=require_empty, **kwargs
+        )
+        self.ossaddress = ossaddress
+
+    def _save_func(self, checkpoint: Mapping, path: str, func: Callable, rank: int = 0) -> None:
+        if not self._atomic:
+            func(checkpoint, path, **self.kwargs)
+            if self.ossaddress:
+                bucket, key = get_bucket_from_oss_url(self.ossaddress)
+                bucket.put_object_from_file(key, path)
+        else:
+            tmp_file = None
+            tmp_name = ""
+            tmp: Optional[IO[bytes]] = None
+            if rank == 0:
+                tmp = tempfile.NamedTemporaryFile(delete=False, dir=self.dirname)
+                tmp_file = tmp.file  # type: ignore
+                tmp_name = tmp.name
+            try:
+                func(checkpoint, tmp_file, **self.kwargs)
+            except BaseException:
+                if tmp is not None:
+                    tmp.close()
+                    os.remove(tmp_name)
+                    raise
+            else:
+                if tmp is not None:
+                    tmp.close()
+                    os.replace(tmp.name, path)
+                    # append group/others read mode
+                    os.chmod(path, os.stat(path).st_mode | stat.S_IRGRP | stat.S_IROTH)
+                    if self.ossaddress:
+                        bucket, key = get_bucket_from_oss_url(self.ossaddress)
+                        state_file = f"{path.rsplit('/',maxsplit=1)[0]}{os.sep}state.json"
+                        file_path = f"{path.rsplit('/',maxsplit=1)[0]}{os.sep}model.zip"
+                        with zipfile.ZipFile(file_path, "w", compression=zipfile.ZIP_BZIP2) as archive:
+                            archive.write(path, os.path.basename(path))
+                            archive.write(state_file, os.path.basename(state_file))
+                        bucket.put_object_from_file(key, file_path)
