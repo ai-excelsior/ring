@@ -154,7 +154,7 @@ class Predictor:
         if isinstance(data_val, TimeSeriesDataset):
             dataset_val = data_val
         else:
-            dataset_val = self.create_dataset(data_val)
+            dataset_val = self.create_dataset(data_val, predict_mode=True)
 
         batch_size = self._trainer_cfg.get("batch_size", 64)
         if self.enable_gpu:
@@ -300,7 +300,7 @@ class Predictor:
         data_val: pd.DataFrame,
         model_filename=None,
     ):
-        dataset = self.create_dataset(data_val)
+        dataset = self.create_dataset(data_val, predict_mode=True)
 
         # load model
         if model_filename is None:
