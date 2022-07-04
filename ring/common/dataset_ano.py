@@ -11,7 +11,9 @@ from ring.common.data_config import DataConfig
 from .indexer import BaseIndexer, create_indexer_from_cfg, serialize_indexer, deserialize_indexer
 from .normalizers import (
     GroupMinMaxNormalizer,
+    GroupStardardNormalizer,
     MinMaxNormalizer,
+    StandardNormalizer,
     serialize_normalizer,
     deserialize_normalizer,
 )
@@ -81,10 +83,10 @@ class TimeSeriesDataset(Dataset):
             for cont in self.encoder_cont:
                 if len(self._group_ids) > 0:
                     self._cont_scalars.append(
-                        GroupMinMaxNormalizer(group_ids=self._group_ids, feature_name=cont, center=False)
+                        GroupStardardNormalizer(group_ids=self._group_ids, feature_name=cont, center=True)
                     )
                 else:
-                    self._cont_scalars.append(MinMaxNormalizer(feature_name=cont, center=False))
+                    self._cont_scalars.append(StandardNormalizer(feature_name=cont, center=True))
 
         assert all(
             group_id in data.columns for group_id in group_ids
