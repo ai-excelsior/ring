@@ -341,7 +341,11 @@ class Detector:
                 tag="optimizer_itertion",
                 optimizer=optimizer,
             )
-            trainer.run(train_dataloader, max_epochs=self._trainer_cfg.get("max_epochs", 100))
+            trainer.run(
+                train_dataloader,
+                max_epochs=self._trainer_cfg.get("max_epochs", 100),
+                epoch_length=max(len(train_dataloader) // self._trainer_cfg.get("max_epochs", 100), 100),
+            )
         # including parameters
         self.save()
 

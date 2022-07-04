@@ -349,11 +349,11 @@ class TimeSeriesDataset(Dataset):
             batch_size=batch_size,
         )
         kwargs.update(default_kwargs)
-        # return DataLoader(self, **kwargs)
+        return DataLoader(self, **kwargs)
 
-        return DataLoader(
-            self, sampler=RandomSampler(self, num_samples=50 * batch_size) if train else None, **kwargs
-        )
+        # return DataLoader(
+        #     self, sampler=RandomSampler(self, num_samples=50 * batch_size) if train else None, **kwargs
+        # )
 
     def reflect(
         self,
