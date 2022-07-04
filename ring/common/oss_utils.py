@@ -91,3 +91,4 @@ class DiskAndOssSaverAdd(DiskSaver):
                     archive.write(path, os.path.basename(path))
                     archive.write(state_file, os.path.basename(state_file))
                 bucket.put_object_from_file(key, file_path)
+                os.remove(file_path)

@@ -346,8 +346,28 @@ class Detector:
                 max_epochs=self._trainer_cfg.get("max_epochs", 100),
                 #   epoch_length=max(len(train_dataloader) // self._trainer_cfg.get("max_epochs", 100), 100),
             )
-        # including parameters
+        # including parameters, replace that stored earlier
         self.save()
+        if self.save_state:
+            os.rename(f"{self.save_dir}{os.sep}state.json", f"{self.save_dir}{os.sep}state_final.json")
+            state_file = f"{self.save_dir}{os.sep}state_final.json"
+            bucket, key = get_bucket_from_oss_url(self.save_state)
+            bucket.get_object_to_file(key, f"{self.save_dir}{os.sep}{key.rsplit('/',maxsplit=1)[1]}")
+            zipfile.ZipFile(f"{self.save_dir}{os.sep}{key.rsplit('/',maxsplit=1)[1]}").extractall(
+                self.save_dir
+            )
+            rezip_filepath = f"{self.save_dir}{os.sep}model.zip"
+            # regardless unzipped one or original one, it is the best checkpoint
+            model_file = get_latest_updated_file(glob(f"{self.save_dir}{os.sep}*.pt"))
+            # re-upload `state.json` with parameters
+            with zipfile.ZipFile(rezip_filepath, "w", compression=zipfile.ZIP_BZIP2) as archive:
+                archive.write(model_file, os.path.basename(model_file))
+                archive.write(state_file, "state.json")
+            bucket.put_object_from_file(key, rezip_filepath)
+            os.remove(f"{self.save_dir}{os.sep}{key.rsplit('/',maxsplit=1)[1]}")
+            os.remove(f"{self.save_dir}{os.sep}state.json")
+            os.remove(rezip_filepath)
+            os.rename(f"{self.save_dir}{os.sep}state_final.json", f"{self.save_dir}{os.sep}state.json")
 
     def get_parameters(self) -> Dict[str, Any]:
         """
