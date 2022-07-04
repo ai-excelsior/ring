@@ -259,6 +259,8 @@ class Detector:
 
         # checkpoint
         to_save = {"model": model, "optimizer": optimizer, "trainer": trainer}
+        # for checkpoint upload to oss, there will be no parameters in state.json
+        self.save()
         checkpoint = Checkpoint(
             to_save,
             save_handler=DiskAndOssSaverAdd(
@@ -340,6 +342,7 @@ class Detector:
                 optimizer=optimizer,
             )
             trainer.run(train_dataloader, max_epochs=self._trainer_cfg.get("max_epochs", 100))
+        # including parameters
         self.save()
 
     def get_parameters(self) -> Dict[str, Any]:
