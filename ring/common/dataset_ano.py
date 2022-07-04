@@ -12,6 +12,8 @@ from .indexer import BaseIndexer, create_indexer_from_cfg, serialize_indexer, de
 from .normalizers import (
     GroupMinMaxNormalizer,
     MinMaxNormalizer,
+    GroupStardardNormalizer,
+    StandardNormalizer,
     serialize_normalizer,
     deserialize_normalizer,
 )
@@ -81,10 +83,10 @@ class TimeSeriesDataset(Dataset):
             for cont in self.encoder_cont:
                 if len(self._group_ids) > 0:
                     self._cont_scalars.append(
-                        GroupMinMaxNormalizer(group_ids=self._group_ids, feature_name=cont, center=False)
+                        GroupStardardNormalizer(group_ids=self._group_ids, feature_name=cont, center=False)
                     )
                 else:
-                    self._cont_scalars.append(MinMaxNormalizer(feature_name=cont, center=False))
+                    self._cont_scalars.append(StandardNormalizer(feature_name=cont, center=False))
 
         assert all(
             group_id in data.columns for group_id in group_ids
