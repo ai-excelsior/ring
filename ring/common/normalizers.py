@@ -292,7 +292,7 @@ class GroupStardardNormalizer(GroupNormalizer):
             df_center_scale["scale"] += self._eps
             self._state = df_center_scale
         else:
-            df_center_scale["scale"] = df_center_scale["center"] + self._eps
+            df_center_scale["scale"] += self._eps
             df_center_scale["center"] = 0.0
             self._state = df_center_scale
 
