@@ -352,18 +352,20 @@ class Detector:
             os.rename(f"{self.save_dir}{os.sep}state.json", f"{self.save_dir}{os.sep}state_final.json")
             state_file = f"{self.save_dir}{os.sep}state_final.json"
             bucket, key = get_bucket_from_oss_url(self.save_state)
+            # download oss .zip file and unzip it to current folder
             bucket.get_object_to_file(key, f"{self.save_dir}{os.sep}{key.rsplit('/',maxsplit=1)[1]}")
             zipfile.ZipFile(f"{self.save_dir}{os.sep}{key.rsplit('/',maxsplit=1)[1]}").extractall(
                 self.save_dir
             )
             rezip_filepath = f"{self.save_dir}{os.sep}model.zip"
-            # regardless unzipped one or original one, it is the best checkpoint
+            # regardless unzipped one or original one, it is always the best checkpoint
             model_file = get_latest_updated_file(glob(f"{self.save_dir}{os.sep}*.pt"))
-            # re-upload `state.json` with parameters
+            # re-upload `state.json` with parameters in `state_final.json`
             with zipfile.ZipFile(rezip_filepath, "w", compression=zipfile.ZIP_BZIP2) as archive:
                 archive.write(model_file, os.path.basename(model_file))
                 archive.write(state_file, "state.json")
             bucket.put_object_from_file(key, rezip_filepath)
+            # clear cache and unnecessary files
             os.remove(f"{self.save_dir}{os.sep}{key.rsplit('/',maxsplit=1)[1]}")
             os.remove(f"{self.save_dir}{os.sep}state.json")
             os.remove(rezip_filepath)
