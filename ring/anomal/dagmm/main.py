@@ -13,7 +13,7 @@ from ring.common.data_config import DataConfig, url_to_data_config_anomal
 from ring.common.nn_detector import Detector as Predictor
 from ring.common.influx_utils import predictions_to_influx
 from ring.common.data_utils import read_from_url
-from ring.anomal.dagmm.model import dagmm
+from ring.anomal.dagmm.model_kde import dagmm
 from fastapi import FastAPI
 from ring.common.oss_utils import get_bucket_from_oss_url
 

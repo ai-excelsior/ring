@@ -19,25 +19,23 @@ class dagmm(BaseAnormal):
         embedding_sizes: Dict[str, Tuple[int, int]] = {},
         n_layers: int = 1,
         dropout: float = 0,
-        k_clusters: int = 2,
-        x_categoricals: List[str] = [],
         targets: List[str] = [],
         encoder_cont: List[str] = [],
         encoder_cat: List[str] = [],
         target_lags: Dict = {},
         cov: torch.tensor = None,
         output_size: int = 1,
-        eps=torch.tensor(1e-12),
+        eps=torch.tensor(1e-8),
         return_enc: bool = True,
         encoderdecodertype: str = "RNN",
         steps=1,
+        k_clusters: int = None,
     ):
         self.hidden_size = min(5 + int(output_size / 20), hidden_size)
         super().__init__(
             name=name,
             embedding_sizes=embedding_sizes,
             target_lags=target_lags,
-            x_categoricals=x_categoricals,
             targets=targets,
             encoder_cont=encoder_cont,
             encoder_cat=encoder_cat,
@@ -50,17 +48,7 @@ class dagmm(BaseAnormal):
             steps=steps,
         )
 
-        self.k_clusters = k_clusters
         self.cov = cov
-
-        layers = [
-            nn.Linear(self.hidden_size + 2, 10),
-            nn.Tanh(),
-            nn.Dropout(0.5),
-            nn.Linear(10, k_clusters),
-            nn.Softmax(dim=1),
-        ]
-        self.estimate = nn.Sequential(*layers)
         self.eps = eps
 
     @classmethod
@@ -75,7 +63,6 @@ class dagmm(BaseAnormal):
             encoder_cat=dataset.encoder_cat,
             encoder_cont=dataset.encoder_cont,
             embedding_sizes=embedding_sizes,
-            x_categoricals=dataset.categoricals,
             steps=dataset.get_parameters().get("indexer").get("params").get("steps"),
             **kwargs,
         )
@@ -87,39 +74,20 @@ class dagmm(BaseAnormal):
             kl_loss = dec[1]
             dec = dec[0]
         batch_size = enc_output.shape[0]
-        # reconstruction error, only consider `cont`
-        rec_cosine = F.cosine_similarity(
-            x["encoder_cont"].reshape(batch_size, -1),
-            dec[:, :, self.target_positions].reshape(batch_size, -1),
-            dim=1,
-        )
-        rec_euclidean = (
-            x["encoder_cont"].reshape(batch_size, -1)
-            - dec[:, :, self.target_positions].reshape(batch_size, -1)
-        ).norm(2, dim=1) / torch.clamp(x["encoder_cont"].reshape(batch_size, -1).norm(2, dim=1), min=1e-10)
-        # concat low-projection with reconstruction error
-        z = torch.cat(
-            [  # enc_output[:, -1],  # last position of `output` equals to last layer of `hidden_state`
-                enc_output[:, -1],
-                rec_euclidean.unsqueeze(-1),
-                rec_cosine.unsqueeze(-1),
-            ],
-            dim=1,
-        )  # batch_size * (self.hidden_size + 2)
 
         if mode != "predict":
-            self.compute_kde_params(z, batch_size)
+            self.compute_kde_params(enc_output[:, -1], batch_size)
             if self.training:
-                sample_energy, cov_diag = self.compute_kde_energy(z, batch_size)
-                return (sample_energy, cov_diag), dec[:, :, self.target_positions], False  # for loss
+                sample_energy, cov_diag = self.compute_kde_energy(enc_output[:, -1], batch_size)
+                return (sample_energy, cov_diag), dec[:, :, self.encoder_positions], False  # for loss
             else:
                 return [
                     [self.dataset, self.cov, self.log_det],
-                    dec[:, :, self.target_positions],
+                    dec[:, :, self.encoder_positions],
                     False,
                 ]  # for parameters
         else:
-            return z, dec[:, :, self.target_positions]  # for socres and reconstruction
+            return enc_output[:, -1], dec[:, :, self.encoder_positions]  # for socres and reconstruction
 
     def compute_aux(self, C: torch.tensor):
         # setup auxilary variables for computing the sample energy
