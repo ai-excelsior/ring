@@ -55,10 +55,10 @@ def train(data_config: DataConfig, data_train: pd.DataFrame, data_val: pd.DataFr
 
     if load_state is None:
         print(f"Model saved in local file path: {predictor.save_dir}")
-        if kwargs["save_state"].startswith("oss://"):
-            predictor.upload(kwargs["save_state"])
-    else:
-        predictor.upload(kwargs["save_state"])
+    #     if kwargs["save_state"].startswith("oss://"):
+    #         predictor.upload(kwargs["save_state"])
+    # else:
+    #     predictor.upload(kwargs["save_state"])
 
     validate(kwargs.get("save_state", None), data_val)
 
