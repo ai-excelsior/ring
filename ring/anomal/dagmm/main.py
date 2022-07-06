@@ -84,24 +84,22 @@ def predict(
     load a model and predict with given dataset
     """
     assert load_state is not None, "load_state is required when validate"
-    import os
 
     predictor = Predictor.load(load_state, dagmm)
     pred_df = predictor.predict(data, plot=False)
-    pred_df.to_csv("/tmp/" + measurement + ".csv")
-    bucket, key = get_bucket_from_oss_url(task_id)
-    bucket.put_object_from_file(key, "/tmp/" + measurement + ".csv")
-    os.remove("/tmp/" + measurement + ".csv")
-    # predictor.validate(data)
+    # pred_df.to_csv("/tmp/" + measurement + ".csv")
+    # bucket, key = get_bucket_from_oss_url(task_id)
+    # bucket.put_object_from_file(key, "/tmp/" + measurement + ".csv")
+    predictor.validate(data)
 
-    # predictions_to_influx(
-    #     pred_df,
-    #     time_column=predictor._data_cfg.time,
-    #     model_name=predictor._model_cls.__module__,
-    #     measurement=measurement,
-    #     task_id=task_id,
-    #     additional_tags=predictor._data_cfg.group_ids,
-    # )
+    predictions_to_influx(
+        pred_df,
+        time_column=predictor._data_cfg.time,
+        model_name=predictor._model_cls.__module__,
+        measurement=measurement,
+        task_id=task_id,
+        additional_tags=predictor._data_cfg.group_ids,
+    )
 
 
 def serve(load_state, data_cfg):
