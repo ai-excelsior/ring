@@ -12,7 +12,8 @@ class LoggerWriter(object):
         self.kwargs = kwargs
         self.bucket = os.environ.get("INFLUX_LOG_BUCKET_NAME")
 
-    def add_record(self, key, value, phase, event, epoch, iteration, task_id):
+    def add_record(self, dic_item, phase, event, epoch, iteration, task_id):
+        dic_item = {k.split("/")[1]: v for k, v in dic_item.items()}
         with get_influx_client(**self.kwargs) as client:
             with client.write_api() as write_api:
                 write_api.write(
@@ -20,7 +21,7 @@ class LoggerWriter(object):
                     record={
                         "measurement": task_id,
                         "tags": {"event": event, "phase": phase},
-                        "fields": {key: value, "epoch": epoch, "iteration": iteration},
+                        "fields": {**dic_item, "epoch": epoch, "iteration": iteration},
                         "time": datetime.utcnow().isoformat("T") + "Z",
                     },
                 )
@@ -79,16 +80,14 @@ class OutputHandler(BaseOutputHandler):
                 " Please check the output of global_step_transform."
             )
 
-        for key, value in metrics.items():
-            logger.writer.add_record(
-                key.split("/")[1],
-                value,
-                phase=phase,
-                event=event,
-                epoch=engine.state.epoch,
-                iteration=engine.state.iteration,
-                task_id=self.task_id,
-            )
+        logger.writer.add_record(
+            dic_item=metrics,
+            phase=phase,
+            event=event,
+            epoch=engine.state.epoch,
+            iteration=engine.state.iteration,
+            task_id=self.task_id,
+        )
 
 
 class OptimizerParamsHandler(BaseOptimizerParamsHandler):
@@ -107,13 +106,11 @@ class OptimizerParamsHandler(BaseOptimizerParamsHandler):
             for i, param_group in enumerate(self.optimizer.param_groups)
         }
 
-        for k, v in params.items():
-            logger.writer.add_record(
-                k.split("/")[1],
-                v,
-                phase="training",
-                event="iteration",
-                epoch=engine.state.epoch,
-                iteration=engine.state.iteration,
-                task_id=self.task_id,
-            )
+        logger.writer.add_record(
+            dic_item=params,
+            phase="training",
+            event="iteration",
+            epoch=engine.state.epoch,
+            iteration=engine.state.iteration,
+            task_id=self.task_id,
+        )
