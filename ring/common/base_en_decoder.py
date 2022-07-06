@@ -223,11 +223,12 @@ class AutoencoderType(BaseType):
             encoder_layer = [nn.Linear(initial_size, hidden_list[0]), nn.Tanh()]
             for i in range(len(hidden_list) - 1):
                 encoder_layer.extend([nn.Linear(hidden_list[i], hidden_list[i + 1]), nn.Tanh()])
-            encoder_layer.extend([nn.Linear(hidden_list[i + 1], hidden_size)])
+
+            encoder_layer.extend([nn.Linear(hidden_list[-1], hidden_size)])
             decoder_layer = [nn.Linear(hidden_size, hidden_list[-1]), nn.Tanh()]
             for i in range(len(hidden_list) - 1, 0, -1):
                 decoder_layer.extend([nn.Linear(hidden_list[i], hidden_list[i - 1]), nn.Tanh()])
-            decoder_layer.extend([nn.Linear(hidden_list[i - 1], initial_size)])
+            decoder_layer.extend([nn.Linear(hidden_list[0], initial_size)])
 
         self.encoder = nn.Sequential(*encoder_layer)
         self.decoder = nn.Sequential(*decoder_layer)
