@@ -590,7 +590,7 @@ class TimeFeatureEmbedding(nn.Module):
     go through a FC-layer, hidden_size decided by freq
     """
 
-    def __init__(self, hidden_size, embed_type="timeF", freq="h"):
+    def __init__(self, hidden_size, embed_type="timeF", freq="h", tf_in=0):
         super(TimeFeatureEmbedding, self).__init__()
         freq_map = defaultdict(lambda: 1)  # default situation
         freq_map.update(
@@ -614,7 +614,10 @@ class TimeFeatureEmbedding(nn.Module):
             }
         )
         d_inp = freq_map[freq.lstrip("0123456789")]
-        self.embed = nn.Linear(d_inp, hidden_size, bias=False)
+        if not tf_in:
+            self.embed = nn.Linear(d_inp, hidden_size, bias=False)
+        else:
+            self.embed = nn.Linear(tf_in, hidden_size, bias=False)
 
     def forward(self, x):
         return self.embed(x)
@@ -622,11 +625,13 @@ class TimeFeatureEmbedding(nn.Module):
 
 class DataEmbedding(nn.Module):
     # default embed_type == timeF, so fix it
-    def __init__(self, c_in, hidden_size, freq="h", dropout=0.1):
+    def __init__(self, c_in, hidden_size, freq="h", dropout=0.1, tf_in=0):
         super(DataEmbedding, self).__init__()
         self.value_embedding = TokenEmbedding(c_in=c_in, hidden_size=hidden_size)
         self.position_embedding = PositionalEmbedding(hidden_size=hidden_size)
-        self.temporal_embedding = TimeFeatureEmbedding(hidden_size=hidden_size, embed_type="timeF", freq=freq)
+        self.temporal_embedding = TimeFeatureEmbedding(
+            hidden_size=hidden_size, embed_type="timeF", freq=freq, tf_in=tf_in
+        )
         self.dropout = nn.Dropout(p=dropout)
 
     def forward(self, x, x_mark):
@@ -636,10 +641,12 @@ class DataEmbedding(nn.Module):
 
 # without position_embedding
 class DataEmbedding_wo_pos(nn.Module):
-    def __init__(self, c_in, hidden_size, freq="h", dropout=0.1):
+    def __init__(self, c_in, hidden_size, freq="h", dropout=0.1, tf_in=0):
         super(DataEmbedding_wo_pos, self).__init__()
         self.value_embedding = TokenEmbedding(c_in=c_in, hidden_size=hidden_size)
-        self.temporal_embedding = TimeFeatureEmbedding(hidden_size=hidden_size, embed_type="timeF", freq=freq)
+        self.temporal_embedding = TimeFeatureEmbedding(
+            hidden_size=hidden_size, embed_type="timeF", freq=freq, tf_in=tf_in
+        )
         self.dropout = nn.Dropout(p=dropout)
 
     def forward(self, x, x_mark):

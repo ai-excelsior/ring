@@ -562,6 +562,7 @@ class BaseLong(BaseModel):
         decoder_cont: List[str] = [],
         decoder_cat: List[str] = [],
         target_lags: Dict = {},
+        time_features:List[str]=[],
         freq: str = "h",
         embed_type: str = "position",
         strides: int = None,
@@ -580,6 +581,7 @@ class BaseLong(BaseModel):
         self._context_length = context_length
         self._freq = freq
         self.hidden_size = 2 ** hidden_size
+        self._time_features=time_features
         self.n_layers = n_layers 
         self.n_heads = 2 ** n_heads
         self.fcn_size = 2 ** fcn_size
@@ -602,11 +604,11 @@ class BaseLong(BaseModel):
 
         # embedding both `cont` and `cat`
         self.enc_embedding = self.embed_type(
-            len(encoder_cont) + len(encoder_cat), self.hidden_size , self._freq, dropout
+            len(encoder_cont) + len(encoder_cat), self.hidden_size , self._freq, dropout,len(self._time_features)
         )
         # because of the `token`, dec_embedding will have the same size of enc_embedding
         self.dec_embedding = self.embed_type(
-            len(encoder_cont) + len(encoder_cat), self.hidden_size , self._freq, dropout
+            len(encoder_cont) + len(encoder_cat), self.hidden_size , self._freq, dropout,len(self._time_features)
         )
 
         # Probattention: factor always equal to 5, which uses to determine top-k, activation always equal to gelu

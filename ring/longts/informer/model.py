@@ -28,6 +28,7 @@ class Informer(BaseLong):
         decoder_cat: List[str] = [],
         target_lags: Dict = {},
         freq: str = "h",
+        time_features: List[str] = [],
     ):
 
         super().__init__(
@@ -48,6 +49,7 @@ class Informer(BaseLong):
             target_lags=target_lags,
             output_size=output_size,
             freq=freq,
+            time_features=time_features,
         )
         # stacked encoder
         if n_stacks > 1:
@@ -88,5 +90,6 @@ class Informer(BaseLong):
             decoder_cont=dataset.decoder_cont,
             decoder_cat=dataset.decoder_cat,
             freq=dataset._freq,
+            time_features=dataset.time_features,
             **kwargs
         )
