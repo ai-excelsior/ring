@@ -4,31 +4,22 @@
   "targets": [
     "y"
   ],
-  "group_ids": [],
+  "group_ids": [
+    "cat"
+  ],
   "static_categoricals": [],
   "static_reals": [],
   "time_varying_known_categoricals": [],
   "time_varying_known_reals": [],
-  "time_varying_unknown_categoricals": [
-    "cat"
-  ],
+  "time_varying_unknown_categoricals": [],
   "time_varying_unknown_reals": [],
   "indexer": {
     "name": "slide_window",
-    "look_back": 24,
-    "look_forward": 12
+    "look_back": 4,
+    "look_forward": 2
   },
-  "categoricals": [
-    {
-      "name": "cat",
-      "choices": [
-        "A",
-        "B",
-        "C",
-        "D"
-      ],
-      "embedding_size": 2
-    }
-  ],
-  "time_features": []
+  "categoricals": [],
+  "time_features": [],
+  "detrend": true,
+  "lags": {}
 }
