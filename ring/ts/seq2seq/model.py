@@ -149,9 +149,9 @@ class RNNSeq2Seq(BaseModel):
         return cls(
             dataset.targets,
             encoder_cat=dataset.encoder_cat,
-            encoder_cont=dataset.encoder_cont,
+            encoder_cont=dataset.encoder_cont + dataset.time_features,
             decoder_cat=dataset.decoder_cat,
-            decoder_cont=dataset.decoder_cont,
+            decoder_cont=dataset.decoder_cont + dataset.time_features,
             embedding_sizes=embedding_sizes,
             **kwargs,
         )
