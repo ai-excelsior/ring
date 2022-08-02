@@ -2,10 +2,11 @@
     "time": "time",
     "freq": "H",
     "targets": [
-        "value",
-        "value_2"
+        "value"
     ],
-    "group_ids": [],
+    "group_ids": [
+        "series"
+    ],
     "static_categoricals": [],
     "static_reals": [],
     "time_varying_known_categoricals": [],
@@ -19,6 +20,6 @@
         "look_forward": 10
     },
     "time_features": [],
-    "detrend": true,
+    "detrend": false,
     "lags": {}
 }
