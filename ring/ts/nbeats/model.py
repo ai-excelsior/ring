@@ -195,7 +195,7 @@ class NbeatsNetwork(BaseModel):
         return {
             "prediction": forecast,
             "backcast": (
-                encoder_cont[..., self.target_positions] - backcast,
+                encoder_cont[..., self.target_positions] - backcast[..., self.target_positions],
                 self.backcast_loss_ratio,
             ),
         }
