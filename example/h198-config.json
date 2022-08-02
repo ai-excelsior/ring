@@ -2,8 +2,7 @@
     "time": "time",
     "freq": "H",
     "targets": [
-        "value",
-        "value_2"
+        "value"
     ],
     "group_ids": [
         "series"

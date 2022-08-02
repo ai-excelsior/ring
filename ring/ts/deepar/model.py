@@ -47,7 +47,7 @@ class DeepAR(AutoRegressiveBaseModelWithCovariates):
         self.output_projector_decoder = (
             nn.Linear(hidden_size, 2)
             if len(self._targets) == 1
-            else [nn.Linear(hidden_size, 2) for _ in len(self._targets)]
+            else [nn.Linear(hidden_size, 2) for _ in range(len(self._targets))]
         )
 
     def decode(

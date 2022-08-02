@@ -387,7 +387,11 @@ class NormalDistrubutionLoss(DistributionLoss):
         return self.distribution_class(y_pred[..., 0], y_pred[..., 1])
 
     def scale_prediction(
-        self, y_pred: torch.Tensor, target_scale: torch.Tensor = None, normalizer: AbstractNormalizer = None
+        self,
+        y_pred: torch.Tensor,
+        target_scale: torch.Tensor = None,
+        normalizer: AbstractNormalizer = None,
+        need=True,
     ):
         # TODO do I need consider normalizer transformation ?
         # rescale back
@@ -463,7 +467,11 @@ class NegativeBinomialDistrubutionLoss(DistributionLoss):
         return self.distribution_class(total_count=r, probs=p)
 
     def scale_prediction(
-        self, y_pred: torch.Tensor, target_scale: torch.Tensor = None, normalizer: AbstractNormalizer = None
+        self,
+        y_pred: torch.Tensor,
+        target_scale: torch.Tensor = None,
+        normalizer: AbstractNormalizer = None,
+        need=True,
     ):
         # TODO do I need consider normalizer transformation ?
         # rescale back
