@@ -88,6 +88,8 @@ class TimeSeriesDataset(Dataset):
         # if need, it will be processed in model
         if time_features and not sum([item not in data.columns for item in time_features]):
             self._time_features = time_features
+            data = data[[c for c in data.columns if c not in self._time_features] + self._time_features]
+            # make sure time_features always at the end of dataset
         else:
             time_feature_data = time_feature(pd.to_datetime(data[self._time].values), freq=self._freq)
             self._time_features = list(time_feature_data.columns)
