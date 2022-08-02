@@ -3,7 +3,7 @@ import numpy as np
 import torch
 import inspect
 from copy import deepcopy
-from typing import Any, Dict, List, Tuple
+from typing import Any, Callable, Dict, List, Tuple, Union
 from torch.utils.data import Dataset, DataLoader
 from ring.common.data_config import DataConfig
 from ring.common.time_features import time_feature
@@ -17,6 +17,13 @@ from .normalizers import (
     deserialize_normalizer,
 )
 from .encoder import LabelEncoder, deserialize_encoder, serialize_encoder
+from .seasonality import (
+    DetrendTargets,
+    GroupDetrendTargets,
+    serialize_detrender,
+    deserialize_detrender,
+    create_detrender_fron_cfg,
+)
 from .utils import get_default_embedding_size, add_time_idx
 from .encoder import create_encoder_from_cfg
 from torch.utils.data.sampler import RandomSampler
@@ -47,12 +54,14 @@ class TimeSeriesDataset(Dataset):
         target_normalizers: List[Normalizer] = [],
         categorical_encoders: List[LabelEncoder] = [],
         cont_scalars: List[StandardNormalizer] = [],
+        target_detrenders: Union[callable, None] = None,
         # toggles
         predict_mode=False,  # using predict mode to index
         enable_static_as_covariant=True,
         add_static_known_real=None,  # add zero to time varying known (decoder part) field
         # seasonality
         lags: Dict = {},
+        # need detrend or not
     ) -> None:
         self._data = data
         self._time = time
@@ -72,6 +81,7 @@ class TimeSeriesDataset(Dataset):
         self._target_normalizers = target_normalizers
         self._categorical_encoders = categorical_encoders
         self._cont_scalars = cont_scalars
+        self._target_detrenders = target_detrenders
         self._lags = lags
 
         # `time_features` will not be added in `decoder_cont` or `encoder_cont`
@@ -85,13 +95,13 @@ class TimeSeriesDataset(Dataset):
 
         # target normalizer
         if len(self._target_normalizers) == 0:
-            for _ in self.targets:
+            for tar in self.targets:
                 if len(self._group_ids) > 0:
                     self._target_normalizers.append(
-                        GroupStardardNormalizer(group_ids=self._group_ids, feature_name=_)
+                        GroupStardardNormalizer(group_ids=self._group_ids, feature_name=tar)
                     )
                 else:
-                    self._target_normalizers.append(StandardNormalizer(feature_name=_))
+                    self._target_normalizers.append(StandardNormalizer(feature_name=tar))
 
         # categorical encoder
         if len(self._categorical_encoders) == 0:
@@ -125,6 +135,12 @@ class TimeSeriesDataset(Dataset):
         data.sort_values([*self._group_ids, TIME_IDX], inplace=True)
         data.reset_index(drop=True, inplace=True)
         self._indexer.index(data, predict_mode)
+
+        # detrend targets
+        if not self._target_detrenders.fitted:
+            data[self.targets] = self._target_detrenders.fit_transform(data, self._group_ids)
+        else:
+            data[self.targets] = self._target_detrenders.transform(data, self._group_ids)
 
         # fit categoricals
         for i, cat in enumerate(self.categoricals):
@@ -268,6 +284,7 @@ class TimeSeriesDataset(Dataset):
             target_normalizers=[serialize_normalizer(normalizer) for normalizer in self._target_normalizers],
             categorical_encoders=[serialize_encoder(encoder) for encoder in self._categorical_encoders],
             cont_scalars=[serialize_normalizer(scalar) for scalar in self._cont_scalars],
+            target_detrenders=serialize_detrender(self._target_detrenders),
         )
         return kwargs
 
@@ -283,6 +300,7 @@ class TimeSeriesDataset(Dataset):
                 deserialize_encoder(encoder) for encoder in parameters["categorical_encoders"]
             ],
             cont_scalars=[deserialize_normalizer(scalar) for scalar in parameters["cont_scalars"]],
+            target_detrenders=deserialize_detrender(parameters["target_detrenders"]),
             **kwargs,
         )
         return cls(data=data, **parameters)
@@ -295,6 +313,7 @@ class TimeSeriesDataset(Dataset):
     def from_data_cfg(cls, data_cfg: DataConfig, data: pd.DataFrame, **kwargs):
         indexer = create_indexer_from_cfg(data_cfg.indexer, data_cfg.group_ids)
         embedding_sizes = create_encoder_from_cfg(data_cfg.categoricals)
+        target_detrenders = create_detrender_fron_cfg(data_cfg.detrend, data_cfg.group_ids, data_cfg.targets)
         return cls(
             data,
             time=data_cfg.time,
@@ -309,8 +328,9 @@ class TimeSeriesDataset(Dataset):
             time_varying_unknown_categoricals=data_cfg.time_varying_unknown_categoricals,
             time_varying_unknown_reals=data_cfg.time_varying_unknown_reals,
             embedding_sizes=embedding_sizes,
-            lags=data_cfg.lags,
             time_features=data_cfg.time_features,
+            lags=data_cfg.lags,
+            target_detrenders=target_detrenders,
             **kwargs,
         )
 
@@ -348,6 +368,7 @@ class TimeSeriesDataset(Dataset):
         decoder_time_features = torch.tensor(
             decoder_period[self.time_features].to_numpy(np.float64), dtype=torch.float
         )
+
         # [sequence_length, n_targets]
         targets = torch.stack(
             [
@@ -361,6 +382,7 @@ class TimeSeriesDataset(Dataset):
             ],
             dim=-1,
         )
+
         # [sequence_length, 2, n_targets]
         target_scales = torch.stack(
             [
@@ -464,13 +486,14 @@ class TimeSeriesDataset(Dataset):
                 columns = [*self._group_ids, *self._targets]
             else:
                 columns = [self._time, *self._group_ids, *self._targets, "_time_idx_"]
-
+        # get desired part
         data_to_return = self._data.loc[[*encoder_indices, *decoder_indices]][columns]
 
         # add decoder part is_prediction is True
         data_to_return = data_to_return.assign(is_prediction=False)
         data_to_return.loc[decoder_indices, "is_prediction"] = True
 
+        # inverse normalize
         if inverse_scale_target:
             data_to_return = data_to_return.assign(
                 **{
@@ -488,5 +511,9 @@ class TimeSeriesDataset(Dataset):
                     if group_id in self._group_ids
                 }
             )
+        # inverse detrend
+        data_to_return[self.targets] = self._target_detrenders.inverse_transform(
+            data_to_return, self._group_ids
+        )
 
         return data_to_return

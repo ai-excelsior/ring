@@ -418,24 +418,46 @@ class Predictor:
 
             raw_data = dataset.reflect(encoder_indices, decoder_indices)
             raw_data = raw_data.assign(**{name: np.nan for name in prediction_column_names})
-            raw_data.loc[decoder_indices, prediction_column_names] = (
-                y_pred_scaled.reshape((-1, len(prediction_column_names))).cpu().detach().numpy()
+            # cuz `inverse_transform` can only deal with column names stored in state
+            raw_data.loc[
+                decoder_indices, prediction_column_names
+            ] = dataset._target_detrenders.inverse_transform(
+                pd.DataFrame(
+                    y_pred_scaled.reshape((-1, len(prediction_column_names))).cpu().detach().numpy(),
+                    columns=dataset.targets,
+                    index=decoder_indices,
+                ).join(raw_data.loc[decoder_indices, ["_time_idx_"] + dataset._group_ids]),
+                dataset._group_ids,
+            ).rename(
+                lambda x: x + "_pred", axis=1
             )
+            # deep_ar prediction mode
             if ["pred"] not in [self._losses[i].parameter_names for i in range(len(dataset.targets))]:
                 for i, target_name in enumerate(dataset.targets):
                     raw_data[target_name + "_pred"] = raw_data[prediction_column_names[0]].copy()
-                    raw_data.loc[decoder_indices, target_name + "_pred"] = (
-                        torch.stack(
-                            [
-                                loss_obj.to_prediction(reverse_scale(i, loss_obj), use_metrics=False)
-                                for i, loss_obj in enumerate(self._losses)
-                            ],
-                            dim=-1,
-                        )
-                        .reshape(-1, 1)
-                        .cpu()
-                        .detach()
-                        .numpy()
+                    raw_data.loc[
+                        decoder_indices, target_name + "_pred"
+                    ] = dataset._target_detrenders.inverse_transform(
+                        pd.DataFrame(
+                            (
+                                torch.stack(
+                                    [
+                                        loss_obj.to_prediction(reverse_scale(i, loss_obj), use_metrics=False)
+                                        for i, loss_obj in enumerate(self._losses)
+                                    ],
+                                    dim=-1,
+                                )
+                                .reshape(-1, 1)
+                                .cpu()
+                                .detach()
+                                .numpy()
+                            ),
+                            columns=target_name,
+                            index=decoder_indices,
+                        ).join(raw_data.loc[decoder_indices, ["_time_idx_"] + dataset._group_ids]),
+                        dataset._group_ids,
+                    ).rename(
+                        lambda x: x + "_pred", axis=1
                     )
             df.append(raw_data)
         df = pd.concat(df)

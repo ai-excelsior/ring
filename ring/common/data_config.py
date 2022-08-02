@@ -1,6 +1,8 @@
 from dataclasses import dataclass, field
 from typing import List, Dict, Optional
 
+from tomlkit import boolean
+
 from .oss_utils import get_bucket_from_oss_url
 from .serializer import loads
 from .utils import remove_prefix
@@ -33,7 +35,6 @@ class DataConfig:
     targets: List[str]
     indexer: IndexerConfig
     categoricals: List[Categorical] = field(default_factory=list)
-    lags: Dict = field(default_factory=dict)
     group_ids: List[str] = field(default_factory=list)
     static_categoricals: List[str] = field(default_factory=list)
     static_reals: List[str] = field(default_factory=list)
@@ -42,6 +43,8 @@ class DataConfig:
     time_varying_unknown_categoricals: List[str] = field(default_factory=list)
     time_varying_unknown_reals: List[str] = field(default_factory=list)
     time_features: List[str] = field(default_factory=list)
+    detrend: bool = field(default_factory=bool)
+    lags: Dict = field(default_factory=dict)
 
 
 @dataclass
@@ -78,8 +81,9 @@ def dict_to_data_config(cfg: Dict) -> DataConfig:
         time_varying_unknown_categoricals=cfg.get("time_varying_unknown_categoricals", []),
         time_varying_unknown_reals=cfg.get("time_varying_unknown_reals", []),
         categoricals=cats,
-        lags=cfg.get("lags", {}),
         time_features=cfg.get("time_features", []),
+        detrend=cfg.get("detrend", {}),
+        lags=cfg.get("lags", {}),
     )
     return data_config
 
@@ -100,8 +104,9 @@ def dict_to_data_config_anomal(cfg: Dict) -> DataConfig:
         cont_features=cfg.get("cont_features", []),
         cat_features=cfg.get("cat_features", []),
         categoricals=cats,
-        lags=cfg.get("lags", {}),
         time_features=cfg.get("time_features", []),
+        detrend=cfg.get("detrend", {}),
+        lags=cfg.get("lags", {}),
     )
     return data_config
 
