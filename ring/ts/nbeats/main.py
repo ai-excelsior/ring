@@ -61,7 +61,7 @@ def train(data_config: DataConfig, data_train: pd.DataFrame, data_val: pd.DataFr
     #     predictor.upload(kwargs["save_state"])
 
     # validate(kwargs.get("save_state", None), data_val)
-    predict(kwargs.get("save_state", None), data_val)
+    validate(kwargs.get("save_state", None), data_val)
 
 
 def validate(load_state: str, data_val: pd.DataFrame):
@@ -88,16 +88,15 @@ def predict(
     predictor = Predictor.load(load_state, NbeatsNetwork)
     pred_df = predictor.predict(data, plot=True)
     predictor.validate(data)
-    pred_df.to_csv("/Users/xuyizhou/Desktop/xyz_warehouse/gitlab/ring/example/xyz/nbeats.csv")
 
-    # predictions_to_influx(
-    #     pred_df,
-    #     time_column=predictor._data_cfg.time,
-    #     model_name=predictor._model_cls.__module__,
-    #     measurement=measurement,
-    #     task_id=task_id,
-    #     additional_tags=predictor._data_cfg.group_ids,
-    # )
+    predictions_to_influx(
+        pred_df,
+        time_column=predictor._data_cfg.time,
+        model_name=predictor._model_cls.__module__,
+        measurement=measurement,
+        task_id=task_id,
+        additional_tags=predictor._data_cfg.group_ids,
+    )
 
 
 def serve(load_state, data_cfg):
