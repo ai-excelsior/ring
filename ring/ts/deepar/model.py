@@ -60,7 +60,9 @@ class DeepAR(AutoRegressiveBaseModelWithCovariates):
     ) -> torch.Tensor:
 
         self._phase = "decode"
-        decoder_cat, decoder_cont = x["decoder_cat"], x["decoder_cont"]
+        decoder_cat, decoder_cont = x["decoder_cat"], torch.cat(
+            [x["decoder_target"], x["decoder_cont"]], dim=-1
+        )
         input_vector = self.construct_input_vector(decoder_cat, decoder_cont, first_target)
         if n_samples is None:  # the training mode where the target values are actually known
             output, _ = self._decode(

@@ -125,12 +125,12 @@ class AutoRegressiveBaseModelWithCovariates(BaseModel):
     @cached_property
     def _decoder_input_size(self) -> int:
         """the actual input size/dim of the decoder after the categorical embedding"""
-        return len(self._decoder_cont) + self.decoder_embeddings.total_embedding_size()
+        return len(self._decoder_cont) + len(self._targets) + self.decoder_embeddings.total_embedding_size()
 
     @property
     def reals(self) -> List[str]:
         """lists of reals in the encoder or decoder sequence"""
-        return self._encoder_cont if self._phase == "encode" else self._decoder_cont
+        return self._encoder_cont if self._phase == "encode" else self._targets+self._decoder_cont
 
     @property
     def reals_indices(self) -> List[int]:
@@ -216,10 +216,12 @@ class AutoRegressiveBaseModelWithCovariates(BaseModel):
 
     @cached_property
     def has_time_varying_unknown_cont(self) -> bool:
-        return set(self._encoder_cont) != set(self._decoder_cont)
+        # except targets
+        return set(self._encoder_cont + ["_ZERO_"]) != set(self._decoder_cont + self._targets)
 
     @cached_property
     def has_time_varying_unknown_cat(self) -> bool:
+        # targets will not be cat
         return set(self._encoder_cat) != set(self._decoder_cat)
 
     def construct_input_vector(
@@ -324,7 +326,7 @@ class AutoRegressiveBaseModelWithCovariates(BaseModel):
             torch.Tensor: the prediction on the decoding sequence
         """
         self._phase = "decode"
-        decoder_cat, decoder_cont = x["decoder_cat"], x["decoder_cont"]
+        decoder_cat, decoder_cont = x["decoder_cat"], torch.cat([x['decoder_target'],x["decoder_cont"]],dim=-1)
         input_vector = self.construct_input_vector(decoder_cat, decoder_cont, first_target)
         if self.training:  # the training mode where the target values are actually known
             output, _ = self._decode(
