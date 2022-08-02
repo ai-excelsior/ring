@@ -266,7 +266,7 @@ class AutoRegressiveBaseModelWithCovariates(BaseModel):
                 * the last hidden state
         """
         self._phase = "encode"
-        encoder_cat, encoder_cont, lengths = x["encoder_cat"], x["encoder_cont"], x["encoder_length"] - 1
+        encoder_cat, encoder_cont, lengths = x["encoder_cat"], torch.cat([x["encoder_cont"],x["encoder_time_features"]],dim=-1), x["encoder_length"] - 1
         assert lengths.min() > 0
         input_vector = self.construct_input_vector(encoder_cat, encoder_cont)
         _, hidden_state = self.encoder(input_vector, lengths=lengths, enforce_sorted=False)
@@ -326,7 +326,7 @@ class AutoRegressiveBaseModelWithCovariates(BaseModel):
             torch.Tensor: the prediction on the decoding sequence
         """
         self._phase = "decode"
-        decoder_cat, decoder_cont = x["decoder_cat"], torch.cat([x['decoder_target'],x["decoder_cont"]],dim=-1)
+        decoder_cat, decoder_cont = x["decoder_cat"], torch.cat([x['decoder_target'],x["decoder_cont"],x['decoder_time_features']],dim=-1)
         input_vector = self.construct_input_vector(decoder_cat, decoder_cont, first_target)
         if self.training:  # the training mode where the target values are actually known
             output, _ = self._decode(
