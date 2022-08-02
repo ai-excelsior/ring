@@ -20,6 +20,5 @@
         "look_forward": 10
     },
     "time_features": [],
-    "detrend": false,
     "lags": {}
 }
