@@ -1,6 +1,6 @@
 from typing import Dict, Any, List
 
-from .estimators.base import Estimator, PolynomialDetrendEstimator
+from .estimators.base import Estimator, AbstractDetrendEstimator, PolynomialDetrendEstimator
 import pandas as pd
 from .utils import register
 import numpy as np
@@ -59,6 +59,11 @@ class AbsrtactDetrend(Estimator):
         return self.transform(data, group_ids, **kwargs)
 
     def fit(self, data: pd.DataFrame, group_ids):
+        self._state = {
+            target_column_name: AbstractDetrendEstimator() for target_column_name in self.feature_name
+        }
+        # for column_name, estimator in self._state.items():
+        #     estimator.fit(data[column_name], data["_time_idx_"])
         return self.fit_self(data, group_ids)
 
     def transform(self, data: pd.DataFrame, group_ids, **kwargs):

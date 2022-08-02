@@ -372,11 +372,7 @@ class Predictor:
         )
 
         # create predict mode dataset
-        prediction_column_names = [
-            f"{target_name}_{param_name}"
-            for i, target_name in enumerate(dataset.targets)
-            for param_name in self._losses[i].parameter_names
-        ]
+        prediction_column_names = [f"{target_name}_pred" for i, target_name in enumerate(dataset.targets)]
 
         batch_size = len(dataset)
         if self.enable_gpu:
@@ -387,7 +383,6 @@ class Predictor:
             dataloader = dataset.to_dataloader(batch_size, train=False, num_workers=self.n_workers)
 
         model.eval()
-        df = []
         n_parameters = [loss.n_parameters for loss in self._losses]
         loss_end_indices = list(itertools.accumulate(n_parameters))
         loss_start_indices = [i - loss_end_indices[0] for i in loss_end_indices]
@@ -403,13 +398,17 @@ class Predictor:
                     raise ValueError("output should have both `prediction` and `backcast`")
             elif not isinstance(y_pred, torch.Tensor):
                 raise TypeError("output of model must be one of torch.tensor or Dict")
+
             reverse_scale = lambda i, loss: loss.scale_prediction(
                 y_pred[..., loss_start_indices[i] : loss_end_indices[i]],
                 x["target_scales"][..., i],
                 dataset.target_normalizers[i],
             )
             y_pred_scaled = torch.stack(
-                [reverse_scale(i, loss_obj) for i, loss_obj in enumerate(self._losses)],
+                [
+                    loss_obj.to_prediction(reverse_scale(i, loss_obj), use_metrics=False)
+                    for i, loss_obj in enumerate(self._losses)
+                ],
                 dim=-1,
             )
 
@@ -418,6 +417,9 @@ class Predictor:
 
             raw_data = dataset.reflect(encoder_indices, decoder_indices)
             raw_data = raw_data.assign(**{name: np.nan for name in prediction_column_names})
+
+            # deep_ar prediction mode
+
             # cuz `inverse_transform` can only deal with column names stored in state
             raw_data.loc[
                 decoder_indices, prediction_column_names
@@ -431,47 +433,40 @@ class Predictor:
             ).rename(
                 lambda x: x + "_pred", axis=1
             )
-            # deep_ar prediction mode
-            if ["pred"] not in [self._losses[i].parameter_names for i in range(len(dataset.targets))]:
-                for i, target_name in enumerate(dataset.targets):
-                    raw_data[target_name + "_pred"] = raw_data[prediction_column_names[0]].copy()
-                    raw_data.loc[
-                        decoder_indices, target_name + "_pred"
-                    ] = dataset._target_detrenders.inverse_transform(
-                        pd.DataFrame(
-                            (
-                                torch.stack(
-                                    [
-                                        loss_obj.to_prediction(reverse_scale(i, loss_obj), use_metrics=False)
-                                        for i, loss_obj in enumerate(self._losses)
-                                    ],
-                                    dim=-1,
-                                )
-                                .reshape(-1, 1)
-                                .cpu()
-                                .detach()
-                                .numpy()
-                            ),
-                            columns=target_name,
-                            index=decoder_indices,
-                        ).join(raw_data.loc[decoder_indices, ["_time_idx_"] + dataset._group_ids]),
-                        dataset._group_ids,
-                    ).rename(
-                        lambda x: x + "_pred", axis=1
-                    )
-            df.append(raw_data)
-        df = pd.concat(df)
 
         # plot
         # 这里需要的，根据不同的loss，绘制对应target, group_ids的图像
         if plot:
+            # for deepar
+            original_prediction_columns = list(
+                set(
+                    [
+                        f"{target_name}_{param_name}"
+                        for i, target_name in enumerate(dataset.targets)
+                        for param_name in self._losses[i].parameter_names
+                    ]
+                )
+                - set(prediction_column_names)
+            )
+            if original_prediction_columns:
+                raw_data = raw_data.assign(**{name: np.nan for name in original_prediction_columns})
+                raw_data.loc[decoder_indices, original_prediction_columns] = (
+                    torch.stack(
+                        [reverse_scale(i, loss_obj) for i, loss_obj in enumerate(self._losses)],
+                        dim=-1,
+                    )
+                    .reshape((-1, len(original_prediction_columns)))
+                    .cpu()
+                    .detach()
+                    .numpy()
+                )
             for i, loss in enumerate(self._losses):
                 target_name = dataset.targets[i]
                 fig = loss.plot(raw_data, x="_time_idx_", target=target_name, group_ids=dataset._group_ids)
                 fig.savefig(f"{self.save_dir}{os.sep}smoke_testing_{target_name}.png")
             print(f"plotted figures saved at: {self.save_dir}")
 
-        return df
+        return raw_data
 
     @classmethod
     def from_parameters(

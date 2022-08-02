@@ -99,7 +99,25 @@ class BypassEstimator(BaseEstimator):
     """
 
 
-class PolynomialDetrendEstimator(Estimator):
+class AbstractDetrendEstimator(Estimator):
+    """
+    A PolynomialDetrendEstimator that try to find best degree to fit the passed-in data and remove the trend.
+    """
+
+    def __init__(self, max_degress=4) -> None:
+        super().__init__()
+        self._max_degress = max_degress
+
+    def transform(self, data: pd.Series, index: pd.Series) -> pd.Series:
+        self._assert_fitted()
+        return data
+
+    def inverse_transform(self, data: pd.Series, index: pd.Series) -> pd.Series:
+        self._assert_fitted()
+        return data
+
+
+class PolynomialDetrendEstimator(AbstractDetrendEstimator):
     """
     A PolynomialDetrendEstimator that try to find best degree to fit the passed-in data and remove the trend.
     """
