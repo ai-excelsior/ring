@@ -62,8 +62,6 @@ class AbsrtactDetrend(Estimator):
         self._state = {
             target_column_name: AbstractDetrendEstimator() for target_column_name in self.feature_name
         }
-        # for column_name, estimator in self._state.items():
-        #     estimator.fit(data[column_name], data["_time_idx_"])
         return self.fit_self(data, group_ids)
 
     def transform(self, data: pd.DataFrame, group_ids, **kwargs):
@@ -98,15 +96,12 @@ class DetrendTargets(AbsrtactDetrend):
 
     def transform_self(self, data: pd.DataFrame, group_ids):
         assert self._state is not None
-        # no group ids
         for column_name, estimator in self._state.items():
             data[column_name] = estimator.transform(data[column_name], data["_time_idx_"])
         return data[self.feature_name]
 
     def inverse_transform_self(self, data: pd.DataFrame, group_ids):
         assert self._state is not None
-
-        # no group ids
         for column_name, estimator in self._state.items():
             data[column_name] = estimator.inverse_transform(data[column_name], data["_time_idx_"])
 
@@ -116,7 +111,6 @@ class DetrendTargets(AbsrtactDetrend):
 @register(SEASONALITY)
 class GroupDetrendTargets(AbsrtactDetrend):
     def fit_self(self, data: pd.DataFrame, group_ids):
-        # with group ids
         self._state = {}
         group_indices = data.groupby(group_ids).indices
         for column_name in self.feature_name:
@@ -129,7 +123,6 @@ class GroupDetrendTargets(AbsrtactDetrend):
             self._state[column_name] = groupped_estimators
 
     def transform_self(self, data: pd.DataFrame, group_ids):
-        # with group ids
         group_indices = data.groupby(group_ids).groups
         for column_name in self.feature_name:
             groupped_estimators = self._state[column_name]

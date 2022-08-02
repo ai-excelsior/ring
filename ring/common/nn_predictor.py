@@ -418,8 +418,6 @@ class Predictor:
             raw_data = dataset.reflect(encoder_indices, decoder_indices)
             raw_data = raw_data.assign(**{name: np.nan for name in prediction_column_names})
 
-            # deep_ar prediction mode
-
             # cuz `inverse_transform` can only deal with column names stored in state
             raw_data.loc[
                 decoder_indices, prediction_column_names
