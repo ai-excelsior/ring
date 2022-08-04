@@ -197,6 +197,7 @@ class TimeSeriesDataset(Dataset):
             self._add_static_known_real = True
         if self._add_static_known_real is True:
             data[STATIC_UNKNOWN_REAL_NAME] = 0.0
+        
         # remove nan caused by lag shift
         self._data = data.dropna().reset_index(drop=True)
         self._indexer.index(self._data, predict_mode)

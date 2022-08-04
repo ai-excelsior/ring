@@ -101,9 +101,13 @@ class RNNSeq2Seq(BaseModel):
 
     def forward(self, x: Dict[str, torch.Tensor], **kwargs):
         encoder_cat = x["encoder_cat"]
-        encoder_cont = x["encoder_cont"]
+        encoder_cont = torch.cat(
+            [x["encoder_cont"], x["encoder_time_features"], x["encoder_lag_features"]], dim=-1
+        )
         decoder_cat = x["decoder_cat"]
-        decoder_cont = x["decoder_cont"]
+        decoder_cont = torch.cat(
+            [x["decoder_cont"], x["decoder_time_features"], x["decoder_lag_features"]], dim=-1
+        )
         batch_size = encoder_cont.size(0)
         decoder_sequence_length = decoder_cont.size(1) if decoder_cont.ndim > 0 else decoder_cat.size(1)
 
@@ -149,9 +153,9 @@ class RNNSeq2Seq(BaseModel):
         return cls(
             dataset.targets,
             encoder_cat=dataset.encoder_cat,
-            encoder_cont=dataset.encoder_cont + dataset.time_features,
+            encoder_cont=dataset.encoder_cont + dataset.time_features + dataset.encoder_lag_features,
             decoder_cat=dataset.decoder_cat,
-            decoder_cont=dataset.decoder_cont + dataset.time_features,
+            decoder_cont=dataset.decoder_cont + dataset.time_features + dataset.decoder_lag_features,
             embedding_sizes=embedding_sizes,
             **kwargs,
         )

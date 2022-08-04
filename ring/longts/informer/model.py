@@ -85,9 +85,9 @@ class Informer(BaseLong):
                 dataset.get_parameters().get("indexer").get("params").get("look_back")
                 * kwargs.pop("token_length")
             ),
-            encoder_cont=dataset.encoder_cont,
+            encoder_cont=dataset.encoder_cont + dataset.encoder_lag_features,
             encoder_cat=dataset.encoder_cat,
-            decoder_cont=dataset.decoder_cont,
+            decoder_cont=dataset.decoder_cont + dataset.decoder_lag_features,
             decoder_cat=dataset.decoder_cat,
             freq=dataset._freq,
             time_features=dataset.time_features,
