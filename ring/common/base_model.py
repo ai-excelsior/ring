@@ -190,22 +190,19 @@ class AutoRegressiveBaseModelWithCovariates(BaseModel):
                     lag_names[l].append(name)
 
             pos = {
-                lag: torch.tensor(
-                    [self._encoder_cont.index(name) for name in to_list(names)],
-                    dtype=torch.long,
-                    device=self._encoder_cont.device,
+                lag: torch.tensor([self._encoder_cont.index(name) for name in to_list(names)],dtype=torch.long
                 )
                 for lag, names in lag_names.items()
             }
 
         return {
-            k: (torch.tensor(self.reals_indices, device=self.reals_indices.device) == v).nonzero(
+            k: (torch.tensor(self.reals_indices) == v).nonzero(
                 as_tuple=True
             )[0]
             if len(v) == 1
             else torch.stack(
                 [
-                    (torch.tensor(self.reals_indices, device=self.reals_indices.device) == item).nonzero(
+                    (torch.tensor(self.reals_indices) == item).nonzero(
                         as_tuple=True
                     )[0]
                     for item in v
@@ -266,7 +263,8 @@ class AutoRegressiveBaseModelWithCovariates(BaseModel):
                 * the last hidden state
         """
         self._phase = "encode"
-        encoder_cat, encoder_cont, lengths = x["encoder_cat"], torch.cat([x["encoder_cont"],x["encoder_time_features"]],dim=-1), x["encoder_length"] - 1
+        encoder_cat,lengths=x['encoder_cat'],  x["encoder_length"] - 1
+        encoder_cont=torch.cat([x["encoder_cont"],x["encoder_time_features"],x["encoder_lag_features"]],dim=-1)
         assert lengths.min() > 0
         input_vector = self.construct_input_vector(encoder_cat, encoder_cont)
         _, hidden_state = self.encoder(input_vector, lengths=lengths, enforce_sorted=False)
@@ -326,7 +324,8 @@ class AutoRegressiveBaseModelWithCovariates(BaseModel):
             torch.Tensor: the prediction on the decoding sequence
         """
         self._phase = "decode"
-        decoder_cat, decoder_cont = x["decoder_cat"], torch.cat([x['decoder_target'],x["decoder_cont"],x['decoder_time_features']],dim=-1)
+        decoder_cat= x["decoder_cat"]
+        decoder_cont=torch.cat([x['decoder_target'],x["decoder_cont"],x['decoder_time_features'],x['decoder_lag_features']],dim=-1)
         input_vector = self.construct_input_vector(decoder_cat, decoder_cont, first_target)
         if self.training:  # the training mode where the target values are actually known
             output, _ = self._decode(
@@ -713,7 +712,7 @@ class BaseLong(BaseModel):
                 * the last hidden state
         """
         self._phase = "encode"
-        input_vector = self.construct_vector(x["encoder_cat"], x["encoder_cont"])
+        input_vector = self.construct_vector(x["encoder_cat"], torch.cat([x["encoder_cont"],x["encoder_lag_features"]],dim=-1))
         enc_out = self.enc_embedding(input_vector, x["encoder_time_features"])
         # output_attention = False which is default leading to attns = []
         enc_out, attns = self.encoder(enc_out, attn_mask=None)
@@ -737,7 +736,7 @@ class BaseLong(BaseModel):
         """
         self._phase = "decode"
         # concat cont and cat
-        dec_vector = self.construct_vector(x["encoder_cat"], x["encoder_cont"])
+        dec_vector = self.construct_vector(x["encoder_cat"], torch.cat([x["encoder_cont"],x["decoder_lag_features"]],dim=-1))
         # place `token_length` encoder sequence in the start of decoder serires
         # initialize the rest with zero
         # TODO: time_varing_known features can be added in decoder_init replacing zeroes accordingly

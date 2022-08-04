@@ -68,17 +68,16 @@ class ReccurentNetwork(AutoRegressiveBaseModelWithCovariates):
         for name, size in desired_embedding_sizes.items():
             cat_size, _ = embedding_sizes[name]
             embedding_sizes[name] = (cat_size, size)
-        lags = {name: lag for name, lag in dataset.lags.items() if name in dataset.targets}
         kwargs.setdefault(
             "target_lags",
-            {name: {f"{name}_lagged_by_{lag}": lag for lag in lags.get(name, [])} for name in lags},
+            {lag.feature_name: lag._state for lag in dataset.lags},
         )
         return cls(
             dataset.targets,
             encoder_cat=dataset.encoder_cat,
-            encoder_cont=dataset.encoder_cont + dataset.time_features,
+            encoder_cont=dataset.encoder_cont + dataset.time_features + dataset.encoder_lag_features,
             decoder_cat=dataset.decoder_cat,
-            decoder_cont=dataset.decoder_cont + dataset.time_features,
+            decoder_cont=dataset.decoder_cont + dataset.time_features + dataset.decoder_lag_features,
             embedding_sizes=embedding_sizes,
             x_categoricals=dataset.categoricals,
             **kwargs,
