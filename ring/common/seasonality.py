@@ -10,28 +10,30 @@ import pandas as pd
 SEASONALITY: Dict[str, "AbsrtactDetrend"] = {}
 
 
-def create_detrender_from_cfg(detrend: bool, group_ids: List[str], targets: List[str]):
+def create_detrender_from_cfg(no_lags: bool, detrend: bool, group_ids: List[str], targets: List[str]):
+    # if `data_cfg.lags` is not None, detrender will not be `AbsrtactDetrend`
     return (
         GroupDetrendTargets(feature_name=targets)
-        if detrend and group_ids
+        if (detrend or not no_lags) and group_ids
         else DetrendTargets(feature_name=targets)
-        if detrend
+        if detrend or not no_lags
         else AbsrtactDetrend(feature_name=targets)
     )
 
 
 def create_lags_from_cfg(lags: Union[Dict, None], group_ids: List[str], targets: List[str]):
+    lags_out = {}
     if isinstance(lags, Dict):  # need lags
-        lags.update(
+        lags_out.update(
             **{k: AbstractDetectTargetLags(feature_name=k, lags=lags[k]) for k in targets if k in lags}
         )
-        lags.update(
+        lags_out.update(
             **{k: DetectTargetLags(feature_name=k) for k in targets if (k not in lags) and (not group_ids)}
         )
-        lags.update(
+        lags_out.update(
             **{k: GroupDetectTargetLags(feature_name=k) for k in targets if (k not in lags) and group_ids}
         )
-        return lags
+        return lags_out
     elif not lags:  # dont need lags
         return {}
     else:
@@ -67,8 +69,25 @@ def deserialize_detrender(d: Dict[str, Any]):
     return this
 
 
+def serialize_lags(obj: List["AbstractDetectTargetLags"]):
+
+    d = obj.serialize()
+    d["name"] = obj.__class__.__name__
+    return d
+
+
+def deserialize_lags(d: Dict[str, Any]):
+    cls: List["AbstractDetectTargetLags"] = [SEASONALITY[i["name"]] for i in d]
+    out = {}
+    for i, lag in enumerate(d):
+        out.update({lag["params"].get("feature_name"): cls[i].deserialize(lag)})
+    return out
+
+
 @register(SEASONALITY)
 class AbsrtactDetrend(Estimator):
+    """do nothing to detrend"""
+
     def __init__(self, feature_name=None) -> None:
         super().__init__()
         self.feature_name = feature_name
@@ -100,6 +119,8 @@ class AbsrtactDetrend(Estimator):
 
 @register(SEASONALITY)
 class DetrendTargets(AbsrtactDetrend):
+    """do detrend, no groups"""
+
     def fit_self(self, data: pd.DataFrame, group_ids):
         """
         fit the PolynomialDetrendEstimator, and save it in the state.
@@ -127,7 +148,9 @@ class DetrendTargets(AbsrtactDetrend):
 
 
 @register(SEASONALITY)
-class GroupDetrendTargets(DetrendTargets):
+class GroupDetrendTargets(AbsrtactDetrend):
+    """do detrend, has groups"""
+
     def fit_self(self, data: pd.DataFrame, group_ids):
         if self.fitted:
             return
@@ -156,7 +179,6 @@ class GroupDetrendTargets(DetrendTargets):
         return data[self.feature_name]
 
     def inverse_transform_self(self, data: pd.DataFrame, group_ids):
-        # with group ids
         group_indices = data.groupby(group_ids).groups
         for column_name in self.feature_name:
             groupped_estimators = self._state[column_name]
@@ -170,7 +192,9 @@ class GroupDetrendTargets(DetrendTargets):
 
 @register(SEASONALITY)
 class AbstractDetectTargetLags(Estimator):
-    def __init__(self, feature_name=None, lags=None) -> None:
+    """do nothing to detect lags, use input config as default lags"""
+
+    def __init__(self, feature_name=None, lags=[]) -> None:
         super().__init__()
         self.feature_name = feature_name
         self.lags = lags
@@ -184,88 +208,48 @@ class AbstractDetectTargetLags(Estimator):
     def _detect_lags(self, data: pd.DataFrame, group_ids: List = []):
         pass
 
-    def _is_unique(self, s: pd.Series):
-        a = s.to_numpy()
-        return (a[0] == a).all()
-
     def add_lags(self, data: pd.DataFrame, group_ids: List = []):
         # find lags
         self.fit_self(data, group_ids)
         # return pd.dataframe
-        for _, v in self._state.items():
-            pass
+        if self._state:
+            if group_ids:
+                tmp_data = pd.DataFrame()
+                for _, source in data.groupby(group_ids):
+                    for k, v in self._state.items():
+                        source[k] = source[self.feature_name].shift(v)
+                    tmp_data = pd.concat([tmp_data, source])
+                return tmp_data[[k for k, _ in self._state.items()]]
+            else:
+                for k, v in self._state.items():
+                    data[k] = data[self.feature_name].shift(v)
+            return data[[k for k, _ in self._state.items()]]
+        else:
+            return pd.DataFrame()
 
 
+@register(SEASONALITY)
 class DetectTargetLags(AbstractDetectTargetLags):
+    """detect lags, no groups"""
+
     def _detect_lags(self, data: pd.DataFrame, group_ids: List = []):
         """Detect data lags"""
-        lags = {}
         p = Autoperiod(data["_time_idx_"].values, data[data.columns[1]].values)
         if p.period is not None:
-            lags[data.columns[1]] = p.period
-        return lags
-
-    def _merge_lags(self, new_lags: Dict[str, float]):
-        """Merge lags with meta lags"""
-        lags = copy.deepcopy(self.meta.get("lags", {}))
-        for column_name, lag_value in new_lags.items():
-            lag_values = lag_value if isinstance(lag_value, list) else [lag_value]
-            if column_name in lags:
-                for v in lag_values:
-                    # dict
-                    if isinstance(lags[column_name], dict) and v not in lags[column_name].values():
-                        lags[column_name][f"_{column_name}_lagged_by_{v}_"] = v
-                    # list
-                    if isinstance(lags[column_name], list) and v not in lags[column_name]:
-                        lags[column_name].append(v)
-            else:
-                lags[column_name] = lag_values
-        return lags
+            self.lags += p.period_list
 
 
-class GroupDetectTargetLags(DetectTargetLags):
-    def _detect_lags(self, data: pd.DataFrame):
+@register(SEASONALITY)
+class GroupDetectTargetLags(AbstractDetectTargetLags):
+    """detect lags, has groups"""
+
+    def _is_unique(self, s: pd.Series):
+        return list(np.unique(np.array(list(filter(lambda x: x, s)))))
+
+    def _detect_lags(self, data: pd.DataFrame, group_ids: List = []):
         """Detect data lags"""
-        lags = {}
-
         lags_df = data.groupby(group_ids).aggregate(
-            {
-                column_name: lambda x: Autoperiod(
-                    np.arange(len(x)), x.values, **self._config.get(column_name, {})
-                ).period
-                for column_name in targets
-            }
+            {data.columns[1]: lambda x: Autoperiod(np.arange(len(x)), x.values).period_list}
         )
 
-        lags_df.fillna(0)
-        for column_name in targets:
-            if self._is_unique(lags_df[column_name]):
-                lags[column_name] = lags_df[column_name].iloc[0]
-            else:
-                lags[column_name] = np.unique(lags_df[column_name]).tolist()
-
-        # filter zero values
-        for column_name, lag_value in lags.items():
-            if isinstance(lag_value, list):
-                lags[column_name] = [round(lag) for lag in lag_value if lag != 0 and not np.isnan(lag)]
-            elif lag_value == 0:
-                del lags[column_name]
-
-        return lags
-
-    def _merge_lags(self, new_lags: Dict[str, float]):
-        """Merge lags with meta lags"""
-        lags = copy.deepcopy(self.meta.get("lags", {}))
-        for column_name, lag_value in new_lags.items():
-            lag_values = lag_value if isinstance(lag_value, list) else [lag_value]
-            if column_name in lags:
-                for v in lag_values:
-                    # dict
-                    if isinstance(lags[column_name], dict) and v not in lags[column_name].values():
-                        lags[column_name][f"_{column_name}_lagged_by_{v}_"] = v
-                    # list
-                    if isinstance(lags[column_name], list) and v not in lags[column_name]:
-                        lags[column_name].append(v)
-            else:
-                lags[column_name] = lag_values
-        return lags
+        self.lags += self._is_unique(lags_df[data.columns[1]])

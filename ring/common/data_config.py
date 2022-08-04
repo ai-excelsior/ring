@@ -83,7 +83,7 @@ def dict_to_data_config(cfg: Dict) -> DataConfig:
         categoricals=cats,
         time_features=cfg.get("time_features", []),
         detrend=cfg.get("detrend", False),
-        lags=cfg.get("lags", {}),
+        lags=cfg.get("lags", None),
     )
     return data_config
 

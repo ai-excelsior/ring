@@ -18,11 +18,12 @@ from .normalizers import (
 )
 from .encoder import LabelEncoder, deserialize_encoder, serialize_encoder
 from .seasonality import (
-    DetrendTargets,
-    GroupDetrendTargets,
     serialize_detrender,
     deserialize_detrender,
-    create_detrender_fron_cfg,
+    serialize_lags,
+    deserialize_lags,
+    create_detrender_from_cfg,
+    create_lags_from_cfg,
 )
 from .utils import get_default_embedding_size, add_time_idx
 from .encoder import create_encoder_from_cfg
@@ -60,7 +61,7 @@ class TimeSeriesDataset(Dataset):
         enable_static_as_covariant=True,
         add_static_known_real=None,  # add zero to time varying known (decoder part) field
         # seasonality
-        lags: Dict = {},
+        lags: Union[Dict, None] = None,
         # need detrend or not
     ) -> None:
         self._data = data
@@ -83,6 +84,8 @@ class TimeSeriesDataset(Dataset):
         self._cont_scalars = cont_scalars
         self._target_detrenders = target_detrenders
         self._lags = lags
+        self._known_lag_features = []
+        self._unknown_lag_features = []
 
         # `time_features` will not be added in `decoder_cont` or `encoder_cont`
         # if need, it will be processed in model
@@ -168,6 +171,25 @@ class TimeSeriesDataset(Dataset):
                 data[cont] = scalar.fit_transform(data[cont], data)
             else:
                 data[cont] = scalar.transform(data[cont], data)
+
+        # obtain lags through seasonality, always need detrend
+        if self._lags:
+            for tar in self._targets:
+                data = pd.concat(
+                    [
+                        data,
+                        self._lags[tar].add_lags(
+                            data[["_time_idx_", tar] + self._group_ids], self._group_ids
+                        ),
+                    ],
+                    axis=1,
+                )
+                self._known_lag_features += [
+                    k for k, v in self._lags[tar]._state.items() if v >= self._indexer._look_forward
+                ]
+                self._unknown_lag_features += [
+                    k for k, v in self._lags[tar]._state.items() if v < self._indexer._look_forward
+                ]
 
         # commonly, because time_features have been calculated,  __ZERO__ will not be added
         # but some frequency has no time_features, e.g. Year
@@ -266,11 +288,19 @@ class TimeSeriesDataset(Dataset):
 
     @property
     def lags(self):
-        return self._lags
+        return [v for _, v in self._lags.items()]
 
     @property
     def time_features(self):
         return self._time_features
+
+    @property
+    def encoder_lag_features(self):
+        return [*self._known_lag_features, *self._unknown_lag_features]
+
+    @property
+    def decoder_lag_features(self):
+        return [*self._known_lag_features]
 
     def get_parameters(self) -> Dict[str, Any]:
         """
@@ -287,6 +317,7 @@ class TimeSeriesDataset(Dataset):
             categorical_encoders=[serialize_encoder(encoder) for encoder in self._categorical_encoders],
             cont_scalars=[serialize_normalizer(scalar) for scalar in self._cont_scalars],
             target_detrenders=serialize_detrender(self._target_detrenders),
+            lags=[serialize_lags(lag) for lag in self.lags],
         )
         return kwargs
 
@@ -303,6 +334,7 @@ class TimeSeriesDataset(Dataset):
             ],
             cont_scalars=[deserialize_normalizer(scalar) for scalar in parameters["cont_scalars"]],
             target_detrenders=deserialize_detrender(parameters["target_detrenders"]),
+            lags=deserialize_lags(parameters["lags"]),
             **kwargs,
         )
         return cls(data=data, **parameters)
@@ -315,7 +347,11 @@ class TimeSeriesDataset(Dataset):
     def from_data_cfg(cls, data_cfg: DataConfig, data: pd.DataFrame, **kwargs):
         indexer = create_indexer_from_cfg(data_cfg.indexer, data_cfg.group_ids)
         embedding_sizes = create_encoder_from_cfg(data_cfg.categoricals)
-        target_detrenders = create_detrender_fron_cfg(data_cfg.detrend, data_cfg.group_ids, data_cfg.targets)
+        target_detrenders = create_detrender_from_cfg(
+            data_cfg.lags is None, data_cfg.detrend, data_cfg.group_ids, data_cfg.targets
+        )
+        lags = create_lags_from_cfg(data_cfg.lags, data_cfg.group_ids, data_cfg.targets)
+
         return cls(
             data,
             time=data_cfg.time,
@@ -331,7 +367,7 @@ class TimeSeriesDataset(Dataset):
             time_varying_unknown_reals=data_cfg.time_varying_unknown_reals,
             embedding_sizes=embedding_sizes,
             time_features=data_cfg.time_features,
-            lags=data_cfg.lags,
+            lags=lags,
             target_detrenders=target_detrenders,
             **kwargs,
         )
@@ -358,6 +394,10 @@ class TimeSeriesDataset(Dataset):
         encoder_time_features = torch.tensor(
             encoder_period[self.time_features].to_numpy(np.float64), dtype=torch.float
         )
+        encoder_lag_features = torch.tensor(
+            encoder_period[self.encoder_lag_features].to_numpy(np.float64),
+            dtype=torch.float,
+        )
 
         decoder_cont = torch.tensor(decoder_period[self.decoder_cont].to_numpy(np.float64), dtype=torch.float)
         decoder_cat = torch.tensor(decoder_period[self.decoder_cat].to_numpy(np.float64), dtype=torch.int)
@@ -369,6 +409,10 @@ class TimeSeriesDataset(Dataset):
         decoder_target = torch.tensor(decoder_period[self.targets].to_numpy(np.float64), dtype=torch.float)
         decoder_time_features = torch.tensor(
             decoder_period[self.time_features].to_numpy(np.float64), dtype=torch.float
+        )
+        decoder_lag_features = torch.tensor(
+            decoder_period[self.decoder_lag_features].to_numpy(np.float64),
+            dtype=torch.float,
         )
 
         # [sequence_length, n_targets]
@@ -409,12 +453,14 @@ class TimeSeriesDataset(Dataset):
                 encoder_idx=torch.tensor(encoder_idx, dtype=torch.long),
                 encoder_target=encoder_target,
                 encoder_time_features=encoder_time_features,
+                encoder_lag_features=encoder_lag_features,
                 decoder_cont=decoder_cont,
                 decoder_cat=decoder_cat,
                 decoder_time_idx=decoder_time_idx,
                 decoder_idx=torch.tensor(decoder_idx, dtype=torch.long),
                 decoder_target=decoder_target,
                 decoder_time_features=decoder_time_features,
+                decoder_lag_features=decoder_lag_features,
                 target_scales=target_scales,
                 target_scales_back=target_scales_back,
             ),
@@ -441,6 +487,8 @@ class TimeSeriesDataset(Dataset):
         targets = torch.stack([batch[1] for batch in batches])
         encoder_time_features = torch.stack([batch[0]["encoder_time_features"] for batch in batches])
         decoder_time_features = torch.stack([batch[0]["decoder_time_features"] for batch in batches])
+        encoder_lag_features = torch.stack([batch[0]["encoder_lag_features"] for batch in batches])
+        decoder_lag_features = torch.stack([batch[0]["decoder_lag_features"] for batch in batches])
         return (
             dict(
                 encoder_cont=encoder_cont,
@@ -459,6 +507,8 @@ class TimeSeriesDataset(Dataset):
                 target_scales_back=target_scales_back,
                 encoder_time_features=encoder_time_features,
                 decoder_time_features=decoder_time_features,
+                encoder_lag_features=encoder_lag_features,
+                decoder_lag_features=decoder_lag_features,
             ),
             targets,
         )
