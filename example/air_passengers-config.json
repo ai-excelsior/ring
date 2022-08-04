@@ -20,6 +20,12 @@
   },
   "categoricals": [],
   "time_features": [],
-  "detrend": true,
-  "lags": {}
+  "detrend": false,
+  "lags": {
+    "y": [
+      2,
+      3,
+      7
+    ]
+  }
 }
