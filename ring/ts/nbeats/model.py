@@ -125,7 +125,9 @@ class NbeatsNetwork(BaseModel):
             Dict[str, torch.Tensor]: output of model
         """
         # batch_size * look_back * features
-        encoder_cont = torch.cat([x["encoder_cont"], x["encoder_time_features"]], dim=-1)
+        encoder_cont = torch.cat(
+            [x["encoder_cont"], x["encoder_time_features"], x["encoder_lag_features"]], dim=-1
+        )
         # `target` can only be continuous, so position inside `encoder_cat` is irrelevant
         encoder_cat = (
             torch.cat([v for _, v in self.encoder_embeddings(x["encoder_cat"]).items()], dim=-1)
@@ -225,12 +227,13 @@ class NbeatsNetwork(BaseModel):
 
         return cls(
             dataset.targets,
-            encoder_cont=dataset.encoder_cont + dataset.time_features,
-            decoder_cont=dataset.decoder_cont + dataset.time_features,
+            encoder_cont=dataset.encoder_cont + dataset.time_features + dataset.encoder_lag_features,
+            decoder_cont=dataset.decoder_cont + dataset.time_features + dataset.decoder_lag_features,
             embedding_sizes=embedding_sizes,
             target_number=dataset.n_targets,
             # only for cont, cat will be added in __init__
-            covariate_number=len(dataset.encoder_cont + dataset.time_features) - dataset.n_targets,
+            covariate_number=len(dataset.encoder_cont + dataset.time_features + dataset.encoder_lag_features)
+            - dataset.n_targets,
             x_categoricals=dataset.categoricals,
             context_length=dataset.get_parameters().get("indexer").get("params").get("look_back"),
             prediction_length=dataset.get_parameters().get("indexer").get("params").get("look_forward"),
