@@ -139,7 +139,7 @@ class TimeSeriesDataset(Dataset):
         data = add_time_idx(data, time_column_name=time, freq=freq)
         data.sort_values([*self._group_ids, TIME_IDX], inplace=True)
         data.reset_index(drop=True, inplace=True)
-        self._indexer.index(data, predict_mode)
+        # self._indexer.index(data, predict_mode)
 
         # detrend targets
         if not self._target_detrenders.fitted:
@@ -197,8 +197,9 @@ class TimeSeriesDataset(Dataset):
             self._add_static_known_real = True
         if self._add_static_known_real is True:
             data[STATIC_UNKNOWN_REAL_NAME] = 0.0
-
-        self._data = data
+        # remove nan caused by lag shift
+        self._data = data.dropna().reset_index(drop=True)
+        self._indexer.index(self._data, predict_mode)
 
     @property
     def targets(self):

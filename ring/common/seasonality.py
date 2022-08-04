@@ -197,7 +197,7 @@ class AbstractDetectTargetLags(Estimator):
     def __init__(self, feature_name=None, lags=[]) -> None:
         super().__init__()
         self.feature_name = feature_name
-        self.lags = lags
+        self.lags = [i for i in lags if i > 0 and isinstance(i, int)]
 
     def fit_self(self, data: pd.DataFrame, group_ids: List = []):
         if self.fitted:
