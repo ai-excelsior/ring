@@ -183,7 +183,9 @@ class AutoRegressiveBaseModelWithCovariates(BaseModel):
             pos = {}
         else:
             # extract lags which are the same across all targets
-            lags = list(next(iter(self._targets_lags.values())).values())
+            lags = []
+            for i in self._targets_lags.values():
+                lags+=list(i.values())
             lag_names = {lag_name: [] for lag_name in lags}
             for targeti_lags in self._targets_lags.values():
                 for name, l in targeti_lags.items():
