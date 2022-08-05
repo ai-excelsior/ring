@@ -738,7 +738,7 @@ class BaseLong(BaseModel):
         """
         self._phase = "decode"
         # concat cont and cat
-        dec_vector = self.construct_vector(x["encoder_cat"], torch.cat([x["encoder_cont"],x["decoder_lag_features"]],dim=-1))
+        dec_vector = self.construct_vector(x["encoder_cat"], torch.cat([x["encoder_cont"],x["encoder_lag_features"]],dim=-1))
         # place `token_length` encoder sequence in the start of decoder serires
         # initialize the rest with zero
         # TODO: time_varing_known features can be added in decoder_init replacing zeroes accordingly
