@@ -21,5 +21,10 @@
         "look_forward": 10
     },
     "time_features": [],
-    "lags": {}
+    "lags": {
+        "value_2": [
+            24,
+            13
+        ]
+    }
 }
