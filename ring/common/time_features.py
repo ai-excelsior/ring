@@ -196,7 +196,10 @@ def time_features_from_frequency_str(freq_str: str) -> List[TimeFeature]:
 
 
 def time_feature(dates, freq="h"):
-    return pd.DataFrame(
-        np.vstack([list(feat.values())[0](dates) for feat in time_features_from_frequency_str(freq)]).T,
-        columns=[list(item.keys())[0] for item in time_features_from_frequency_str(freq)],
-    )
+    try:
+        return pd.DataFrame(
+            np.vstack([list(feat.values())[0](dates) for feat in time_features_from_frequency_str(freq)]).T,
+            columns=[list(item.keys())[0] for item in time_features_from_frequency_str(freq)],
+        )
+    except:
+        return pd.DataFrame()
