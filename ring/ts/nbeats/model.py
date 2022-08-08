@@ -29,6 +29,7 @@ class NbeatsNetwork(BaseModel):
         decoder_cont: List[str] = [],
         embedding_sizes: Dict[str, Tuple[int, int]] = {},
         x_categoricals: List[str] = [],
+        output_size=1,
     ):
 
         super().__init__()
@@ -237,4 +238,5 @@ class NbeatsNetwork(BaseModel):
             x_categoricals=dataset.categoricals,
             context_length=dataset.get_parameters().get("indexer").get("params").get("look_back"),
             prediction_length=dataset.get_parameters().get("indexer").get("params").get("look_forward"),
+            **kwargs,
         )
