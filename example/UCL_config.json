@@ -2,11 +2,10 @@
     "time": "time",
     "freq": "H",
     "targets": [
-        "value",
-        "value_2"
+        "ele_load"
     ],
     "group_ids": [
-        "series"
+        "custom"
     ],
     "static_categoricals": [],
     "static_reals": [],
@@ -17,9 +16,7 @@
     "categoricals": [],
     "indexer": {
         "name": "slide_window",
-        "look_back": 10,
-        "look_forward": 10
-    },
-    "time_features": [],
-    "lags": {}
+        "look_back": 20,
+        "look_forward": 12
+    }
 }
