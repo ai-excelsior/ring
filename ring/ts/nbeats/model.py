@@ -15,14 +15,14 @@ class NbeatsNetwork(BaseModel):
         targets: str,
         model_type: str = "G",  # 'I'
         num_stack: int = 1,
-        num_block: int = 3,
-        width: int = 8,  # [2**8]
-        expansion_coe: int = 5,  # [3,7]
+        num_block: int = 1,
+        width: int = 8,  # [2**9]
+        expansion_coe: int = 5,  # [2**5]
         num_block_layer: int = 4,
         prediction_length: int = 0,
         context_length: int = 0,
         dropout: float = 0.1,
-        backcast_loss_ratio: float = 0,
+        backcast_loss_ratio: float = 0.1,
         target_number: int = 1,
         covariate_number: int = 0,
         encoder_cont: List[str] = [],
