@@ -17,5 +17,6 @@ fastapi==0.78.0
 uvicorn==0.17.6
 protobuf==3.20.1
 statsmodels==0.13.1
+astropy==5.0.1
 # psycopg2==2.8.6
 # libpq==12.9

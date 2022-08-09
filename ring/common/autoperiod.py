@@ -6,7 +6,6 @@ from joblib import Parallel, delayed
 from pmdarima.arima import auto_arima
 from scipy import integrate
 from scipy.signal import fftconvolve
-from scipy.stats import linregress
 
 
 class DensityClustering:
