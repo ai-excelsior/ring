@@ -93,10 +93,12 @@ class TimeSeriesDataset(Dataset):
             self._time_features = time_features
             data = data[[c for c in data.columns if c not in self._time_features] + self._time_features]
             # make sure time_features always at the end of dataset
-        else:
+        elif isinstance(time_features, list):
             time_feature_data = time_feature(pd.to_datetime(data[self._time].values), freq=self._freq)
             self._time_features = list(time_feature_data.columns)
             data = pd.concat([data, time_feature_data], axis=1)
+        else:
+            self._time_features = []
 
         # target normalizer
         if len(self._target_normalizers) == 0:

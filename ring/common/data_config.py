@@ -79,7 +79,7 @@ def dict_to_data_config(cfg: Dict) -> DataConfig:
         time_varying_unknown_categoricals=cfg.get("time_varying_unknown_categoricals", []),
         time_varying_unknown_reals=cfg.get("time_varying_unknown_reals", []),
         categoricals=cats,
-        time_features=cfg.get("time_features", []),
+        time_features=cfg.get("time_features", None),
         detrend=cfg.get("detrend", False),
         lags=cfg.get("lags", None),
     )
