@@ -1,8 +1,6 @@
 from dataclasses import dataclass, field
 from typing import List, Dict, Optional
 
-from tomlkit import boolean
-
 from .oss_utils import get_bucket_from_oss_url
 from .serializer import loads
 from .utils import remove_prefix
