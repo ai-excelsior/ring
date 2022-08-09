@@ -3,7 +3,6 @@ from typing import Dict, Any, List, Union
 from .estimators.base import Estimator, AbstractDetrendEstimator, PolynomialDetrendEstimator
 from .autoperiod import Autoperiod
 from .utils import register
-import copy
 import numpy as np
 import pandas as pd
 
