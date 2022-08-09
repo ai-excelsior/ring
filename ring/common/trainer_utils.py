@@ -123,32 +123,30 @@ def supervised_training_step(
             except:
                 raise ValueError("output should have both `prediction` and `backcast`")
 
-            reverse_scale_forward = lambda i, loss: loss.scale_prediction(
-                y_forward[..., loss_start_indices[i] : loss_end_indices[i]],
-                x["target_scales"][..., i],
-                normalizers[i],
-            )
+            # reverse_scale_forward = lambda i, loss: loss.scale_prediction(
+            #     y_forward[..., loss_start_indices[i] : loss_end_indices[i]],
+            #     x["target_scales"][..., i],
+            #     normalizers[i],
+            # )
+            # reverse_scale_forward(i, loss_fn)
             loss_forward = (
                 functools.reduce(
                     lambda a, b: a + b,
-                    [
-                        loss_fn(reverse_scale_forward(i, loss_fn), y[..., i])
-                        for i, loss_fn in enumerate(loss_fns)
-                    ],
+                    [loss_fn(y_forward[..., i], y[..., i]) for i, loss_fn in enumerate(loss_fns)],
                 )
                 / len(loss_fns)
             )
 
-            reverse_scale_backward = lambda i, loss: loss.scale_prediction(
-                y_backcast[..., loss_start_indices[i] : loss_end_indices[i]],
-                x["target_scales_back"][..., i],
-                normalizers[i],
-            )
+            # reverse_scale_backward = lambda i, loss: loss.scale_prediction(
+            #     y_backcast[..., loss_start_indices[i] : loss_end_indices[i]],
+            #     x["target_scales_back"][..., i],
+            #     normalizers[i],
+            # )
             loss_backward = (
                 functools.reduce(
                     lambda a, b: a + b,
                     [
-                        loss_fn(reverse_scale_backward(i, loss_fn), x["encoder_target"][..., i])
+                        loss_fn(y_backcast[..., i], x["targets_back"][..., i])
                         for i, loss_fn in enumerate(loss_fns)
                     ],
                 )
@@ -157,16 +155,16 @@ def supervised_training_step(
             loss = y_backcast_ratio * loss_backward + (1 - y_backcast_ratio) * loss_forward
         # forward_loss
         elif isinstance(y_pred, torch.Tensor):
-            reverse_scale = lambda i, loss: loss.scale_prediction(
-                y_pred[..., loss_start_indices[i] : loss_end_indices[i]],
-                x["target_scales"][..., i],
-                normalizers[i],
-            )
+            # reverse_scale = lambda i, loss: loss.scale_prediction(
+            #     y_pred[..., loss_start_indices[i] : loss_end_indices[i]],
+            #     x["target_scales"][..., i],
+            #     normalizers[i],
+            # )
 
             loss = (
                 functools.reduce(
                     lambda a, b: a + b,
-                    [loss_fn(reverse_scale(i, loss_fn), y[..., i]) for i, loss_fn in enumerate(loss_fns)],
+                    [loss_fn(y_pred[..., i], y[..., i]) for i, loss_fn in enumerate(loss_fns)],
                 )
                 / len(loss_fns)
             )
@@ -175,17 +173,15 @@ def supervised_training_step(
             sample_energy = y_pred[0][0]
             cov_diag = y_pred[0][1]
             y_recon = y_pred[1]
-            need = y_pred[2]
-            reverse_scale = lambda i, loss: loss.scale_prediction(
-                y_pred=y_recon[..., loss_start_indices[i] : loss_end_indices[i]],
-                target_scale=x["target_scales"][..., i],
-                normalizer=normalizers[i],
-                need=need,
-            )
+            # reverse_scale = lambda i, loss: loss.scale_prediction(
+            #     y_pred=y_recon[..., loss_start_indices[i] : loss_end_indices[i]],
+            #     target_scale=x["target_scales"][..., i],
+            #     normalizer=normalizers[i],
+            # )
             loss_reconstruction = (
                 functools.reduce(
                     lambda a, b: a + b,
-                    [loss_fn(reverse_scale(i, loss_fn), y[..., i]) for i, loss_fn in enumerate(loss_fns)],
+                    [loss_fn(y_recon[..., i], y[..., i]) for i, loss_fn in enumerate(loss_fns)],
                 )
                 / len(loss_fns)
             )
@@ -224,26 +220,23 @@ def supervised_evaluation_step(
         with torch.no_grad():
             x, y = prepare_batch(batch, device=device, non_blocking=non_blocking)
             y_pred = model(x)
-            need = True
             if isinstance(y_pred, Dict):
                 try:
                     y_pred = y_pred["prediction"]
                 except:
                     raise ValueError("output should have both `prediction` and `backcast`")
             elif isinstance(y_pred, (tuple, list)):  # only consider reconstruction_error
-                need = y_pred[2]
                 y_pred = y_pred[1]
             elif not isinstance(y_pred, torch.Tensor):
                 raise TypeError("output of model must be one of torch.tensor or Dict")
 
-            reverse_scale = lambda i, loss: loss.scale_prediction(
-                y_pred[..., loss_start_indices[i] : loss_end_indices[i]],
-                x["target_scales"][..., i],
-                normalizers[i],
-                need=need,
-            )
+            # reverse_scale = lambda i, loss: loss.scale_prediction(
+            #     y_pred[..., loss_start_indices[i] : loss_end_indices[i]],
+            #     x["target_scales"][..., i],
+            #     normalizers[i],
+            # )
             y_pred_scaled = torch.stack(
-                [loss_obj.to_prediction(reverse_scale(i, loss_obj)) for i, loss_obj in enumerate(loss_fns)],
+                [loss_obj.to_prediction(y_pred[..., i]) for i, loss_obj in enumerate(loss_fns)],
                 dim=-1,
             )
             return output_transform(x, y, y_pred_scaled)
@@ -271,16 +264,13 @@ def parameter_evaluation_step(
             x, y = prepare_batch(batch, device=device, non_blocking=non_blocking)
             y_pred = model(x)
             if isinstance(y_pred, torch.Tensor):
-                reverse_scale = lambda i, loss: loss.scale_prediction(
-                    y_pred[..., loss_start_indices[i] : loss_end_indices[i]],
-                    x["target_scales"][..., i],
-                    normalizers[i],
-                )
+                # reverse_scale = lambda i, loss: loss.scale_prediction(
+                #     y_pred[..., loss_start_indices[i] : loss_end_indices[i]],
+                #     x["target_scales"][..., i],
+                #     normalizers[i],
+                # )
                 y_pred_scaled = torch.stack(
-                    [
-                        loss_obj.to_prediction(reverse_scale(i, loss_obj))
-                        for i, loss_obj in enumerate(loss_fns)
-                    ],
+                    [loss_obj.to_prediction(y_pred[..., i]) for i, loss_obj in enumerate(loss_fns)],
                     dim=-1,
                 )
                 error = MAELoss()(y_pred_scaled, y, reduce=None)
@@ -366,6 +356,7 @@ def result_prediction_step(
                 y_pred[..., loss_start_indices[i] : loss_end_indices[i]],
                 x["target_scales"][..., i],
                 normalizers[i],
+                need=True,
             )
             if isinstance(y_pred, torch.Tensor):
                 y_pred_scaled = torch.stack(

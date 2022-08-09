@@ -416,20 +416,33 @@ class TimeSeriesDataset(Dataset):
             decoder_period[self.decoder_lag_features].to_numpy(np.float64),
             dtype=torch.float,
         )
-
+        targets = torch.tensor(decoder_period[self.targets].to_numpy(np.float64), dtype=torch.float)
+        targets_back = torch.tensor(encoder_period[self.targets].to_numpy(np.float64), dtype=torch.float)
         # [sequence_length, n_targets]
-        targets = torch.stack(
-            [
-                torch.tensor(
-                    self._target_normalizers[i]
-                    .inverse_transform(decoder_period[target_name], decoder_period)
-                    .to_numpy(np.float64),
-                    dtype=torch.float,
-                )
-                for i, target_name in enumerate(self.targets)
-            ],
-            dim=-1,
-        )
+        # targets = torch.stack(
+        #     [
+        #         torch.tensor(
+        #             self._target_normalizers[i]
+        #             .inverse_transform(decoder_period[target_name], decoder_period)
+        #             .to_numpy(np.float64),
+        #             dtype=torch.float,
+        #         )
+        #         for i, target_name in enumerate(self.targets)
+        #     ],
+        #     dim=-1,
+        # )
+        # targets_back = torch.stack(
+        #     [
+        #         torch.tensor(
+        #             self._target_normalizers[i]
+        #             .inverse_transform(encoder_period[target_name], decoder_period)
+        #             .to_numpy(np.float64),
+        #             dtype=torch.float,
+        #         )
+        #         for i, target_name in enumerate(self.targets)
+        #     ],
+        #     dim=-1,
+        # )
 
         # [sequence_length, 2, n_targets]
         target_scales = torch.stack(
@@ -465,6 +478,7 @@ class TimeSeriesDataset(Dataset):
                 decoder_lag_features=decoder_lag_features,
                 target_scales=target_scales,
                 target_scales_back=target_scales_back,
+                targets_back=targets_back,
             ),
             targets,  # batch[1]
         )
@@ -491,6 +505,7 @@ class TimeSeriesDataset(Dataset):
         decoder_time_features = torch.stack([batch[0]["decoder_time_features"] for batch in batches])
         encoder_lag_features = torch.stack([batch[0]["encoder_lag_features"] for batch in batches])
         decoder_lag_features = torch.stack([batch[0]["decoder_lag_features"] for batch in batches])
+        targets_back = torch.stack([batch[0]["targets_back"] for batch in batches])
         return (
             dict(
                 encoder_cont=encoder_cont,
@@ -511,6 +526,7 @@ class TimeSeriesDataset(Dataset):
                 decoder_time_features=decoder_time_features,
                 encoder_lag_features=encoder_lag_features,
                 decoder_lag_features=decoder_lag_features,
+                targets_back=targets_back,
             ),
             targets,
         )

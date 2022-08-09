@@ -403,6 +403,7 @@ class Predictor:
                 y_pred[..., loss_start_indices[i] : loss_end_indices[i]],
                 x["target_scales"][..., i],
                 dataset.target_normalizers[i],
+                need=True,
             )
             y_pred_scaled = torch.stack(
                 [

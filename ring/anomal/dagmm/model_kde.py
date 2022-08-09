@@ -82,12 +82,11 @@ class dagmm(BaseAnormal):
             self.compute_kde_params(enc_output[:, -1], batch_size)
             if self.training:
                 sample_energy, cov_diag = self.compute_kde_energy(enc_output[:, -1], batch_size)
-                return (sample_energy, cov_diag), dec[:, :, self.encoder_positions], False  # for loss
+                return (sample_energy, cov_diag), dec[:, :, self.encoder_positions]  # for loss
             else:
                 return [
                     [self.dataset, self.cov, self.log_det],
                     dec[:, :, self.encoder_positions],
-                    False,
                 ]  # for parameters
         else:
             return enc_output[:, -1], dec[:, :, self.encoder_positions]  # for socres and reconstruction

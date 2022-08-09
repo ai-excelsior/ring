@@ -23,7 +23,6 @@ class NbeatsNetwork(BaseModel):
         context_length: int = 0,
         dropout: float = 0.1,
         backcast_loss_ratio: float = 0.1,
-        target_number: int = 1,
         covariate_number: int = 0,
         encoder_cont: List[str] = [],
         decoder_cont: List[str] = [],
@@ -40,7 +39,7 @@ class NbeatsNetwork(BaseModel):
         self.backcast_loss_ratio = backcast_loss_ratio
         self.context_length = context_length
         self.prediction_length = prediction_length
-        self.target_number = target_number
+        self.target_number = output_size
         self.covariate_number = covariate_number
 
         self.encoder_embeddings = MultiEmbedding(
@@ -231,7 +230,6 @@ class NbeatsNetwork(BaseModel):
             encoder_cont=dataset.encoder_cont + dataset.time_features + dataset.encoder_lag_features,
             decoder_cont=dataset.decoder_cont + dataset.time_features + dataset.decoder_lag_features,
             embedding_sizes=embedding_sizes,
-            target_number=dataset.n_targets,
             # only for cont, cat will be added in __init__
             covariate_number=len(dataset.encoder_cont + dataset.time_features + dataset.encoder_lag_features)
             - dataset.n_targets,
