@@ -480,7 +480,6 @@ class TimeSeriesDataset(Dataset):
                 decoder_lag_features=decoder_lag_features,
                 target_scales=target_scales,
                 target_scales_back=target_scales_back,
-                targets_back=targets_back,
             ),
             targets,  # batch[1]
         )
@@ -507,7 +506,6 @@ class TimeSeriesDataset(Dataset):
         decoder_time_features = torch.stack([batch[0]["decoder_time_features"] for batch in batches])
         encoder_lag_features = torch.stack([batch[0]["encoder_lag_features"] for batch in batches])
         decoder_lag_features = torch.stack([batch[0]["decoder_lag_features"] for batch in batches])
-        targets_back = torch.stack([batch[0]["targets_back"] for batch in batches])
         return (
             dict(
                 encoder_cont=encoder_cont,
@@ -528,7 +526,6 @@ class TimeSeriesDataset(Dataset):
                 decoder_time_features=decoder_time_features,
                 encoder_lag_features=encoder_lag_features,
                 decoder_lag_features=decoder_lag_features,
-                targets_back=targets_back,
             ),
             targets,
         )
