@@ -1,22 +1,26 @@
 {
-    "time": "time",
+    "time": "Date",
     "freq": "H",
     "targets": [
-        "value"
+        " Prices"
     ],
     "group_ids": [],
     "static_categoricals": [],
     "static_reals": [],
     "time_varying_known_categoricals": [],
-    "time_varying_known_reals": [],
+    "time_varying_known_reals": [
+        " Generation forecast",
+        " System load forecast"
+    ],
     "time_varying_unknown_categoricals": [],
     "time_varying_unknown_reals": [],
     "categoricals": [],
     "indexer": {
         "name": "slide_window",
-        "look_back": 48,
-        "look_forward": 48
+        "look_back": 168,
+        "look_forward": 24
     },
     "time_features": [],
+    "detrend": true,
     "lags": {}
 }

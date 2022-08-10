@@ -18,5 +18,6 @@
         "name": "slide_window",
         "look_back": 24,
         "look_forward": 12
-    }
+    },
+    "time_features": []
 }
