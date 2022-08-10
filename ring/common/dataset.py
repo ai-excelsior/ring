@@ -87,20 +87,23 @@ class TimeSeriesDataset(Dataset):
         self._known_lag_features = []
         self._unknown_lag_features = []
 
-        # `time_features` will not be added in `decoder_cont` or `encoder_cont`
-        # if need, it will be processed in model
-        if time_features and not sum([item not in data.columns for item in time_features]):
+        # `time_features` will not be added in `decoder_cont` or `encoder_cont`, they will be processed in model
+        # train/val/pred: do not add `time_features`
+        if time_features is None or (not time_features and predict_mode):
+            self._time_features = []
+        # train/val/pred: `time_features` already all in data
+        elif time_features and not sum([item not in data.columns for item in time_features]):
             self._time_features = time_features
-            data = data[[c for c in data.columns if c not in self._time_features] + self._time_features]
             # make sure time_features always at the end of dataset
+            data = data[[c for c in data.columns if c not in self._time_features] + self._time_features]
+        # train/val/pred: `time_features` added automatically by code
         elif isinstance(time_features, list):
             time_feature_data = time_feature(pd.to_datetime(data[self._time].values), freq=self._freq)
             self._time_features = list(time_feature_data.columns)
+            # make sure time_features always at the end of dataset
             data = pd.concat([data, time_feature_data], axis=1)
-        else:
-            self._time_features = []
 
-        # target normalizer
+        # create target normalizer
         if len(self._target_normalizers) == 0:
             for tar in self.targets:
                 if len(self._group_ids) > 0:
@@ -110,12 +113,12 @@ class TimeSeriesDataset(Dataset):
                 else:
                     self._target_normalizers.append(StandardNormalizer(feature_name=tar))
 
-        # categorical encoder
+        # create categorical encoder
         if len(self._categorical_encoders) == 0:
             for cat in self.categoricals:
                 self._categorical_encoders.append(LabelEncoder(feature_name=cat))
 
-        # continouse scalar
+        # create continouse scalar
         if len(self._cont_scalars) == 0:
             for i, cont in enumerate(set(self.encoder_cont) - set(self.targets)):
                 if len(self._group_ids) > 0:
@@ -125,25 +128,23 @@ class TimeSeriesDataset(Dataset):
                 else:
                     self._cont_scalars.append(StandardNormalizer(feature_name=cont))
 
-        # 确保group_ids存在
         assert all(
             group_id in data.columns for group_id in group_ids
         ), f"Please make sure all {group_ids} is in the data"
 
-        # 对于所有categoricals值，创建默认的embedding_size
+        # create embedding_size
         for categorical_name in self.categoricals:
             if categorical_name not in self._embedding_sizes:
                 cat_size = len(data[categorical_name].unique())
                 self._embedding_sizes[categorical_name] = (cat_size + 1, get_default_embedding_size(cat_size))
                 # with unknow capacity
 
-        # 初始化indexer
+        # initialize indexer
         data = add_time_idx(data, time_column_name=time, freq=freq)
         data.sort_values([*self._group_ids, TIME_IDX], inplace=True)
         data.reset_index(drop=True, inplace=True)
-        # self._indexer.index(data, predict_mode)
 
-        # detrend targets, all targets together
+        # detrend targets, all targets together at once
         if not self._target_detrenders.fitted:
             data[self.targets] = self._target_detrenders.fit_transform(data, self._group_ids)
         else:
@@ -174,7 +175,7 @@ class TimeSeriesDataset(Dataset):
             else:
                 data[cont] = scalar.transform(data[cont], data)
 
-        # obtain lags through seasonality, always need detrend
+        # obtain target lags through seasonality
         if self._lags:
             for tar in self._targets:
                 data = pd.concat(
@@ -193,14 +194,14 @@ class TimeSeriesDataset(Dataset):
                     k for k, v in self._lags[tar]._state.items() if v < self._indexer._look_forward
                 ]
 
-        # commonly, because time_features have been calculated,  __ZERO__ will not be added
-        # but some frequency has no time_features, e.g. Year
+        # commonly, `time_features` have been calculated, so `__ZERO__` will not be added
+        # but some frequency has no time_features, e.g. Year, or `time_features` should not be added
         if self._add_static_known_real is None and (len(self.decoder_cont) + len(self.decoder_cat)) == 0:
             self._add_static_known_real = True
         if self._add_static_known_real is True:
             data[STATIC_UNKNOWN_REAL_NAME] = 0.0
 
-        # remove nan caused by lag shift
+        # remove nan caused by lag shift, apply index
         self._data = data.dropna().reset_index(drop=True)
         self._indexer.index(self._data, predict_mode)
 
@@ -418,33 +419,33 @@ class TimeSeriesDataset(Dataset):
             decoder_period[self.decoder_lag_features].to_numpy(np.float64),
             dtype=torch.float,
         )
-        targets = torch.tensor(decoder_period[self.targets].to_numpy(np.float64), dtype=torch.float)
-        targets_back = torch.tensor(encoder_period[self.targets].to_numpy(np.float64), dtype=torch.float)
+        # targets = torch.tensor(decoder_period[self.targets].to_numpy(np.float64), dtype=torch.float)
+        # targets_back = torch.tensor(encoder_period[self.targets].to_numpy(np.float64), dtype=torch.float)
         # [sequence_length, n_targets]
-        # targets = torch.stack(
-        #     [
-        #         torch.tensor(
-        #             self._target_normalizers[i]
-        #             .inverse_transform(decoder_period[target_name], decoder_period)
-        #             .to_numpy(np.float64),
-        #             dtype=torch.float,
-        #         )
-        #         for i, target_name in enumerate(self.targets)
-        #     ],
-        #     dim=-1,
-        # )
-        # targets_back = torch.stack(
-        #     [
-        #         torch.tensor(
-        #             self._target_normalizers[i]
-        #             .inverse_transform(encoder_period[target_name], decoder_period)
-        #             .to_numpy(np.float64),
-        #             dtype=torch.float,
-        #         )
-        #         for i, target_name in enumerate(self.targets)
-        #     ],
-        #     dim=-1,
-        # )
+        targets = torch.stack(
+            [
+                torch.tensor(
+                    self._target_normalizers[i]
+                    .inverse_transform(decoder_period[target_name], decoder_period)
+                    .to_numpy(np.float64),
+                    dtype=torch.float,
+                )
+                for i, target_name in enumerate(self.targets)
+            ],
+            dim=-1,
+        )
+        targets_back = torch.stack(
+            [
+                torch.tensor(
+                    self._target_normalizers[i]
+                    .inverse_transform(encoder_period[target_name], encoder_period)
+                    .to_numpy(np.float64),
+                    dtype=torch.float,
+                )
+                for i, target_name in enumerate(self.targets)
+            ],
+            dim=-1,
+        )
 
         # [sequence_length, 2, n_targets]
         target_scales = torch.stack(
