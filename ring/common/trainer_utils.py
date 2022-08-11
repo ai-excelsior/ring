@@ -243,7 +243,6 @@ def parameter_evaluation_step(
                     [loss_obj.to_prediction(y_pred[..., i]) for i, loss_obj in enumerate(loss_fns)], dim=-1
                 )
                 error = MAELoss()(y_pred_scaled, y, reduce=None)
-                # error_vectors += list(error.view(-1, y.shape[-1]).data.cpu().numpy())
                 parameters_return.update(
                     {
                         "error_vectors": (
@@ -321,18 +320,9 @@ def result_prediction_step(
         with torch.no_grad():
             x, y = prepare_batch(batch, device=device, non_blocking=non_blocking)
             y_pred = model(x, mode="predict")
-            reverse_scale = lambda i, loss: loss.scale_prediction(
-                y_pred[..., loss_start_indices[i] : loss_end_indices[i]],
-                x["target_scales"][..., i],
-                normalizers[i],
-                need=True,
-            )
             if isinstance(y_pred, torch.Tensor):
                 y_pred_scaled = torch.stack(
-                    [
-                        loss_obj.to_prediction(reverse_scale(i, loss_obj))
-                        for i, loss_obj in enumerate(loss_fns)
-                    ],
+                    [loss_obj.to_prediction(y_pred[..., i]) for i, loss_obj in enumerate(loss_fns)],
                     dim=-1,
                 )
                 error = MAELoss()(y_pred_scaled, y, reduce=None)
@@ -340,10 +330,7 @@ def result_prediction_step(
                 error = y_pred[0]
                 y_pred = y_pred[1]
                 y_pred_scaled = torch.stack(
-                    [
-                        loss_obj.to_prediction(reverse_scale(i, loss_obj))
-                        for i, loss_obj in enumerate(loss_fns)
-                    ],
+                    [loss_obj.to_prediction(y_pred[..., i]) for i, loss_obj in enumerate(loss_fns)],
                     dim=-1,
                 )
 

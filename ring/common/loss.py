@@ -53,7 +53,7 @@ class AbstractLoss:
         y_pred: torch.Tensor,
         target_scale: torch.Tensor = None,
         normalizer: AbstractNormalizer = None,
-        need=False,
+        need=True,
     ):
         """
         rescale a predicted value from nearly [-1, 1] space to original space with scale and normalizer
