@@ -1,3 +1,5 @@
+from sys import implementation
+from tokenize import group
 import pandas as pd
 import numpy as np
 import torch
@@ -57,7 +59,8 @@ class TimeSeriesDataset(Dataset):
         cont_scalars: List[StandardNormalizer] = [],
         target_detrenders: Union[callable, None] = None,
         # toggles
-        predict_mode=False,  # using predict mode to index
+        evaluate_mode=False,  # using predict mode to index
+        predict_task=False,  # whether to conduct a real prediciton task
         enable_static_as_covariant=True,
         add_static_known_real=None,  # add zero to time varying known (decoder part) field
         # seasonality
@@ -87,9 +90,26 @@ class TimeSeriesDataset(Dataset):
         self._known_lag_features = []
         self._unknown_lag_features = []
 
+        if predict_task:  # do real prediction without true value
+            # if future known features do not exist, we add rows of 0 for data
+            # if future known features exist, we execute future unknown feature columns to be 0
+            if not group_ids:  # directly set tail data to be 0
+                data = self._implement_forward(
+                    data, append=len(time_varying_known_categoricals + time_varying_known_reals) == 0
+                )
+            else:  # seperately set tail data to be 0 for each group
+                data = (
+                    data.groupby(group_ids)
+                    .apply(
+                        self._implement_forward,
+                        append=len(time_varying_known_categoricals + time_varying_known_reals) == 0,
+                    )
+                    .droplevel(self._group_ids)
+                )
+
         # `time_features` will not be added in `decoder_cont` or `encoder_cont`, they will be processed in model
         # train/val/pred: do not add `time_features`
-        if time_features is None or (not time_features and predict_mode):
+        if time_features is None or (not time_features and evaluate_mode):
             self._time_features = []
         # train/val/pred: `time_features` already all in data
         elif time_features and not sum([item not in data.columns for item in time_features]):
@@ -203,7 +223,7 @@ class TimeSeriesDataset(Dataset):
 
         # remove nan caused by lag shift, apply index
         self._data = data.dropna().reset_index(drop=True)
-        self._indexer.index(self._data, predict_mode)
+        self._indexer.index(self._data, evaluate_mode)
 
     @property
     def targets(self):
@@ -314,7 +334,7 @@ class TimeSeriesDataset(Dataset):
         kwargs = {
             name: getattr(self, f"_{name}")
             for name in inspect.signature(self.__class__.__init__).parameters.keys()
-            if name not in ["self", "data", "indexer", "target_normalizer", "predict_mode"]
+            if name not in ["self", "data", "indexer", "target_normalizer", "evaluate_mode", "predict_task"]
         }
         kwargs.update(
             indexer=serialize_indexer(self._indexer),
@@ -574,3 +594,25 @@ class TimeSeriesDataset(Dataset):
         )
 
         return data_to_return
+
+    def _implement_forward(self, data: pd.DataFrame, append: bool = False):
+        if append:
+            df_append = pd.DataFrame(
+                np.zeros((self._indexer._look_forward, data.shape[1])),
+                columns=data.columns,
+                index=[data.index[-1] + (i + 1) for i in range(self._indexer._look_forward)],
+            )
+            df_append[self._time] = pd.date_range(
+                start=data.iloc[-1][self._time],
+                periods=self._indexer._look_forward + 1,
+                freq=self._freq,
+                inclusive="neither",
+            )
+            df_append[self._group_ids] = data.name if self._group_ids else None
+            data = data.append(df_append)
+        else:
+            data.loc[
+                data.index[-1] - self._indexer._look_forward + 1 :,
+                self._targets + self._time_varying_unknown_categoricals + self._time_varying_unknown_reals,
+            ] = 0
+        return data
