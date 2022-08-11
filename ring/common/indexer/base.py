@@ -27,7 +27,7 @@ class BaseIndexer:
         pass
 
     @abc.abstractmethod
-    def index(self, data: pd.DataFrame, predict_mode: bool = False, **kwargs):
+    def index(self, data: pd.DataFrame, evaluate_mode: bool = False, **kwargs):
         pass
 
     def get_parameters(self) -> Dict[str, Any]:

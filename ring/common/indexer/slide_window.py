@@ -22,13 +22,13 @@ class SlideWindowIndexer(BaseIndexer):
         self._group_ids = group_ids
         self._time_idx = time_idx
 
-    def index(self, data: pd.DataFrame, predict_mode: bool = False):
+    def index(self, data: pd.DataFrame, evaluate_mode: bool = False):
         """
         Create index of samples.
 
         Args:
             data (pd.DataFrame): preprocessed data
-            predict_mode (bool): if to create one same per group with prediction length equals ``max_decoder_length``
+            evaluate_mode (bool): if to create one same per group with prediction length equals ``max_decoder_length``
         """
 
         if len(self._group_ids) > 0:
@@ -81,7 +81,7 @@ class SlideWindowIndexer(BaseIndexer):
 
         # keep longest element per series (i.e. the first element that spans to the end of the series)
         # filter all elements that are longer than the allowed maximum sequence length
-        if predict_mode:
+        if evaluate_mode:
             df_index = df_index[
                 lambda x: (x["time_idx_last"] - x["time_idx"] + 1 <= sequence_length)
                 & (x["sequence_length"] >= sequence_length)
@@ -288,13 +288,13 @@ class SlideWindowIndexer_bucketSampler(BaseIndexer):
         self._time_idx = time_idx
         self.scale_histogram = ScaleHistogram()
 
-    def index(self, data: pd.DataFrame, predict_mode: bool = False):
+    def index(self, data: pd.DataFrame, evaluate_mode: bool = False):
         """
         Create index of samples.
 
         Args:
             data (pd.DataFrame): preprocessed data
-            predict_mode (bool): if to create one same per group with prediction length equals ``max_decoder_length``
+            evaluate_mode (bool): if to create one same per group with prediction length equals ``max_decoder_length``
         """
 
         if len(self._group_ids) > 0:
@@ -348,7 +348,7 @@ class SlideWindowIndexer_bucketSampler(BaseIndexer):
 
         # keep longest element per series (i.e. the first element that spans to the end of the series)
         # filter all elements that are longer than the allowed maximum sequence length
-        if predict_mode:
+        if evaluate_mode:
             df_index = df_index[
                 lambda x: (x["time_idx_last"] - x["time_idx"] + 1 <= sequence_length)
                 & (x["sequence_length"] >= sequence_length)
