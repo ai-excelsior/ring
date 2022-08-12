@@ -90,22 +90,22 @@ class TimeSeriesDataset(Dataset):
         self._known_lag_features = []
         self._unknown_lag_features = []
 
-        # if predict_task:  # do real prediction without true value
-        #     # if future known features do not exist, we add rows of 0 for data
-        #     # if future known features exist, we execute future unknown feature columns to be 0
-        #     if not group_ids:  # directly set tail data to be 0
-        #         data = self._implement_forward(
-        #             data, append=len(time_varying_known_categoricals + time_varying_known_reals) == 0
-        #         )
-        #     else:  # seperately set tail data to be 0 for each group
-        #         data = (
-        #             data.groupby(group_ids)
-        #             .apply(
-        #                 self._implement_forward,
-        #                 append=len(time_varying_known_categoricals + time_varying_known_reals) == 0,
-        #             )
-        #             .droplevel(self._group_ids)
-        #         )
+        if predict_task:  # do real prediction without true value
+            # if future known features do not exist, we add rows of 0 for data
+            # if future known features exist, we execute future unknown feature columns to be 0
+            if not group_ids:  # directly set tail data to be 0
+                data = self._implement_forward(
+                    data, append=len(time_varying_known_categoricals + time_varying_known_reals) == 0
+                )
+            else:  # seperately set tail data to be 0 for each group
+                data = (
+                    data.groupby(group_ids)
+                    .apply(
+                        self._implement_forward,
+                        append=len(time_varying_known_categoricals + time_varying_known_reals) == 0,
+                    )
+                    .droplevel(self._group_ids)
+                )
 
         # `time_features` will not be added in `decoder_cont` or `encoder_cont`, they will be processed in model
         # train/val/pred: do not add `time_features`
