@@ -75,8 +75,10 @@ class ReccurentNetwork(AutoRegressiveBaseModelWithCovariates):
         return cls(
             dataset.targets,
             encoder_cat=dataset.encoder_cat,
+            # make sure the order is matched with that in `def encode`
             encoder_cont=dataset.encoder_cont + dataset.time_features + dataset.encoder_lag_features,
             decoder_cat=dataset.decoder_cat,
+            # make sure the order is matched with that in `def decode` except target
             decoder_cont=dataset.decoder_cont + dataset.time_features + dataset.decoder_lag_features,
             embedding_sizes=embedding_sizes,
             x_categoricals=dataset.categoricals,

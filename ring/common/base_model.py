@@ -120,22 +120,34 @@ class AutoRegressiveBaseModelWithCovariates(BaseModel):
     @cached_property
     def _encoder_input_size(self) -> int:
         """the actual input size/dim of the encoder after the categorical embedding"""
-        return len(self._encoder_cont) + self.encoder_embeddings.total_embedding_size()
+        return len(self.encoder_phase_reals) + self.encoder_embeddings.total_embedding_size()
 
     @cached_property
     def _decoder_input_size(self) -> int:
         """the actual input size/dim of the decoder after the categorical embedding"""
-        return len(self._decoder_cont) + len(self._targets) + self.decoder_embeddings.total_embedding_size()
+        return len(self.decoder_phase_reals) + self.decoder_embeddings.total_embedding_size()
+
+    @property
+    def decoder_phase_reals(self) -> List[str]:
+        """List of all variables used in decoder phase in model """
+        #self._decoder_cont = x['decoder_cont'] + x['decoder_time_features'],x['decoder_lag_features']
+        return self._targets+self._decoder_cont 
+
+    @property
+    def encoder_phase_reals(self) -> List[str]:
+        """List of all variables used in encoder phase in model, targets already in x['encoder_cont'] """
+        #self._encoder_cont = x['encoder_cont'] + x['encoder_time_features'],x['encoder_lag_features']
+        return self._encoder_cont 
 
     @property
     def reals(self) -> List[str]:
         """lists of reals in the encoder or decoder sequence"""
-        return self._encoder_cont if self._phase == "encode" else self._targets+self._decoder_cont
+        return self.encoder_phase_reals if self._phase == "encode" else self.decoder_phase_reals
 
     @property
     def reals_indices(self) -> List[int]:
         """lists of the indices of reals in `x["encoder_cont"]` or `x["decoder_cont"]`"""
-        return [self._encoder_cont.index(name) for name in self.reals if name != "_ZERO_"]
+        return [i for i,name in enumerate(self.reals) if name != "_ZERO_"]
 
     @property
     def categoricals(self) -> List[str]:
@@ -150,23 +162,16 @@ class AutoRegressiveBaseModelWithCovariates(BaseModel):
     @property
     def target_positions(self) -> torch.LongTensor:
         """Target positions in the encoder or decoder tensor
-
-        Note that when `time_varying_unknown_reals` is present, `target_positions` gives the indices
-        of target columns after dropping `time_varying_unknown_reals` from `x["decoder_cont"]`
-
         Returns:
             torch.LongTensor: tensor of positions.
         """
         pos = torch.tensor(
-            [self._encoder_cont.index(name) for name in to_list(self._targets)],
+            [self.reals.index(name) for name in to_list(self._targets)],
             dtype=torch.long,
         )
-        a = torch.tensor(
-            [i for i, p in enumerate(self.reals_indices) if p in pos],
-            dtype=torch.long,
-        )
-        # device=self.device,
-        return a
+      
+
+        return pos
 
     @property
     def lagged_target_positions(self) -> Dict[int, torch.LongTensor]:
@@ -192,31 +197,17 @@ class AutoRegressiveBaseModelWithCovariates(BaseModel):
                     lag_names[l].append(name)
 
             pos = {
-                lag: torch.tensor([self._encoder_cont.index(name) for name in to_list(names)],dtype=torch.long
+                lag: torch.tensor([self.reals.index(name) for name in to_list(names)],dtype=torch.long
                 )
-                for lag, names in lag_names.items()
+                for lag, names in lag_names.items() if names in self.reals
             }
 
-        return {
-            k: (torch.tensor(self.reals_indices) == v).nonzero(
-                as_tuple=True
-            )[0]
-            if len(v) == 1
-            else torch.stack(
-                [
-                    (torch.tensor(self.reals_indices) == item).nonzero(
-                        as_tuple=True
-                    )[0]
-                    for item in v
-                ]
-            ).nonzero(as_tuple=True)[0]
-            for k, v in pos.items()
-        }
+        return pos
 
     @cached_property
     def has_time_varying_unknown_cont(self) -> bool:
         # except targets
-        return set(self._encoder_cont + ["_ZERO_"]) != set(self._decoder_cont + self._targets)
+        return set(self.encoder_phase_reals) != set(self.decoder_phase_reals - ['_ZEROS_']) if '_ZEROS_' in self.decoder_phase_reals else set(self.decoder_phase_reals)
 
     @cached_property
     def has_time_varying_unknown_cat(self) -> bool:
@@ -233,10 +224,10 @@ class AutoRegressiveBaseModelWithCovariates(BaseModel):
         input_vector = []
         # NOTE: the real-valued variables always come first in the input vector
         if len(self.reals) > 0:
-            input_vector.append(x_cont.clone())
+            input_vector.append(x_cont[...,self.reals_indices].clone())
 
         if len(self.categoricals) > 0:
-            embeddings = self.categoricals_embedding(x_cat, flat=True)
+            embeddings = self.categoricals_embedding(x_cat[...,self.categoricals_indices], flat=True)
             input_vector.append(embeddings)
 
         input_vector = torch.cat(input_vector, dim=-1)
@@ -327,6 +318,7 @@ class AutoRegressiveBaseModelWithCovariates(BaseModel):
         """
         self._phase = "decode"
         decoder_cat= x["decoder_cat"]
+        #make sure pos of x['decoder_target'] match that in self.decoder_phase_reals
         decoder_cont=torch.cat([x['decoder_target'],x["decoder_cont"],x['decoder_time_features'],x['decoder_lag_features']],dim=-1)
         input_vector = self.construct_input_vector(decoder_cat, decoder_cont, first_target)
         if self.training:  # the training mode where the target values are actually known
