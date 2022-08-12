@@ -296,6 +296,7 @@ class Predictor:
         return dict(params=params, dataset=dataset)
 
     def verify_point(self, data: pd.DataFrame, begin_point: str) -> int:
+        # TODO: should consider group_id
         if begin_point:
             try:
                 begin_point = int(begin_point) if int(begin_point) >= 0 else data.index[-1] + int(begin_point)
