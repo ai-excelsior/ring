@@ -1,3 +1,6 @@
+from typing import Union
+
+
 def get_train_parser(subparsers):
     parser = subparsers.add_parser("train", help="train a model")
     # parser = subparser
@@ -42,7 +45,12 @@ def get_validate_parser(subparsers):
         default=None,
         help="Load a pre-training model_state to do validation, s3 address",
     )
-
+    parser.add_argument(
+        "--begin_point",
+        type=str,
+        default=None,
+        help="Identify the begin point of validation, both datetime or int",
+    )
     return parser
 
 
