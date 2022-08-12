@@ -60,7 +60,8 @@ class DeepAR(AutoRegressiveBaseModelWithCovariates):
     ) -> torch.Tensor:
 
         self._phase = "decode"
-        decoder_cat, decoder_cont = x["decoder_cat"], torch.cat(
+        decoder_cat = x["decoder_cat"]
+        decoder_cont = torch.cat(
             [x["decoder_target"], x["decoder_cont"], x["decoder_time_features"], x["decoder_lag_features"]],
             dim=-1,
         )
