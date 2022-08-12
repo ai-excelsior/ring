@@ -233,10 +233,10 @@ class AutoRegressiveBaseModelWithCovariates(BaseModel):
         input_vector = []
         # NOTE: the real-valued variables always come first in the input vector
         if len(self.reals) > 0:
-            input_vector.append(x_cont[..., self.reals_indices].clone())
+            input_vector.append(x_cont.clone())
 
         if len(self.categoricals) > 0:
-            embeddings = self.categoricals_embedding(x_cat[..., self.categoricals_indices], flat=True)
+            embeddings = self.categoricals_embedding(x_cat, flat=True)
             input_vector.append(embeddings)
 
         input_vector = torch.cat(input_vector, dim=-1)
