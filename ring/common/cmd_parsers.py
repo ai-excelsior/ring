@@ -49,7 +49,7 @@ def get_validate_parser(subparsers):
         "--begin_point",
         type=str,
         default=None,
-        help="Identify the begin point of validation, both datetime or int",
+        help="Identify the begin point of validation",
     )
     return parser
 
@@ -78,7 +78,12 @@ def get_predict_parser(subparsers):
         required=False,
         help="The identicator of the specific prediction task",
     )
-
+    parser.add_argument(
+        "--begin_point",
+        type=str,
+        default=None,
+        help="Identify the begin point of prediction",
+    )
     return parser
 
 
