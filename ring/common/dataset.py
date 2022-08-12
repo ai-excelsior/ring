@@ -90,22 +90,22 @@ class TimeSeriesDataset(Dataset):
         self._known_lag_features = []
         self._unknown_lag_features = []
 
-        if predict_task:  # do real prediction without true value
-            # if future known features do not exist, we add rows of 0 for data
-            # if future known features exist, we execute future unknown feature columns to be 0
-            if not group_ids:  # directly set tail data to be 0
-                data = self._implement_forward(
-                    data, append=len(time_varying_known_categoricals + time_varying_known_reals) == 0
-                )
-            else:  # seperately set tail data to be 0 for each group
-                data = (
-                    data.groupby(group_ids)
-                    .apply(
-                        self._implement_forward,
-                        append=len(time_varying_known_categoricals + time_varying_known_reals) == 0,
-                    )
-                    .droplevel(self._group_ids)
-                )
+        # if predict_task:  # do real prediction without true value
+        #     # if future known features do not exist, we add rows of 0 for data
+        #     # if future known features exist, we execute future unknown feature columns to be 0
+        #     if not group_ids:  # directly set tail data to be 0
+        #         data = self._implement_forward(
+        #             data, append=len(time_varying_known_categoricals + time_varying_known_reals) == 0
+        #         )
+        #     else:  # seperately set tail data to be 0 for each group
+        #         data = (
+        #             data.groupby(group_ids)
+        #             .apply(
+        #                 self._implement_forward,
+        #                 append=len(time_varying_known_categoricals + time_varying_known_reals) == 0,
+        #             )
+        #             .droplevel(self._group_ids)
+        #         )
 
         # `time_features` will not be added in `decoder_cont` or `encoder_cont`, they will be processed in model
         # train/val/pred: do not add `time_features`
@@ -140,7 +140,7 @@ class TimeSeriesDataset(Dataset):
 
         # create continouse scalar
         if len(self._cont_scalars) == 0:
-            for i, cont in enumerate(set(self.encoder_cont) - set(self.targets)):
+            for i, cont in enumerate(filter(lambda i: i not in self.targets, self.encoder_cont)):
                 if len(self._group_ids) > 0:
                     self._cont_scalars.append(
                         GroupStardardNormalizer(group_ids=self._group_ids, feature_name=cont)
@@ -188,7 +188,7 @@ class TimeSeriesDataset(Dataset):
                 data[target_name] = normalizer.transform(data[target_name], data)
 
         # fit continous scalar
-        for i, cont in enumerate(set(self.encoder_cont) - set(self.targets)):
+        for i, cont in enumerate(filter(lambda i: i not in self.targets, self.encoder_cont)):
             scalar = self._cont_scalars[i]
             if not scalar.fitted:
                 data[cont] = scalar.fit_transform(data[cont], data)
@@ -216,7 +216,16 @@ class TimeSeriesDataset(Dataset):
 
         # commonly, `time_features` have been calculated, so `__ZERO__` will not be added
         # but some frequency has no time_features, e.g. Year, or `time_features` should not be added
-        if self._add_static_known_real is None and (len(self.decoder_cont) + len(self.decoder_cat)) == 0:
+        if (
+            self._add_static_known_real is None
+            and (
+                len(self.decoder_cont)
+                + len(self.decoder_cat)
+                + len(self.decoder_lag_features)
+                + len(self.time_features)
+            )
+            == 0
+        ):
             self._add_static_known_real = True
         if self._add_static_known_real is True:
             data[STATIC_UNKNOWN_REAL_NAME] = 0.0
