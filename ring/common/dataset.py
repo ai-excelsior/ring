@@ -65,7 +65,7 @@ class TimeSeriesDataset(Dataset):
         add_static_known_real=None,  # add zero to time varying known (decoder part) field
         # seasonality
         lags: Union[Dict, None] = None,
-        # need detrend or not
+        begin_point: str = None,
     ) -> None:
         self._data = data
         self._time = time
