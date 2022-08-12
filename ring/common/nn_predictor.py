@@ -295,12 +295,36 @@ class Predictor:
 
         return dict(params=params, dataset=dataset)
 
+    def verify_point(self, data: pd.DataFrame, begin_point: str) -> int:
+        if begin_point:
+            try:
+                begin_point = int(begin_point) if int(begin_point) >= 0 else data.index[-1] + int(begin_point)
+            except:
+                begin_point = data[
+                    data[self._data_cfg.time] == pd.to_datetime(begin_point).tz_localize(None)
+                ].index.to_numpy()
+            else:
+                raise TypeError("begin_point should be int or datetime like str")
+            assert (
+                begin_point and begin_point > 0 and begin_point < data.index[-1]
+            ), "make sure begin_point is available in data"
+            assert (
+                begin_point >= data.index[0] + self._data_cfg.indexer.look_back - 1
+            ), "not enough length for look_back"
+            return int(begin_point)
+
     def validate(
         self,
         data_val: pd.DataFrame,
         model_filename=None,
+        begin_point: str = None,
     ):
-        dataset = self.create_dataset(data_val, evaluate_mode=True)
+
+        begin_point = self.verify_point(data_val, begin_point)
+        assert (
+            begin_point <= data_val.index[-1] - self._data_cfg.indexer.look_forward
+        ), "not enough true values left for validation"
+        dataset = self.create_dataset(data_val, begin_point=begin_point, evaluate_mode=True)
 
         # load model
         if model_filename is None:
@@ -347,10 +371,14 @@ class Predictor:
         self,
         data: pd.DataFrame,
         model_filename=None,
+        begin_point: str = None,
         plot=False,
     ):
         """Do smoke test on given dataset, take the last max sequence to do a prediction and plot"""
-        dataset = self.create_dataset(data, evaluate_mode=True, predict_task=True)
+        begin_point = self.verify_point(data, begin_point)
+        assert begin_point <= data.index[-1], "begin point should be not greater than last time point"
+
+        dataset = self.create_dataset(data, begin_point=begin_point, evaluate_mode=True, predict_task=True)
 
         # load model
         # load model

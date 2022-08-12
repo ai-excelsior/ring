@@ -232,7 +232,7 @@ class TimeSeriesDataset(Dataset):
 
         # remove nan caused by lag shift, apply index
         self._data = data.dropna().reset_index(drop=True)
-        self._indexer.index(self._data, evaluate_mode)
+        self._indexer.index(self._data, evaluate_mode, begin_point)
 
     @property
     def targets(self):
