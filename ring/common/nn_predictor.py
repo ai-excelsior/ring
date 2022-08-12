@@ -437,15 +437,16 @@ class Predictor:
         # 这里需要的，根据不同的loss，绘制对应target, group_ids的图像
         if plot:
             # for deepar
+
             original_prediction_columns = list(
-                set(
+                filter(
+                    lambda col: col not in prediction_column_names,
                     [
                         f"{target_name}_{param_name}"
                         for i, target_name in enumerate(dataset.targets)
                         for param_name in self._losses[i].parameter_names
-                    ]
+                    ],
                 )
-                - set(prediction_column_names)
             )
             if original_prediction_columns:
                 raw_data = raw_data.assign(**{name: np.nan for name in original_prediction_columns})
