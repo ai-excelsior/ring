@@ -295,24 +295,24 @@ class Predictor:
 
         return dict(params=params, dataset=dataset)
 
-    def verify_point(self, data: pd.DataFrame, begin_point: str) -> int:
+    def verify_point(self, data: pd.DataFrame, begin_point: str) -> Dict:
         # TODO: should consider group_id
-        if begin_point:
-            try:
-                begin_point = int(begin_point) if int(begin_point) >= 0 else data.index[-1] + int(begin_point)
-            except:
-                begin_point = data[
-                    data[self._data_cfg.time] == pd.to_datetime(begin_point).tz_localize(None)
-                ].index.to_numpy()
-            else:
-                raise TypeError("begin_point should be int or datetime like str")
-            assert (
-                begin_point and begin_point > 0 and begin_point < data.index[-1]
-            ), "make sure begin_point is available in data"
-            assert (
-                begin_point >= data.index[0] + self._data_cfg.indexer.look_back - 1
-            ), "not enough length for look_back"
-            return int(begin_point)
+        def fucc():
+            pass
+
+        try:
+            begin_point = int(begin_point) if int(begin_point) >= 0 else data.index[-1] + int(begin_point)
+        except:
+            begin_point = data.groupby(self._data_cfg.group_ids).apply(fucc).index.to_numpy()
+        else:
+            raise TypeError("begin_point should be int or datetime like str")
+        assert (
+            begin_point and begin_point > 0 and begin_point < data.index[-1]
+        ), "make sure begin_point is available in data"
+        assert (
+            begin_point >= data.index[0] + self._data_cfg.indexer.look_back - 1
+        ), "not enough length for look_back"
+        return begin_point
 
     def validate(
         self,
@@ -321,7 +321,7 @@ class Predictor:
         begin_point: str = None,
     ):
 
-        begin_point = self.verify_point(data_val, begin_point)
+        begin_point = self.verify_point(data_val, begin_point) if begin_point else begin_point
         assert (
             begin_point <= data_val.index[-1] - self._data_cfg.indexer.look_forward
         ), "not enough true values left for validation"

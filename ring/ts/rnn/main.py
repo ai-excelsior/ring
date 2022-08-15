@@ -1,3 +1,4 @@
+from ctypes import Union
 import pandas as pd
 from argparse import ArgumentParser
 from ring.common.cmd_parsers import (
@@ -60,14 +61,14 @@ def train(data_config: DataConfig, data_train: pd.DataFrame, data_val: pd.DataFr
     validate(kwargs.get("save_state", None), data_val)
 
 
-def validate(load_state: str, data_val: pd.DataFrame):
+def validate(load_state: str, data_val: pd.DataFrame, begin_point):
     """
     load a model and using this model to validate a given dataset
     """
     assert load_state is not None, "load_state is required when validate"
 
     predictor = Predictor.load(load_state, ReccurentNetwork)
-    predictor.validate(data_val)
+    predictor.validate(data_val, begin_point=begin_point)
 
 
 def predict(
@@ -82,17 +83,28 @@ def predict(
     assert load_state is not None, "load_state is required when validate"
 
     predictor = Predictor.load(load_state, ReccurentNetwork)
-    pred_df = predictor.predict(data, plot=True)
-    predictor.validate(data)
+    pred_df = predictor.predict(data, plot=False)
+    # predictor.validate(data)
+    import matplotlib.pyplot as plt
 
-    predictions_to_influx(
-        pred_df,
-        time_column=predictor._data_cfg.time,
-        model_name=predictor._model_cls.__module__,
-        measurement=measurement,
-        task_id=task_id,
-        additional_tags=predictor._data_cfg.group_ids,
+    d = pd.read_csv("data/BE_pred.csv")
+    fig = plt.figure(figsize=(10, 5))
+    plt.plot(
+        range(24),
+        pred_df.loc[pred_df.index[-1] - 23 :][" Prices_pred"],
+        color="green",
     )
+    plt.plot(range(24), d.iloc[-24:][" Prices"], color="blue")
+    plt.legend(["pred", "observed"])
+    plt.savefig("example/xyz/epf_resultpic/rnn_BE_lags_tf_real.jpg")
+    # predictions_to_influx(
+    #     pred_df,
+    #     time_column=predictor._data_cfg.time,
+    #     model_name=predictor._model_cls.__module__,
+    #     measurement=measurement,
+    #     task_id=task_id,
+    #     additional_tags=predictor._data_cfg.group_ids,
+    # )
 
 
 def serve(load_state, data_cfg):
@@ -193,7 +205,7 @@ if __name__ == "__main__":
             kwargs.pop("data_val"),
             parse_dates=[] if data_config.time is None else [data_config.time],
         )
-        validate(kwargs.pop("load_state", None), data_val)
+        validate(kwargs.pop("load_state", None), data_val, kwargs.pop("begin_point"))
 
     elif command == "predict":
         data_config = url_to_data_config(kwargs.pop("data_cfg"))
