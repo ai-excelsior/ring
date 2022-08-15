@@ -317,7 +317,7 @@ class Predictor:
         if not self._data_cfg.group_ids:
             return self._examine_point(data, begin_point)
         else:
-            return data.groupby(self._data_cfg.group_ids).apply(self._fucc, begin_point).to_dict()
+            return data.groupby(self._data_cfg.group_ids).apply(self._examine_point, begin_point).to_dict()
 
     def validate(
         self,
@@ -327,6 +327,7 @@ class Predictor:
     ):
 
         begin_point = self.verify_point(data_val, begin_point) if begin_point else begin_point
+        # TODO: assert should consider limits
         assert (
             begin_point <= data_val.index[-1] - self._data_cfg.indexer.look_forward if begin_point else True
         ), "not enough true values left for validation"
@@ -382,6 +383,7 @@ class Predictor:
     ):
         """Do smoke test on given dataset, take the last max sequence to do a prediction and plot"""
         begin_point = self.verify_point(data, begin_point) if begin_point else begin_point
+        # TODO: assert should consider limits
         assert (
             max(begin_point) <= data.index[-1] if begin_point else True
         ), "begin point should be not greater than last time point"
