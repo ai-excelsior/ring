@@ -100,6 +100,7 @@ def serve(load_state, data_cfg):
     """
     load a model and predict with given dataset, using serve mode
     """
+    # TODO: should be modified to match new format
     # load_state = 4
     predictor = Predictor.load(load_state, RNNSeq2Seq)
     assert load_state is not None, "load_state is required when serve"
