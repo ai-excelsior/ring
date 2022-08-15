@@ -195,11 +195,13 @@ def time_features_from_frequency_str(freq_str: str) -> List[TimeFeature]:
     raise RuntimeError(supported_freq_msg)
 
 
-def time_feature(dates, freq="h"):
+def time_feature(time, freq="h"):
+    dates = pd.to_datetime(time.values)
     try:
         return pd.DataFrame(
             np.vstack([list(feat.values())[0](dates) for feat in time_features_from_frequency_str(freq)]).T,
             columns=[list(item.keys())[0] for item in time_features_from_frequency_str(freq)],
+            index=time.index,
         )
     except:
         return pd.DataFrame()

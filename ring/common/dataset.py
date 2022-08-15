@@ -118,7 +118,7 @@ class TimeSeriesDataset(Dataset):
             data = data[[c for c in data.columns if c not in self._time_features] + self._time_features]
         # train/val/pred: `time_features` added automatically by code
         elif isinstance(time_features, list):
-            time_feature_data = time_feature(pd.to_datetime(data[self._time].values), freq=self._freq)
+            time_feature_data = time_feature(data[self._time], freq=self._freq)
             self._time_features = list(time_feature_data.columns)
             # make sure time_features always at the end of dataset
             data = pd.concat([data, time_feature_data], axis=1)
@@ -344,7 +344,16 @@ class TimeSeriesDataset(Dataset):
         kwargs = {
             name: getattr(self, f"_{name}")
             for name in inspect.signature(self.__class__.__init__).parameters.keys()
-            if name not in ["self", "data", "indexer", "target_normalizer", "evaluate_mode", "predict_task"]
+            if name
+            not in [
+                "self",
+                "data",
+                "indexer",
+                "target_normalizer",
+                "evaluate_mode",
+                "predict_task",
+                "begin_point",
+            ]
         }
         kwargs.update(
             indexer=serialize_indexer(self._indexer),
