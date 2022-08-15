@@ -29,13 +29,7 @@ def read_from_url(url: str, *args, **config) -> pd.DataFrame:
 
     if is_csv(filename):
         df = pd.read_csv(filename, thousands=",", chunksize=1000, **config)
-        if args[0] is None and args[1] is None:
-            return pd.concat([chunk for chunk in df])
-        elif args[0] is None:
-            return pd.concat([chunk[(chunk[config["parse_dates"][0]] <= args[1])] for chunk in df])
-        elif args[1] is None:
-            return pd.concat([chunk[(chunk[config["parse_dates"][0]] >= args[0])] for chunk in df])
-        else:
+        if args[0] and args[1]:
             return pd.concat(
                 [
                     chunk[
@@ -45,16 +39,24 @@ def read_from_url(url: str, *args, **config) -> pd.DataFrame:
                     for chunk in df
                 ]
             )
+        elif args[0]:
+            return pd.concat([chunk[(chunk[config["parse_dates"][0]] >= args[0])] for chunk in df])
+        elif args[1]:
+            return pd.concat([chunk[(chunk[config["parse_dates"][0]] <= args[1])] for chunk in df])
+        else:
+            return pd.concat([chunk for chunk in df])
+
     elif is_parquet(filename):
         df = pd.read_parquet(filename, **config)
-        if args[0] is None and args[1] is None:
-            return df
-        elif args[0] is None:
-            return df[df[config["parse_dates"][0]] <= args[1]]
-        elif args[1] is None:
-            return df[sdf[config["parse_dates"][0]] >= args[0]]
-        else:
+        if args[0] and args[1]:
             return df[(df[config["parse_dates"][0]] >= args[0]) & (df[config["parse_dates"][0]] <= args[1])]
+        elif args[0]:
+            return df[df[config["parse_dates"][0]] >= args[0]]
+        elif args[1]:
+            return df[df[config["parse_dates"][0]] <= args[1]]
+        else:
+            return df
+
     else:
         raise TypeError("Only .csv .parq or .parquet can be accessed")
 
