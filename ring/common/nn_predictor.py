@@ -327,10 +327,19 @@ class Predictor:
     ):
 
         begin_point = self.verify_point(data_val, begin_point) if begin_point else begin_point
-        # TODO: assert should consider limits
         assert (
-            begin_point <= data_val.index[-1] - self._data_cfg.indexer.look_forward if begin_point else True
-        ), "not enough true values left for validation"
+            [
+                idx
+                <= data_val.groupby(self._data_cfg.group_ids).get_group(grp).index[-1]
+                - self._data_cfg.indexer.look_forward
+                for grp, idx in begin_point.items()
+            ]
+            if begin_point and self._data_cfg.group_ids
+            else begin_point <= data_val.index[-1] - self._data_cfg.indexer.look_forward
+            if begin_point
+            else True
+        ), "begin point should be not greater than last time point in all groups"
+
         dataset = self.create_dataset(data_val, begin_point=begin_point, evaluate_mode=True)
 
         # load model
@@ -385,8 +394,15 @@ class Predictor:
         begin_point = self.verify_point(data, begin_point) if begin_point else begin_point
         # TODO: assert should consider limits
         assert (
-            max(begin_point) <= data.index[-1] if begin_point else True
-        ), "begin point should be not greater than last time point"
+            [
+                idx <= data.groupby(self._data_cfg.group_ids).get_group(grp).index[-1]
+                for grp, idx in begin_point.items()
+            ]
+            if begin_point and self._data_cfg.group_ids
+            else begin_point <= data.index[-1]
+            if begin_point
+            else True
+        ), "begin point should be not greater than last time point in all groups"
         dataset = self.create_dataset(data, begin_point=begin_point, evaluate_mode=True, predict_task=True)
 
         # load model
