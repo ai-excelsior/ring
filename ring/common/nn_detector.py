@@ -25,8 +25,7 @@ from .trainer_utils import (
     create_parameter_evaluator,
     create_supervised_predictor,
 )
-from .data_config import DataConfig, dict_to_data_config_anomal
-from .base_model import BaseModel
+from .data_config import DataConfig, dict_to_data_cfg_anomal
 from .oss_utils import get_bucket_from_oss_url
 from .logger import Fluxlogger
 
@@ -561,7 +560,7 @@ class Detector:
         if os.path.isfile(filepath):
             with open(filepath, "rb") as f:
                 state_dict = loads(f.read())
-                state_dict["params"]["data_cfg"] = dict_to_data_config_anomal(
+                state_dict["params"]["data_cfg"] = dict_to_data_cfg_anomal(
                     state_dict["params"]["data_cfg"]
                 )
                 return Detector.from_parameters(state_dict, save_dir, model_cls, new_save_dir)

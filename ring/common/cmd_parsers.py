@@ -47,8 +47,8 @@ def get_validate_parser(subparsers):
     parser.add_argument(
         "--data_cfg", type=str, required=True, help="The data config and data source, s3 address"
     )
-    parser.add_argument("--start_time", type=str, required=True, help="The start time of validation data")
-    parser.add_argument("--end_time", type=str, required=True, help="The end time of validation data")
+    parser.add_argument("--start_time", type=str, default=None, help="The start time of validation data")
+    parser.add_argument("--end_time", type=str, default=None, help="The end time of validation data")
     parser.add_argument("--num_workers", type=int, default=1)
     parser.add_argument(
         "--load_state",
@@ -70,8 +70,8 @@ def get_predict_parser(subparsers):
     parser.add_argument(
         "--data_cfg", type=str, required=True, help="The data config and data source, s3 address"
     )
-    parser.add_argument("--start_time", type=str, required=True, help="The start time of prediction data")
-    parser.add_argument("--end_time", type=str, required=True, help="The end time of prediction data")
+    parser.add_argument("--start_time", type=str, default=None, help="The start time of prediction data")
+    parser.add_argument("--end_time", type=str, default=None, help="The end time of prediction data")
     parser.add_argument("--num_workers", type=int, default=1)
     parser.add_argument(
         "--load_state",

@@ -23,7 +23,7 @@ from .oss_utils import DiskAndOssSaverAdd
 from .serializer import dumps, loads
 from .utils import get_latest_updated_file, remove_prefix
 from .trainer_utils import create_supervised_trainer, prepare_batch, create_supervised_evaluator
-from .data_config import DataConfig, dict_to_data_config
+from .data_config import DataConfig, dict_to_data_cfg
 from .base_model import BaseModel
 from .oss_utils import get_bucket_from_oss_url
 
@@ -323,7 +323,7 @@ class Predictor:
 
         begin_point = self.verify_point(data_val, begin_point) if begin_point else begin_point
         assert (
-            begin_point <= data_val.index[-1] - self._data_cfg.indexer.look_forward
+            begin_point <= data_val.index[-1] - self._data_cfg.indexer.look_forward if begin_point else True
         ), "not enough true values left for validation"
         dataset = self.create_dataset(data_val, begin_point=begin_point, evaluate_mode=True)
 
@@ -376,8 +376,10 @@ class Predictor:
         plot=False,
     ):
         """Do smoke test on given dataset, take the last max sequence to do a prediction and plot"""
-        begin_point = self.verify_point(data, begin_point)
-        assert begin_point <= data.index[-1], "begin point should be not greater than last time point"
+        begin_point = self.verify_point(data, begin_point) if begin_point else begin_point
+        assert (
+            begin_point <= data.index[-1] if begin_point else True
+        ), "begin point should be not greater than last time point"
 
         dataset = self.create_dataset(data, begin_point=begin_point, evaluate_mode=True, predict_task=True)
 
@@ -533,7 +535,7 @@ class Predictor:
         if os.path.isfile(filepath):
             with open(filepath, "rb") as f:
                 state_dict = loads(f.read())
-                state_dict["params"]["data_cfg"] = dict_to_data_config(state_dict["params"]["data_cfg"])
+                state_dict["params"]["data_cfg"] = dict_to_data_cfg(state_dict["params"]["data_cfg"])
                 return Predictor.from_parameters(state_dict, save_dir, model_cls, new_save_dir)
 
     @classmethod
