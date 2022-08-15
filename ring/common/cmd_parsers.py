@@ -7,13 +7,13 @@ def get_train_parser(subparsers):
     parser.add_argument(
         "--data_cfg", type=str, required=True, help="The data config and data source, s3 address"
     )
-    parser.add_argument("--train_start_time", type=str, required=True, help="The start time of train data")
-    parser.add_argument("--train_end_time", type=str, required=True, help="The end time of train data")
+    parser.add_argument("--train_start_time", type=str, default=None, help="The start time of train data")
+    parser.add_argument("--train_end_time", type=str, default=None, help="The end time of train data")
     parser.add_argument(
-        "--valid_start_time", type=str, required=True, help="The start time of validation data, for earlystop"
+        "--valid_start_time", type=str, default=None, help="The start time of validation data, for earlystop"
     )
     parser.add_argument(
-        "--valid_end_time", type=str, required=True, help="The end time of validation data, for earlystop"
+        "--valid_end_time", type=str, default=None, help="The end time of validation data, for earlystop"
     )
     parser.add_argument(
         "--load_state",

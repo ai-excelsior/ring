@@ -13,7 +13,7 @@ def is_csv(s: str):
     return s.endswith(".csv")
 
 
-def read_from_url(url: str, **config) -> pd.DataFrame:
+def read_from_url(url: str, *args, **config) -> pd.DataFrame:
     if is_parquet(url):
         config.pop("parse_dates")
 
@@ -28,8 +28,22 @@ def read_from_url(url: str, **config) -> pd.DataFrame:
         filename = remove_prefix(url, "file://")
 
     if is_csv(filename):
-        return pd.read_csv(filename, thousands=",", **config)
+        df = pd.read_csv(filename, thousands=",", chunksize=1000, **config)
+        return pd.concat(
+            [
+                chunk[
+                    (chunk[config["parse_dates"][0]] >= args[0])
+                    & (chunk[config["parse_dates"][0]] <= args[1])
+                ]
+                for chunk in df
+            ]
+        )
     elif is_parquet(filename):
-        return pd.read_parquet(filename, **config)
+        df = pd.read_parquet(filename, **config)
+        return df[(df[config["parse_dates"][0]] >= args[0]) & (df[config["parse_dates"][0]] <= args[1])]
     else:
         raise TypeError("Only .csv .parq or .parquet can be accessed")
+
+
+# iter_csv = pd.read_csv("file.csv", iterator=True, chunksize=1000)
+# df = pd.concat([chunk[chunk["field"] > constant] for chunk in iter_csv])

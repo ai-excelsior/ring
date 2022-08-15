@@ -1,9 +1,12 @@
 from dataclasses import dataclass, field
 from typing import List, Dict, Optional
 
+from matplotlib.pyplot import vlines
+
 from .oss_utils import get_bucket_from_oss_url
 from .serializer import loads
 from .utils import remove_prefix
+from .data_utils import read_from_url
 
 
 @dataclass
@@ -59,7 +62,7 @@ class AnomalDataConfig:
     time_features: List[str] = field(default_factory=list)
 
 
-def dict_to_data_config(cfg: Dict) -> DataConfig:
+def dict_to_data_cfg(cfg: Dict) -> DataConfig:
     indexer = IndexerConfig(
         name=cfg["indexer"]["name"],
         look_back=cfg["indexer"]["look_back"],
@@ -86,7 +89,7 @@ def dict_to_data_config(cfg: Dict) -> DataConfig:
     return data_config
 
 
-def dict_to_data_config_anomal(cfg: Dict) -> DataConfig:
+def dict_to_data_cfg_anomal(cfg: Dict) -> DataConfig:
     indexer = AnomalIndexerConfig(
         name=cfg["indexer"]["name"],
         steps=cfg["indexer"]["steps"],
@@ -109,13 +112,60 @@ def dict_to_data_config_anomal(cfg: Dict) -> DataConfig:
     return data_config
 
 
-def url_to_data_config(url: str) -> DataConfig:
+def dict_to_data_config(cfg: Dict, *args):
+    data_cfg = dict_to_data_cfg(cfg["data_config"])
+    if len(args) == 2:
+        data = (
+            read_from_url(
+                cfg["data_source"]["path"],
+                parse_dates=[] if data_cfg.time is None else [data_cfg.time],
+                *args,
+            )
+            if cfg["data_source"]["type"] == "file"
+            else None
+        )
+    elif len(args) == 4:
+        data_train = (
+            read_from_url(
+                cfg["data_source"]["path"],
+                parse_dates=[] if data_cfg.time is None else [data_cfg.time],
+                *(args[0], args[1]),
+            )
+            if cfg["data_source"]["type"] == "file"
+            else None
+        )
+        data_val = (
+            read_from_url(
+                cfg["data_source"]["path"],
+                parse_dates=[] if data_cfg.time is None else [data_cfg.time],
+                *(args[2], args[3]),
+            )
+            if cfg["data_source"]["type"] == "file"
+            else None
+        )
+        data = (data_train, data_val)
+    else:
+        raise ValueError("start_time dont match with end_time")
+    return data_cfg, data
+
+
+def dict_to_data_config_anomal(cfg: Dict):
+    data_cfg = dict_to_data_cfg_anomal(cfg["data_config"])
+    data = (
+        read_from_url(cfg.data_source.path, parse_dates=[] if data_cfg.time is None else [data_cfg.time])
+        if cfg.data_source.type == "file"
+        else None
+    )
+    return data, data_cfg
+
+
+def url_to_data_config(url: str, *args) -> DataConfig:
     if url.startswith("file://"):
         with open(remove_prefix(url, "file://"), "r") as f:
-            return dict_to_data_config(loads(f.read()))
+            return dict_to_data_config(loads(f.read()), *args)
     elif url.startswith("oss://"):
         bucket, key = get_bucket_from_oss_url(url)
-        return dict_to_data_config(loads(bucket.get_object(key).read()))
+        return dict_to_data_config(loads(bucket.get_object(key).read()), *args)
 
     raise "url should be one of file:// or oss://"
 
