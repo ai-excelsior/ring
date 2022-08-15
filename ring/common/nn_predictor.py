@@ -295,7 +295,7 @@ class Predictor:
 
         return dict(params=params, dataset=dataset)
 
-    def _examine_point(self, data: pd.DataFrame, begin_point: str):
+    def _examine_point(self, data: pd.DataFrame, begin_point: str) -> int:
         try:  # if int like str
             begin_point = data[
                 data.index == data.index[0] + int(begin_point) - 1
@@ -313,7 +313,7 @@ class Predictor:
             ), "not enough length for look_back"
             return int(begin_point)
 
-    def verify_point(self, data: pd.DataFrame, begin_point: str) -> Dict:
+    def verify_point(self, data: pd.DataFrame, begin_point: str) -> Union[Dict, int]:
         if not self._data_cfg.group_ids:
             return self._examine_point(data, begin_point)
         else:
@@ -338,7 +338,7 @@ class Predictor:
             else begin_point <= data_val.index[-1] - self._data_cfg.indexer.look_forward
             if begin_point
             else True
-        ), "begin point should be not greater than last time point in all groups"
+        ), "begin point should be not greater than last time point - look_forward in all groups"
 
         dataset = self.create_dataset(data_val, begin_point=begin_point, evaluate_mode=True)
 
