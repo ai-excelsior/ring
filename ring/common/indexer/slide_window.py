@@ -22,7 +22,7 @@ class SlideWindowIndexer(BaseIndexer):
         self._group_ids = group_ids
         self._time_idx = time_idx
 
-    def index(self, data: pd.DataFrame, evaluate_mode: bool = False):
+    def index(self, data: pd.DataFrame, evaluate_mode: bool = False, begin_poing: str = None):
         """
         Create index of samples.
 

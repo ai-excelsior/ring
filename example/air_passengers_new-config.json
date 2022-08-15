@@ -1,0 +1,29 @@
+{
+    "data_config": {
+        "time": "ds",
+        "freq": "1MS",
+        "targets": [
+            "y"
+        ],
+        "group_ids": [],
+        "static_categoricals": [],
+        "static_reals": [],
+        "time_varying_known_categoricals": [
+            "cat"
+        ],
+        "time_varying_known_reals": [],
+        "time_varying_unknown_categoricals": [],
+        "time_varying_unknown_reals": [],
+        "indexer": {
+            "name": "slide_window",
+            "look_back": 4,
+            "look_forward": 2
+        },
+        "categoricals": [],
+        "time_features": []
+    },
+    "data_source": {
+        "type": "file",
+        "path": "file://data/air_passengers.csv"
+    }
+}
