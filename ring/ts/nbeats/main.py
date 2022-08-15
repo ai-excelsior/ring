@@ -61,17 +61,17 @@ def train(data_config: DataConfig, data_train: pd.DataFrame, data_val: pd.DataFr
     #     predictor.upload(kwargs["save_state"])
 
     # validate(kwargs.get("save_state", None), data_val)
-    validate(kwargs.get("save_state", None), data_val)
+    validate(kwargs.get("save_state", None), data_val, None)
 
 
-def validate(load_state: str, data_val: pd.DataFrame):
+def validate(load_state: str, data_val: pd.DataFrame, begin_point):
     """
     load a model and using this model to validate a given dataset
     """
     assert load_state is not None, "load_state is required when validate"
 
     predictor = Predictor.load(load_state, NbeatsNetwork)
-    predictor.validate(data_val)
+    predictor.validate(data_val, begin_point=begin_point)
 
 
 def predict(
@@ -79,6 +79,7 @@ def predict(
     data: pd.DataFrame,
     measurement: str = "prediction-dev",
     task_id: str = None,
+    begin_point: str = None,
 ):
     """
     load a model and predict with given dataset
@@ -86,8 +87,8 @@ def predict(
     assert load_state is not None, "load_state is required when validate"
 
     predictor = Predictor.load(load_state, NbeatsNetwork)
-    pred_df = predictor.predict(data, plot=True)
-    predictor.validate(data)
+    pred_df = predictor.predict(data, plot=True, begin_point=begin_point)
+    predictor.validate(data, begin_point=begin_point)
 
     predictions_to_influx(
         pred_df,
@@ -187,39 +188,35 @@ if __name__ == "__main__":
     if command == "train":
         assert 0 <= kwargs["dropout"] < 1, "dropout rate should be in the range of [0, 1)"
 
-        data_config = url_to_data_config(kwargs.pop("data_cfg"))
-
-        data_train = read_from_url(
-            kwargs.pop("data_train"),
-            parse_dates=[] if data_config.time is None else [data_config.time],
+        data_config, data = url_to_data_config(
+            kwargs.pop("data_cfg"),
+            kwargs.pop("train_start_time"),
+            kwargs.pop("train_end_time"),
+            kwargs.pop("valid_start_time"),
+            kwargs.pop("valid_end_time"),
         )
-        data_val = read_from_url(
-            kwargs.pop("data_val"),
-            parse_dates=[] if data_config.time is None else [data_config.time],
-        )
-        train(data_config, data_train, data_val, **kwargs)
+        train(data_config, data[0], data[1], **kwargs)
 
     elif command == "validate":
-        data_config = url_to_data_config(kwargs.pop("data_cfg"))
-
-        data_val = read_from_url(
-            kwargs.pop("data_val"),
-            parse_dates=[] if data_config.time is None else [data_config.time],
+        data_config, data = url_to_data_config(
+            kwargs.pop("data_cfg"),
+            kwargs.pop("start_time"),
+            kwargs.pop("end_time"),
         )
-        validate(kwargs.pop("load_state", None), data_val)
+        validate(kwargs.pop("load_state", None), data, kwargs.pop("begin_point"))
 
     elif command == "predict":
-        data_config = url_to_data_config(kwargs.pop("data_cfg"))
-
-        data = read_from_url(
-            kwargs.pop("data"),
-            parse_dates=[] if data_config.time is None else [data_config.time],
+        data_config, data = url_to_data_config(
+            kwargs.pop("data_cfg"),
+            kwargs.pop("start_time"),
+            kwargs.pop("end_time"),
         )
         predict(
             kwargs.pop("load_state", None),
             data,
             measurement=kwargs.pop("measurement"),
             task_id=kwargs.pop("task_id", None),
+            begin_point=kwargs.pop("begin_point"),
         )
     elif command == "serve":
         uvicorn.run(serve(kwargs.pop("load_state", None), kwargs.pop("data_cfg")))
