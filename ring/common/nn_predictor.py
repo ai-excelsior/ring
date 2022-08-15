@@ -300,7 +300,7 @@ class Predictor:
             begin_point = data[
                 data.index == data.index[0] + int(begin_point) - 1
                 if int(begin_point) > 0
-                else data.shape[0] + int(begin_point) + 1
+                else data.index[-1] + int(begin_point)
             ].index.to_numpy()
         except:  # if datetime like str
             begin_point = data[data[self._data_cfg.time] == begin_point].index.to_numpy()
