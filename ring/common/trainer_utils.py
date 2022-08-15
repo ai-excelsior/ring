@@ -144,10 +144,19 @@ def supervised_training_step(
             loss = y_backcast_ratio * loss_backward + (1 - y_backcast_ratio) * loss_forward
         # forward_loss
         elif isinstance(y_pred, torch.Tensor):
+            reverse_scale = lambda i, loss: loss.scale_prediction(
+                y_pred[..., loss_start_indices[i] : loss_end_indices[i]],
+                x["target_scales"][..., i],
+                normalizers[i],
+            )
 
-            loss = functools.reduce(
-                lambda a, b: a + b, [loss_fn(y_pred[..., i], y[..., i]) for i, loss_fn in enumerate(loss_fns)]
-            ) / len(loss_fns)
+            loss = (
+                functools.reduce(
+                    lambda a, b: a + b,
+                    [loss_fn(reverse_scale(i, loss_fn), y[..., i]) for i, loss_fn in enumerate(loss_fns)],
+                )
+                / len(loss_fns)
+            )
         # cutomized loss function addtion to `y_pred`:dagmm, no need to `reverse_transform`
         elif isinstance(y_pred, tuple):
             sample_energy = y_pred[0][0]
@@ -195,6 +204,11 @@ def supervised_evaluation_step(
         with torch.no_grad():
             x, y = prepare_batch(batch, device=device, non_blocking=non_blocking)
             y_pred = model(x)
+            reverse_scale = lambda i, loss: loss.scale_prediction(
+                y_pred[..., loss_start_indices[i] : loss_end_indices[i]],
+                x["target_scales"][..., i],
+                normalizers[i],
+            )
             if isinstance(y_pred, Dict):
                 try:
                     y_pred = y_pred["prediction"]
@@ -206,7 +220,7 @@ def supervised_evaluation_step(
                 raise TypeError("output of model must be one of torch.tensor or Dict")
 
             y_pred_scaled = torch.stack(
-                [loss_obj.to_prediction(y_pred[..., i]) for i, loss_obj in enumerate(loss_fns)],
+                [loss_obj.to_prediction(reverse_scale(i, loss_obj)) for i, loss_obj in enumerate(loss_fns)],
                 dim=-1,
             )
             return output_transform(x, y, y_pred_scaled)
