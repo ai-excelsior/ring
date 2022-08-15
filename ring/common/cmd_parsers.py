@@ -4,9 +4,11 @@ from typing import Union
 def get_train_parser(subparsers):
     parser = subparsers.add_parser("train", help="train a model")
     # parser = subparser
-    parser.add_argument("--data_cfg", type=str, required=True, help="The data config, s3 address")
-    parser.add_argument("--data_train", type=str, required=True, help="The train data source, s3 address")
-    parser.add_argument("--data_val", type=str, required=True, help="The val data source, s3 address")
+    parser.add_argument(
+        "--data", type=str, required=True, help="The data config and data file config, s3 address"
+    )
+    parser.add_argument("--start_time", type=str, required=True, help="The start time of train data")
+    parser.add_argument("--end_time", type=str, required=True, help="The end time of train data")
     parser.add_argument(
         "--load_state",
         type=str,
@@ -36,8 +38,11 @@ def get_train_parser(subparsers):
 
 def get_validate_parser(subparsers):
     parser = subparsers.add_parser("validate", help="validate a model, get validation metrics")
-    parser.add_argument("--data_cfg", type=str, required=True, help="The data config, s3 address")
-    parser.add_argument("--data_val", type=str, required=True, help="The val data source, s3 address")
+    parser.add_argument(
+        "--data", type=str, required=True, help="The data config and data file config, s3 address"
+    )
+    parser.add_argument("--start_time", type=str, required=True, help="The start time of validation data")
+    parser.add_argument("--end_time", type=str, required=True, help="The end time of validation data")
     parser.add_argument("--num_workers", type=int, default=1)
     parser.add_argument(
         "--load_state",
@@ -56,8 +61,11 @@ def get_validate_parser(subparsers):
 
 def get_predict_parser(subparsers):
     parser = subparsers.add_parser("predict", help="predict the last part of the given data")
-    parser.add_argument("--data_cfg", type=str, required=True, help="The data config, s3 address")
-    parser.add_argument("--data", type=str, required=True, help="The data source, s3 address")
+    parser.add_argument(
+        "--data", type=str, required=True, help="The data config and data file config, s3 address"
+    )
+    parser.add_argument("--start_time", type=str, required=True, help="The start time of prediction data")
+    parser.add_argument("--end_time", type=str, required=True, help="The end time of prediction data")
     parser.add_argument("--num_workers", type=int, default=1)
     parser.add_argument(
         "--load_state",
@@ -65,7 +73,6 @@ def get_predict_parser(subparsers):
         default=None,
         help="Load a pre-training model_state to do prediction, s3 address",
     )
-
     parser.add_argument(
         "--measurement",
         type=str,
