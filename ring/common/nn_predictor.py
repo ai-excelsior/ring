@@ -295,24 +295,29 @@ class Predictor:
 
         return dict(params=params, dataset=dataset)
 
-    def verify_point(self, data: pd.DataFrame, begin_point: str) -> Dict:
-        # TODO: should consider group_id
-        def fucc():
-            pass
+    def _examine_point(self, data: pd.DataFrame, begin_point: str):
+        try:  # if int like str
+            begin_point = data[
+                data.index == data.index[0] + int(begin_point) - 1
+                if int(begin_point) > 0
+                else data.shape[0] + int(begin_point) + 1
+            ].index.to_numpy()
+        except:  # if datetime like str
+            begin_point = data[data[self._data_cfg.time] == begin_point].index.to_numpy()
+        finally:
+            assert (
+                begin_point and begin_point > 0 and begin_point < data.index[-1]
+            ), "make sure begin_point is available in data"
+            assert (
+                begin_point >= data.index[0] + self._data_cfg.indexer.look_back - 1
+            ), "not enough length for look_back"
+            return int(begin_point)
 
-        try:
-            begin_point = int(begin_point) if int(begin_point) >= 0 else data.index[-1] + int(begin_point)
-        except:
-            begin_point = data.groupby(self._data_cfg.group_ids).apply(fucc).index.to_numpy()
+    def verify_point(self, data: pd.DataFrame, begin_point: str) -> Dict:
+        if not self._data_cfg.group_ids:
+            return self._examine_point(data, begin_point)
         else:
-            raise TypeError("begin_point should be int or datetime like str")
-        assert (
-            begin_point and begin_point > 0 and begin_point < data.index[-1]
-        ), "make sure begin_point is available in data"
-        assert (
-            begin_point >= data.index[0] + self._data_cfg.indexer.look_back - 1
-        ), "not enough length for look_back"
-        return begin_point
+            return data.groupby(self._data_cfg.group_ids).apply(self._fucc, begin_point).to_dict()
 
     def validate(
         self,
@@ -378,9 +383,8 @@ class Predictor:
         """Do smoke test on given dataset, take the last max sequence to do a prediction and plot"""
         begin_point = self.verify_point(data, begin_point) if begin_point else begin_point
         assert (
-            begin_point <= data.index[-1] if begin_point else True
+            max(begin_point) <= data.index[-1] if begin_point else True
         ), "begin point should be not greater than last time point"
-
         dataset = self.create_dataset(data, begin_point=begin_point, evaluate_mode=True, predict_task=True)
 
         # load model
