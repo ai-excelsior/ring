@@ -86,6 +86,7 @@ def predict(
     predictor = Predictor.load(load_state, ReccurentNetwork)
     pred_df = predictor.predict(data, plot=False, begin_point=begin_point)
     # predictor.validate(data)
+    pred_df.to_csv("example/xyz/uci_long_predict.csv")
     import matplotlib.pyplot as plt
 
     d = pd.read_csv("data/BE_pred.csv")
