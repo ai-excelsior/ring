@@ -645,6 +645,10 @@ class TimeSeriesDataset(Dataset):
         data_to_return[self.targets] = self._target_detrenders.inverse_transform(
             data_to_return, self._group_ids
         )
+        # caliberate changes caused by detrend
+        data_to_return.loc[decoder_indices, self.targets] = data_to_return.loc[
+            decoder_indices, self.targets
+        ].applymap(lambda x: 0 if np.isclose(x, 0) else x)
 
         return data_to_return
 
