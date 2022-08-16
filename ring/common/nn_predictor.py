@@ -333,7 +333,9 @@ class Predictor:
     ):
 
         begin_point = (
-            self.verify_point(data_val, begin_point) if begin_point else -self._data_cfg.indexer.look_forward
+            self.verify_point(data_val, begin_point)
+            if begin_point
+            else self.verify_point(data_val, -self._data_cfg.indexer.look_forward)
         )
         assert (
             [
