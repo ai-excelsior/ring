@@ -318,7 +318,8 @@ class Predictor:
 
     def verify_point(self, data: pd.DataFrame, begin_point: str) -> Union[Dict, int]:
         if not self._data_cfg.group_ids:
-            return self._examine_point(data, begin_point)
+            data.name = "prediction_data"
+            return {"prediction_data": self._examine_point(data, begin_point)}
         else:
             return data.groupby(self._data_cfg.group_ids).apply(self._examine_point, begin_point).to_dict()
 
@@ -402,7 +403,7 @@ class Predictor:
                 for grp, idx in begin_point.items()
             ]
             if begin_point and self._data_cfg.group_ids
-            else begin_point <= data.index[-1]
+            else begin_point[data.name] <= data.index[-1]
             if begin_point
             else True
         ), "begin point should be not greater than last time point in all groups"

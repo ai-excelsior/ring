@@ -1,5 +1,6 @@
 from sys import implementation
 from tokenize import group
+from attr import has
 import pandas as pd
 import numpy as np
 import torch
@@ -91,20 +92,42 @@ class TimeSeriesDataset(Dataset):
         self._unknown_lag_features = []
 
         if predict_task:  # do real prediction without true value
+            assert (
+                [
+                    idx
+                    >= data.groupby(group_ids).get_group(grp).index[0]
+                    + self._indexer._look_back
+                    + max([v.lags for _, v in lags.items()] if lags else [0])
+                    - 1
+                    for grp, idx in begin_point.items()
+                ]
+                if begin_point and group_ids
+                else begin_point[data.name]
+                >= data.index[0]
+                + self._indexer._look_back
+                + max([v.lags for _, v in lags.items()] if lags else [0])
+                - 1
+                if begin_point
+                else True
+            ), "begin point should take lags in consideration"
+
             # if future known features do not exist, we add rows of 0 for data
             # if future known features exist, we execute future unknown feature columns to be 0
             if not group_ids:  # directly set tail data to be 0
                 data = self._implement_forward(
-                    data, append=len(time_varying_known_categoricals + time_varying_known_reals) == 0
+                    data,
+                    has_known=len(time_varying_known_categoricals + time_varying_known_reals),
+                    begin_point=begin_point,
                 )
             else:  # seperately set tail data to be 0 for each group
                 data = (
                     data.groupby(group_ids)
                     .apply(
                         self._implement_forward,
-                        append=len(time_varying_known_categoricals + time_varying_known_reals) == 0,
+                        has_known=len(time_varying_known_categoricals + time_varying_known_reals),
+                        begin_point=begin_point,
                     )
-                    .droplevel(self._group_ids)
+                    .droplevel(group_ids)
                 )
 
         # `time_features` will not be added in `decoder_cont` or `encoder_cont`, they will be processed in model
@@ -161,6 +184,12 @@ class TimeSeriesDataset(Dataset):
 
         # initialize indexer
         data = add_time_idx(data, time_column_name=time, freq=freq)
+        if self._group_ids:  # convert begi
+            begin_point.update(
+                {grp[0]: grp[1].loc[begin_point[grp[0]], TIME_IDX] for grp in data.groupby(self._group_ids)}
+            )
+        else:
+            begin_point.update({k: data.loc[begin_point[k], TIME_IDX] for k, _ in begin_point.items()})
         data.sort_values([*self._group_ids, TIME_IDX], inplace=True)
         data.reset_index(drop=True, inplace=True)
 
@@ -614,24 +643,33 @@ class TimeSeriesDataset(Dataset):
 
         return data_to_return
 
-    def _implement_forward(self, data: pd.DataFrame, append: bool = False):
-        if append:
-            df_append = pd.DataFrame(
-                np.zeros((self._indexer._look_forward, data.shape[1])),
-                columns=data.columns,
-                index=[data.index[-1] + (i + 1) for i in range(self._indexer._look_forward)],
-            )
-            df_append[self._time] = pd.date_range(
-                start=data.iloc[-1][self._time],
-                periods=self._indexer._look_forward + 1,
-                freq=self._freq,
-                inclusive="neither",
-            )
-            df_append[self._group_ids] = data.name if self._group_ids else None
-            data = data.append(df_append)
+    def _implement_forward(
+        self, data: pd.DataFrame, begin_point: Union[Dict, int] = None, has_known: int = None
+    ):
+        if has_known:
+            if data.index[-1] - begin_point[data.name] - self._indexer._look_forward < 0:
+                raise ValueError("the begin point is too large to get enough time varing known features data")
         else:
-            data.loc[
-                data.index[-1] - self._indexer._look_forward + 1 :,
-                self._targets + self._time_varying_unknown_categoricals + self._time_varying_unknown_reals,
-            ] = 0
+            if data.index[-1] - begin_point[data.name] - self._indexer._look_forward < 0:
+                df_append = pd.DataFrame(
+                    np.zeros(
+                        (
+                            -data.index[-1] + begin_point[data.name] + self._indexer._look_forward,
+                            data.shape[1],
+                        )
+                    ),
+                    columns=data.columns,
+                    index=[
+                        data.index[-1] + (i + 1)
+                        for i in range(-data.index[-1] + begin_point[data.name] + self._indexer._look_forward)
+                    ],
+                )
+                df_append[self._time] = pd.date_range(
+                    start=data.iloc[-1][self._time],
+                    periods=-data.index[-1] + begin_point[data.name] + self._indexer._look_forward + 1,
+                    freq=self._freq,
+                    inclusive="neither",
+                )
+                df_append[self._group_ids] = data.name if self._group_ids else None
+                data = pd.concat([data, df_append], axis=0)
         return data
