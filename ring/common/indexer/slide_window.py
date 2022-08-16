@@ -99,7 +99,10 @@ class SlideWindowIndexer(BaseIndexer):
                     df_index = df_index[df_index["time_idx_begin"] == begin_point[PREDICTION_DATA]]
             else:  # evaluate_in_train
                 df_index = df_index[lambda x: (x["time_idx_last"] - x["time_idx"] + 1 <= sequence_length)]
-                df_index = df_index.loc[[df_index["sequence_length"].idxmax()]]
+                if len(self._group_ids) > 0:
+                    df_index = df_index.loc[df_index.groupby("group_id")["sequence_length"].idxmax()]
+                else:
+                    df_index = df_index.loc[[df_index["sequence_length"].idxmax()]]
 
         # check that all groups/series have at least one entry in the index
         if len(self._group_ids) > 0 and not group_ids.isin(df_index["group_id"]).all():
