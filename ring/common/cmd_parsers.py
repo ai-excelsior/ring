@@ -130,8 +130,8 @@ def get_predict_parser(subparsers):
     parser.add_argument(
         "--begin_point",
         type=str,
-        default=None,
-        help="Identify the begin poing of prediction,default=None means the last available point",
+        default=-1,
+        help="Identify the begin poing of prediction,default=-1 means the last available point",
     )
     return parser
 
