@@ -119,15 +119,15 @@ class TimeSeriesDataset(Dataset):
                     begin_point=begin_point,
                 )
             else:  # seperately set tail data to be 0 for each group
-                data = (
-                    data.groupby(group_ids)
-                    .apply(
-                        self._implement_forward,
-                        has_known=len(time_varying_known_categoricals + time_varying_known_reals),
-                        begin_point=begin_point,
-                    )
-                    .reset_index(drop=True)  # drop potential multiindex caused by groupby
+                data = data.groupby(group_ids).apply(
+                    self._implement_forward,
+                    has_known=len(time_varying_known_categoricals + time_varying_known_reals),
+                    begin_point=begin_point,
                 )
+                try:  # drop potential multiindex caused by groupby
+                    data = data.droplevel(self._group_ids)
+                except:
+                    pass
 
         # `time_features` will not be added in `decoder_cont` or `encoder_cont`, they will be processed in model
         # train/val/pred: do not add `time_features`
