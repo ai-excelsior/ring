@@ -86,19 +86,20 @@ class SlideWindowIndexer(BaseIndexer):
 
         # filter sequence based on given begin_point
         # availablity has been checked in previous sections
-        if begin_point:  # validate or predict
-            if len(self._group_ids) > 0:
-                df_index = pd.concat(
-                    [
-                        grp[1][grp[1]["time_idx_begin"] == begin_point[grp[0]]]
-                        for grp in df_index.groupby("group_id")
-                    ]
-                )
-            else:
-                df_index = df_index[df_index["time_idx_begin"] == begin_point[PREDICTION_DATA]]
-        elif evaluate_mode:  # evaluate_in_train
-            df_index = df_index[lambda x: (x["time_idx_last"] - x["time_idx"] + 1 <= sequence_length)]
-            df_index = df_index.loc[[df_index["sequence_length"].idxmax()]]
+        if evaluate_mode:
+            if begin_point:  # validate or predict
+                if len(self._group_ids) > 0:
+                    df_index = pd.concat(
+                        [
+                            grp[1][grp[1]["time_idx_begin"] == begin_point[grp[0]]]
+                            for grp in df_index.groupby("group_id")
+                        ]
+                    )
+                else:
+                    df_index = df_index[df_index["time_idx_begin"] == begin_point[PREDICTION_DATA]]
+            else:  # evaluate_in_train
+                df_index = df_index[lambda x: (x["time_idx_last"] - x["time_idx"] + 1 <= sequence_length)]
+                df_index = df_index.loc[[df_index["sequence_length"].idxmax()]]
 
         # check that all groups/series have at least one entry in the index
         if len(self._group_ids) > 0 and not group_ids.isin(df_index["group_id"]).all():
