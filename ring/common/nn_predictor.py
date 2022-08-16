@@ -332,7 +332,9 @@ class Predictor:
         begin_point: str = None,
     ):
 
-        begin_point = self.verify_point(data_val, begin_point) if begin_point else begin_point
+        begin_point = (
+            self.verify_point(data_val, begin_point) if begin_point else -self._data_cfg.indexer.look_forward
+        )
         assert (
             [
                 idx
@@ -340,10 +342,8 @@ class Predictor:
                 - self._data_cfg.indexer.look_forward
                 for grp, idx in begin_point.items()
             ]
-            if begin_point and self._data_cfg.group_ids
-            else begin_point <= data_val.index[-1] - self._data_cfg.indexer.look_forward
-            if begin_point
-            else True
+            if self._data_cfg.group_ids
+            else begin_point[data_val.name] <= data_val.index[-1] - self._data_cfg.indexer.look_forward
         ), "begin point should be not greater than last time point - look_forward in all groups"
 
         dataset = self.create_dataset(data_val, begin_point=begin_point, evaluate_mode=True)
