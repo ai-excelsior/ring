@@ -80,17 +80,13 @@ class SlideWindowIndexer(BaseIndexer):
             df_index["time_idx"].iloc[df_index["index_end"]].to_numpy() - df_index["time_idx"] + 1
         )
 
-        # filter too short sequences
+        # filter too short sequences and data has been added if necessary in prediction
         # sequence must be at least of minimal prediction length
-        # data has been added if necessary in prediction
         df_index = df_index[lambda x: (x["sequence_length"] >= sequence_length)]
 
-        # keep longest element per series (i.e. the first element that spans to the end of the series)
-        # filter all elements that are longer than the allowed maximum sequence length
-        if evaluate_mode:
-            # df_index = df_index[lambda x: (x["time_idx_last"] - x["time_idx"] + 1 <= sequence_length)]
-            # choose sequence based on begin point
-
+        # filter sequence based on given begin_point
+        # availablity has been checked in previous sections
+        if begin_point:  # validate or predict
             if len(self._group_ids) > 0:
                 df_index = pd.concat(
                     [
@@ -98,10 +94,11 @@ class SlideWindowIndexer(BaseIndexer):
                         for grp in df_index.groupby("group_id")
                     ]
                 )
-            #  df_index = df_index.loc[df_index.groupby("group_id")["sequence_length"].idxmax()]
             else:
                 df_index = df_index[df_index["time_idx_begin"] == begin_point[PREDICTION_DATA]]
-        #    df_index = df_index.loc[[df_index["sequence_length"].idxmax()]]
+        elif evaluate_mode:  # evaluate_in_train
+            df_index = df_index[lambda x: (x["time_idx_last"] - x["time_idx"] + 1 <= sequence_length)]
+            df_index = df_index.loc[[df_index["sequence_length"].idxmax()]]
 
         # check that all groups/series have at least one entry in the index
         if len(self._group_ids) > 0 and not group_ids.isin(df_index["group_id"]).all():

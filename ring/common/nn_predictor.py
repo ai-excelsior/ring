@@ -27,6 +27,8 @@ from .data_config import DataConfig, dict_to_data_cfg
 from .base_model import BaseModel
 from .oss_utils import get_bucket_from_oss_url
 
+PREDICTION_DATA = "_prediction_data_"
+
 
 def get_last_updated_model(filepath: str):
     files = glob(f"{filepath}{os.sep}*.pt")
@@ -318,8 +320,8 @@ class Predictor:
 
     def verify_point(self, data: pd.DataFrame, begin_point: str) -> Union[Dict, int]:
         if not self._data_cfg.group_ids:
-            data.name = "prediction_data"
-            return {"prediction_data": self._examine_point(data, begin_point)}
+            data.name = PREDICTION_DATA
+            return {PREDICTION_DATA: self._examine_point(data, begin_point)}
         else:
             return data.groupby(self._data_cfg.group_ids).apply(self._examine_point, begin_point).to_dict()
 
@@ -395,17 +397,17 @@ class Predictor:
         plot=False,
     ):
         """Do smoke test on given dataset, take the last max sequence to do a prediction and plot"""
-        begin_point = self.verify_point(data, begin_point) if begin_point else begin_point
+        if len(self._data_cfg.time_varying_known_categoricals + self._data_cfg.time_varying_known_reals) > 0:
+            begin_point = -self._data_cfg.indexer.look_forward  # last available point
+        begin_point = self.verify_point(data, begin_point)
         # TODO: assert should consider limits
         assert (
             [
                 idx <= data.groupby(self._data_cfg.group_ids).get_group(grp).index[-1]
                 for grp, idx in begin_point.items()
             ]
-            if begin_point and self._data_cfg.group_ids
+            if self._data_cfg.group_ids
             else begin_point[data.name] <= data.index[-1]
-            if begin_point
-            else True
         ), "begin point should be not greater than last time point in all groups"
         dataset = self.create_dataset(data, begin_point=begin_point, evaluate_mode=True, predict_task=True)
 

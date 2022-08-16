@@ -34,6 +34,7 @@ from torch.utils.data.sampler import RandomSampler
 
 STATIC_UNKNOWN_REAL_NAME = "_ZERO_"
 TIME_IDX = "_time_idx_"
+PREDICTION_DATA = "_prediction_data_"
 
 
 class TimeSeriesDataset(Dataset):
@@ -101,14 +102,12 @@ class TimeSeriesDataset(Dataset):
                     - 1
                     for grp, idx in begin_point.items()
                 ]
-                if begin_point and group_ids
+                if group_ids
                 else begin_point[data.name]
                 >= data.index[0]
                 + self._indexer._look_back
                 + max([v.lags for _, v in lags.items()] if lags else [0])
                 - 1
-                if begin_point
-                else True
             ), "begin point should take lags in consideration"
 
             # if future known features do not exist, we add rows of 0 for data
@@ -127,7 +126,7 @@ class TimeSeriesDataset(Dataset):
                         has_known=len(time_varying_known_categoricals + time_varying_known_reals),
                         begin_point=begin_point,
                     )
-                    .droplevel(group_ids)
+                    .reset_index(drop=True)  # drop potential multiindex caused by groupby
                 )
 
         # `time_features` will not be added in `decoder_cont` or `encoder_cont`, they will be processed in model
@@ -184,12 +183,17 @@ class TimeSeriesDataset(Dataset):
 
         # initialize indexer
         data = add_time_idx(data, time_column_name=time, freq=freq)
-        if self._group_ids:  # convert begi
-            begin_point.update(
-                {grp[0]: grp[1].loc[begin_point[grp[0]], TIME_IDX] for grp in data.groupby(self._group_ids)}
-            )
-        else:
-            begin_point.update({k: data.loc[begin_point[k], TIME_IDX] for k, _ in begin_point.items()})
+        if begin_point:  # only validate and predict, not train and evaluate_in_train
+            if self._group_ids:  # convert value of begin_point to `TIME_IDX`
+                begin_point.update(
+                    {
+                        grp[0]: grp[1].loc[begin_point[grp[0]], TIME_IDX]
+                        for grp in data.groupby(self._group_ids)
+                    }
+                )
+            else:
+                begin_point.update({k: data.loc[begin_point[k], TIME_IDX] for k, _ in begin_point.items()})
+
         data.sort_values([*self._group_ids, TIME_IDX], inplace=True)
         data.reset_index(drop=True, inplace=True)
 
@@ -261,7 +265,8 @@ class TimeSeriesDataset(Dataset):
 
         # remove nan caused by lag shift, apply index
         self._data = data.dropna().reset_index(drop=True)
-        # TODO: integrate begin_point
+        self._data.name = PREDICTION_DATA
+        # begin point only works in predict and validate
         self._indexer.index(self._data, evaluate_mode, begin_point)
 
     @property
@@ -650,7 +655,7 @@ class TimeSeriesDataset(Dataset):
             if data.index[-1] - begin_point[data.name] - self._indexer._look_forward < 0:
                 raise ValueError("the begin point is too large to get enough time varing known features data")
         else:
-            if data.index[-1] - begin_point[data.name] - self._indexer._look_forward < 0:
+            if data.index[-1] - begin_point[data.name] - self._indexer._look_forward < 0:  # need fill
                 df_append = pd.DataFrame(
                     np.zeros(
                         (
