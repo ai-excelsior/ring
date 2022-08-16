@@ -408,7 +408,7 @@ class Predictor:
             ]
             if self._data_cfg.group_ids
             else begin_point[data.name] <= data.index[-1]
-        ), "begin point should be not greater than last time point in all groups"
+        ), "begin point should be no greater than last time point in all groups"
         dataset = self.create_dataset(data, begin_point=begin_point, evaluate_mode=True, predict_task=True)
 
         # load model
