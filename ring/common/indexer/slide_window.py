@@ -7,6 +7,8 @@ from .base import BaseIndexer
 from .utils import find_end_indices
 from ring.common.sample.histogram import ScaleHistogram
 
+PREDICTION_DATA = "_prediction_data_"
+
 
 class SlideWindowIndexer(BaseIndexer):
     def __init__(
@@ -22,7 +24,7 @@ class SlideWindowIndexer(BaseIndexer):
         self._group_ids = group_ids
         self._time_idx = time_idx
 
-    def index(self, data: pd.DataFrame, evaluate_mode: bool = False, begin_poing: str = None):
+    def index(self, data: pd.DataFrame, evaluate_mode: bool = False, begin_point: str = None):
         """
         Create index of samples.
 
@@ -33,7 +35,7 @@ class SlideWindowIndexer(BaseIndexer):
 
         if len(self._group_ids) > 0:
             g = data.groupby(self._group_ids, observed=True)
-            group_ids = g.ngroup()
+            group_ids = data[self._group_ids].squeeze()  # in order to match that in begin_point dict
 
             df_time_idx_first = g[self._time_idx].transform("nth", 0).to_frame("time_idx_first")
             df_time_idx_last = g[self._time_idx].transform("nth", -1).to_frame("time_idx_last")
@@ -41,14 +43,17 @@ class SlideWindowIndexer(BaseIndexer):
                 -g[self._time_idx].diff(-1).fillna(-1).astype(int).to_frame("time_idx_to_next")
             )
             df_index = pd.concat([df_time_idx_first, df_time_idx_last, df_time_idx_to_next], axis=1)
-            df_index["group_id"] = group_ids
+            df_index["group_id"] = data[self._group_ids]
         else:
             df_index = -data[self._time_idx].diff(-1).fillna(-1).astype(int).to_frame("time_idx_to_next")
             df_index["time_idx_first"] = int(data.iloc[0][self._time_idx])
             df_index["time_idx_last"] = int(data.iloc[-1][self._time_idx])
 
         df_index["index_start"] = np.arange(len(df_index))
+        # the begin of sequence
         df_index["time_idx"] = data[self._time_idx]
+        # the last of look_back point
+        df_index["time_idx_begin"] = df_index["time_idx"] + self._look_back - 1
 
         sequence_length = self._look_back + self._look_forward
 
@@ -77,23 +82,29 @@ class SlideWindowIndexer(BaseIndexer):
 
         # filter too short sequences
         # sequence must be at least of minimal prediction length
+        # data has been added if necessary in prediction
         df_index = df_index[lambda x: (x["sequence_length"] >= sequence_length)]
 
         # keep longest element per series (i.e. the first element that spans to the end of the series)
         # filter all elements that are longer than the allowed maximum sequence length
         if evaluate_mode:
-            df_index = df_index[
-                lambda x: (x["time_idx_last"] - x["time_idx"] + 1 <= sequence_length)
-                & (x["sequence_length"] >= sequence_length)
-            ]
-            # choose longest sequence
+            # df_index = df_index[lambda x: (x["time_idx_last"] - x["time_idx"] + 1 <= sequence_length)]
+            # choose sequence based on begin point
+
             if len(self._group_ids) > 0:
-                df_index = df_index.loc[df_index.groupby("group_id")["sequence_length"].idxmax()]
+                df_index = pd.concat(
+                    [
+                        grp[1][grp[1]["time_idx_begin"] == begin_point[grp[0]]]
+                        for grp in df_index.groupby("group_id")
+                    ]
+                )
+            #  df_index = df_index.loc[df_index.groupby("group_id")["sequence_length"].idxmax()]
             else:
-                df_index = df_index.loc[[df_index["sequence_length"].idxmax()]]
+                df_index = df_index[df_index["time_idx_begin"] == begin_point[PREDICTION_DATA]]
+        #    df_index = df_index.loc[[df_index["sequence_length"].idxmax()]]
 
         # check that all groups/series have at least one entry in the index
-        if len(self._group_ids) and not group_ids.isin(df_index["group_id"]).all():
+        if len(self._group_ids) > 0 and not group_ids.isin(df_index["group_id"]).all():
             missing_groups = data.loc[
                 ~group_ids.isin(df_index["group_id"]), self._group_ids
             ].drop_duplicates()
