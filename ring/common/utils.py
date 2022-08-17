@@ -7,6 +7,8 @@ from pandas.tseries.frequencies import to_offset
 import warnings
 import numbers
 
+UNKNOWN_CAT = "UNKNOWN"
+
 
 def to_prediction(y_pred: torch.Tensor, quantiles: List[float] = None):
     """
@@ -236,4 +238,4 @@ def num_samples(x):
 def map_to_integer(values, uniques):
     """Map values based on its position in uniques."""
     table = {val: i for i, val in enumerate(uniques)}
-    return np.array([table[v] if v in table else table["UNKNOWN"] for v in values])
+    return np.array([table[v] if v in table else table[UNKNOWN_CAT] for v in values])

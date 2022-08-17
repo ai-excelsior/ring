@@ -158,7 +158,10 @@ class Predictor:
         else:
             dataset_val = self.create_dataset(
                 data_val,
-                begin_point=self.verify_point(data_val, -self._data_cfg.indexer.look_forward - 1),
+                begin_point=self.verify_point(
+                    data_val,
+                    -self._data_cfg.indexer.look_forward - 1,
+                ),
             )
 
         batch_size = self._trainer_cfg.get("batch_size", 64)
@@ -352,7 +355,6 @@ class Predictor:
         model_filename=None,
         begin_point: str = None,
     ):
-
         begin_point = (
             self.verify_point(data_val, begin_point)
             if begin_point
@@ -420,10 +422,12 @@ class Predictor:
         plot=False,
     ):
         """Do smoke test on given dataset, take the last max sequence to do a prediction and plot"""
+        data = data[data["id"] < 4]
+        data["id"] = data["id"].apply(lambda x: 2000 if x == 3 else x)
         if len(self._data_cfg.time_varying_known_categoricals + self._data_cfg.time_varying_known_reals) > 0:
             begin_point = -self._data_cfg.indexer.look_forward - 1  # last available point
         begin_point = self.verify_point(data, begin_point)
-        # TODO: assert should consider limits
+
         assert (
             [
                 idx <= data.groupby(self._data_cfg.group_ids).get_group(grp).index[-1]

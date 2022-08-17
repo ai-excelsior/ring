@@ -10,6 +10,7 @@ import numpy as np
 import torch
 
 ENCODERS: Dict[str, "AbstractEncoder"] = {}
+UNKNOWN_CAT = "UNKNOWN"
 
 
 def serialize_encoder(obj: "AbstractEncoder"):
@@ -106,7 +107,7 @@ class PlainEncoder(AbstractEncoder):
 class LabelEncoder(AbstractEncoder):
     def fit_self(self, y: pd.Series):
         y = column_or_1d(y, warn=True)
-        self._state = ["UNKNOWN"] + sorted(set(y))
+        self._state = [UNKNOWN_CAT] + sorted(set(y))
         return self
 
     def transform_self(self, y: pd.Series, **kwargs) -> pd.Series:
@@ -133,7 +134,7 @@ class OrdinalEncoder(AbstractEncoder):
     def fit_self(self, y: pd.Series, reverse=False):
         y = column_or_1d(y, warn=True)
         # in appear order
-        self._state = ["UNKNOWN"] + sorted(list(set(y)), key=list(y).index, reverse=reverse)
+        self._state = [UNKNOWN_CAT] + sorted(list(set(y)), key=list(y).index, reverse=reverse)
         return self
 
     def transform_self(self, y: pd.Series, **kwargs) -> pd.Series:
