@@ -24,13 +24,13 @@ class SlideWindowIndexer(BaseIndexer):
         self._group_ids = group_ids
         self._time_idx = time_idx
 
-    def index(self, data: pd.DataFrame, evaluate_mode: bool = False, begin_point: str = None):
+    def index(self, data: pd.DataFrame, begin_point: str = None):
         """
         Create index of samples.
 
         Args:
             data (pd.DataFrame): preprocessed data
-            evaluate_mode (bool): if to create one same per group with prediction length equals ``max_decoder_length``
+            begin_point (bool): the last point of look_back to guide sequence filter
         """
 
         if len(self._group_ids) > 0:
@@ -86,23 +86,16 @@ class SlideWindowIndexer(BaseIndexer):
 
         # filter sequence based on given begin_point
         # availablity has been checked in previous sections
-        if evaluate_mode:
-            if begin_point:  # validate or predict
-                if len(self._group_ids) > 0:
-                    df_index = pd.concat(
-                        [
-                            grp[1][grp[1]["time_idx_begin"] == begin_point[grp[0]]]
-                            for grp in df_index.groupby("group_id")
-                        ]
-                    )
-                else:
-                    df_index = df_index[df_index["time_idx_begin"] == begin_point[PREDICTION_DATA]]
-            else:  # evaluate_in_train
-                df_index = df_index[lambda x: (x["time_idx_last"] - x["time_idx"] + 1 <= sequence_length)]
-                if len(self._group_ids) > 0:
-                    df_index = df_index.loc[df_index.groupby("group_id")["sequence_length"].idxmax()]
-                else:
-                    df_index = df_index.loc[[df_index["sequence_length"].idxmax()]]
+        if begin_point:  # validate or predict or evaluate_in_train
+            if len(self._group_ids) > 0:
+                df_index = pd.concat(
+                    [
+                        grp[1][grp[1]["time_idx_begin"] == begin_point[grp[0]]]
+                        for grp in df_index.groupby("group_id")
+                    ]
+                )
+            else:
+                df_index = df_index[df_index["time_idx_begin"] == begin_point[PREDICTION_DATA]]
 
         # check that all groups/series have at least one entry in the index
         if len(self._group_ids) > 0 and not group_ids.isin(df_index["group_id"]).all():

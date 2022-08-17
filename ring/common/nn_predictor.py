@@ -156,7 +156,10 @@ class Predictor:
         if isinstance(data_val, TimeSeriesDataset):
             dataset_val = data_val
         else:
-            dataset_val = self.create_dataset(data_val, evaluate_mode=True)
+            dataset_val = self.create_dataset(
+                data_val,
+                begin_point=self.verify_point(data_val, -self._data_cfg.indexer.look_forward),
+            )
 
         batch_size = self._trainer_cfg.get("batch_size", 64)
         if self.enable_gpu:
@@ -348,7 +351,7 @@ class Predictor:
             else begin_point[data_val.name] <= data_val.index[-1] - self._data_cfg.indexer.look_forward
         ), "begin point should be not greater than last time point - look_forward in all groups"
 
-        dataset = self.create_dataset(data_val, begin_point=begin_point, evaluate_mode=True)
+        dataset = self.create_dataset(data_val, begin_point=begin_point)
 
         # load model
         if model_filename is None:
@@ -411,7 +414,7 @@ class Predictor:
             if self._data_cfg.group_ids
             else begin_point[data.name] <= data.index[-1]
         ), "begin point should be no greater than last time point in all groups"
-        dataset = self.create_dataset(data, begin_point=begin_point, evaluate_mode=True, predict_task=True)
+        dataset = self.create_dataset(data, begin_point=begin_point, predict_task=True)
 
         # load model
         # load model

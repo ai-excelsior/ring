@@ -58,7 +58,6 @@ class TimeSeriesDataset(Dataset):
         cont_scalars: List[StandardNormalizer] = [],
         target_detrenders: Union[callable, None] = None,
         # toggles
-        evaluate_mode=False,  # using predict mode to index
         predict_task=False,  # whether to conduct a real prediciton task
         enable_static_as_covariant=True,
         add_static_known_real=None,  # add zero to time varying known (decoder part) field
@@ -89,24 +88,10 @@ class TimeSeriesDataset(Dataset):
         self._known_lag_features = []
         self._unknown_lag_features = []
 
-        if predict_task:  # do real prediction without true value
-            assert (
-                [
-                    idx
-                    >= data.groupby(group_ids).get_group(grp).index[0]
-                    + self._indexer._look_back
-                    + max([v.lags for _, v in lags.items()] if lags else [0])
-                    - 1
-                    for grp, idx in begin_point.items()
-                ]
-                if group_ids
-                else begin_point[data.name]
-                >= data.index[0]
-                + self._indexer._look_back
-                + max([v.lags for _, v in lags.items()] if lags else [0])
-                - 1
-            ), "begin point should take lags in consideration"
+        # evaluate_in_train will also create begin_point automatically
+        self._verify_lags(data, begin_point)
 
+        if predict_task:  # do real prediction without true value
             # if future known features do not exist, we add rows of 0 for data
             # if future known features exist, we execute future unknown feature columns to be 0
             if not group_ids:  # directly set tail data to be 0
@@ -128,7 +113,7 @@ class TimeSeriesDataset(Dataset):
 
         # `time_features` will not be added in `decoder_cont` or `encoder_cont`, they will be processed in model
         # train/val/pred: do not add `time_features`
-        if time_features is None or (not time_features and evaluate_mode):
+        if time_features is None or (not time_features and begin_point):
             self._time_features = []
         # train/val/pred: `time_features` already all in data
         elif time_features and not sum([item not in data.columns for item in time_features]):
@@ -264,7 +249,7 @@ class TimeSeriesDataset(Dataset):
         self._data = data.dropna().reset_index(drop=True)
         self._data.name = PREDICTION_DATA
         # begin point only works in predict and validate
-        self._indexer.index(self._data, evaluate_mode, begin_point)
+        self._indexer.index(self._data, begin_point)
 
     @property
     def targets(self):
@@ -381,7 +366,6 @@ class TimeSeriesDataset(Dataset):
                 "data",
                 "indexer",
                 "target_normalizer",
-                "evaluate_mode",
                 "predict_task",
                 "begin_point",
             ]
@@ -679,3 +663,23 @@ class TimeSeriesDataset(Dataset):
                 df_append[self._group_ids] = data.name if self._group_ids else None
                 data = pd.concat([data, df_append], axis=0)
         return data
+
+    def _verify_lags(self, data, begin_point):
+        assert (
+            [
+                idx
+                >= data.groupby(self._group_ids).get_group(grp).index[0]
+                + self._indexer._look_back
+                + max([v.lags for _, v in self._lags.items()] if self._lags else [0])
+                - 1
+                for grp, idx in begin_point.items()
+            ]
+            if self._group_ids
+            else begin_point[data.name]
+            >= data.index[0]
+            + self._indexer._look_back
+            + max([v.lags for _, v in self._lags.items()] if self._lags else [0])
+            - 1
+            if begin_point
+            else True
+        ), "begin point should take lags in consideration"
