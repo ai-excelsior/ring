@@ -694,7 +694,7 @@ class TimeSeriesDataset(Dataset):
                 - 1
                 for grp, idx in begin_point.items()
             ]
-            if self._group_ids
+            if self._group_ids and begin_point
             else begin_point[data.name]
             >= data.index[0]
             + self._indexer._look_back
