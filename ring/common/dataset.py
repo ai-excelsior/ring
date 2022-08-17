@@ -586,6 +586,17 @@ class TimeSeriesDataset(Dataset):
         inverse_scale_target=True,
         columns: List[str] = None,
     ):
+        """inverse columns to original state
+
+        Args:
+            encoder_indices (List[int]): look_back sequence
+            decoder_indices (List[int]): look_forward sequence
+            inverse_scale_target (bool, optional): whether inverse target back. Defaults to True.
+            columns (List[str], optional): columns to do inverse_transform
+
+        Returns:
+            _type_: _description_
+        """
         if columns is None:
             if self._time is None:
                 columns = [*self._group_ids, *self._targets]
@@ -628,8 +639,8 @@ class TimeSeriesDataset(Dataset):
         return data_to_return
 
     def _implement_forward(self, data: pd.DataFrame, begin_point: Dict = None, has_known: int = None):
-        """if future known features do not exist, we implement rows of 0 for data if needed
-        if future known features exist, we check whether there has enough rows left in data
+        """if future known features do not exist, implement rows of 0 for data if needed
+        if future known features exist, check whether there has enough rows left in data
 
         Args:
             data (pd.DataFrame): data to do predict
@@ -637,7 +648,7 @@ class TimeSeriesDataset(Dataset):
             has_known (int) : number of future known features
 
         Returns:
-            _type_: _description_
+            Union[None,pd.DataFrame]: data after append if needed or None
         """
         if has_known:
             if data.index[-1] - begin_point[data.name] - self._indexer._look_forward < 0:
@@ -691,4 +702,4 @@ class TimeSeriesDataset(Dataset):
             - 1
             if begin_point
             else True
-        ), "begin point should take lags in consideration"
+        ), "not enough length for look_back due to lags"

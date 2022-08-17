@@ -309,7 +309,7 @@ class Predictor:
             begin_point (str): the last point of look_back, both int-like and datetime-like str
 
         Returns:
-            int: index of begin_point in data.index
+            (int): index of begin_point in data.index
         """
         try:  # if int-like str
             begin_point = data[
