@@ -1,32 +1,29 @@
 {
     "data_config": {
-        "time": "Date",
-        "freq": "H",
+        "time": "datetime",
+        "freq": "MS",
         "targets": [
-            " Prices"
+            "sales"
         ],
-        "group_ids": [],
+        "group_ids": [
+            "id"
+        ],
         "static_categoricals": [],
         "static_reals": [],
         "time_varying_known_categoricals": [],
         "time_varying_known_reals": [],
         "time_varying_unknown_categoricals": [],
-        "time_varying_unknown_reals": [
-            " Generation forecast",
-            " System load forecast"
-        ],
+        "time_varying_unknown_reals": [],
         "categoricals": [],
         "indexer": {
             "name": "slide_window",
-            "look_back": 168,
-            "look_forward": 26
+            "look_back": 10,
+            "look_forward": 5
         },
-        "time_features": [],
-        "detrend": true,
-        "lags": {}
+        "time_features": []
     },
     "data_source": {
         "type": "file",
-        "path": "file://example/xyz/BE.csv"
+        "path": "file://data/parts_train.csv"
     }
 }
