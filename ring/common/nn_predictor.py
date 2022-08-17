@@ -307,7 +307,7 @@ class Predictor:
                 == (
                     data.index[0] + int(begin_point) - 1
                     if int(begin_point) > 0
-                    else data.index[-1] + int(begin_point)
+                    else data.index[-1] + int(begin_point) + 1
                 )
             ].index.to_numpy()
         except:  # if datetime like str
@@ -322,6 +322,16 @@ class Predictor:
             return int(begin_point)
 
     def verify_point(self, data: pd.DataFrame, begin_point: str) -> Union[Dict, int]:
+        """verify whether `begin_point` satisfy basic requirements, no lags take in consideration
+
+        Args:
+            data (pd.DataFrame): data to do evaluate/validate/predict
+            begin_point (str): the last point of look_back, both int-like and datetime-like str
+
+        Returns:
+            Union[Dict, int]: key indicates the value of group_ids(if no groups, then `PREDICTION_DATA`),
+            value indicates the index of begin_point in data
+        """
         if not self._data_cfg.group_ids:
             data.name = PREDICTION_DATA
             return {PREDICTION_DATA: self._examine_point(data, begin_point)}
