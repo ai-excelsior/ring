@@ -123,7 +123,7 @@ def dict_to_data_config(cfg: Dict, *args):
             )
             if cfg["data_source"]["type"] == "file"
             else None
-        )
+        ).sort_values([*data_cfg.group_ids, data_cfg.time], ignore_index=True)
     elif len(args) == 4:
         data_train = (
             read_from_url(
@@ -133,7 +133,7 @@ def dict_to_data_config(cfg: Dict, *args):
             )
             if cfg["data_source"]["type"] == "file"
             else None
-        ).sort_values([*data_cfg.group_ids, data_cfg.time], inplace=True, ignore_index=True)
+        ).sort_values([*data_cfg.group_ids, data_cfg.time], ignore_index=True)
         data_val = (
             read_from_url(
                 cfg["data_source"]["path"],
@@ -142,7 +142,7 @@ def dict_to_data_config(cfg: Dict, *args):
             )
             if cfg["data_source"]["type"] == "file"
             else None
-        ).sort_values([*data_cfg.group_ids, data_cfg.time], inplace=True, ignore_index=True)
+        ).sort_values([*data_cfg.group_ids, data_cfg.time], ignore_index=True)
         data = (data_train, data_val)
     else:
         raise ValueError("start_time dont match with end_time")
