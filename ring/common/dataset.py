@@ -43,7 +43,7 @@ class TimeSeriesDataset(Dataset):
         indexer: BaseIndexer,
         targets: List[str],
         group_ids: List[str] = [],
-        # 支持的协变量们
+        # covariates
         static_categoricals: List[str] = [],
         static_reals: List[str] = [],
         time_varying_known_categoricals: List[str] = [],
@@ -63,6 +63,7 @@ class TimeSeriesDataset(Dataset):
         add_static_known_real=None,  # add zero to time varying known (decoder part) field
         # seasonality
         lags: Union[Dict, None] = None,
+        # last point of look_back, works in predict, validate, evaluate_in_train
         begin_point: str = None,
     ) -> None:
         self._data = data
@@ -92,15 +93,13 @@ class TimeSeriesDataset(Dataset):
         self._verify_lags(data, begin_point)
 
         if predict_task:  # do real prediction without true value
-            # if future known features do not exist, we add rows of 0 for data
-            # if future known features exist, we execute future unknown feature columns to be 0
-            if not group_ids:  # directly set tail data to be 0
+            if not group_ids:
                 data = self._implement_forward(
                     data,
                     has_known=len(time_varying_known_categoricals + time_varying_known_reals),
                     begin_point=begin_point,
                 )
-            else:  # seperately set tail data to be 0 for each group
+            else:
                 data = data.groupby(group_ids).apply(
                     self._implement_forward,
                     has_known=len(time_varying_known_categoricals + time_varying_known_reals),
@@ -626,7 +625,7 @@ class TimeSeriesDataset(Dataset):
         data_to_return[self.targets] = self._target_detrenders.inverse_transform(
             data_to_return, self._group_ids
         )
-        # caliberate changes caused by detrend
+        # caliberate bias caused by detrend, tolerance is default as 1e-8
         data_to_return.loc[decoder_indices, self.targets] = data_to_return.loc[
             decoder_indices, self.targets
         ].applymap(lambda x: 0 if np.isclose(x, 0) else x)
@@ -636,6 +635,10 @@ class TimeSeriesDataset(Dataset):
     def _implement_forward(
         self, data: pd.DataFrame, begin_point: Union[Dict, int] = None, has_known: int = None
     ):
+        """
+        # if future known features do not exist, we implement rows of 0 for data if needed
+        # if future known features exist, we check whether there has enough rows left in data
+        """
         if has_known:
             if data.index[-1] - begin_point[data.name] - self._indexer._look_forward < 0:
                 raise ValueError("the begin point is too large to get enough time varing known features data")
@@ -665,6 +668,9 @@ class TimeSeriesDataset(Dataset):
         return data
 
     def _verify_lags(self, data, begin_point):
+        """
+        verify whether the `begin_point` is too small to include lags
+        """
         assert (
             [
                 idx

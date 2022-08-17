@@ -86,7 +86,7 @@ class SlideWindowIndexer(BaseIndexer):
 
         # filter sequence based on given begin_point
         # availablity has been checked in previous sections
-        if begin_point:  # validate or predict or evaluate_in_train
+        if begin_point:  # validate or predict or evaluate
             if len(self._group_ids) > 0:
                 df_index = pd.concat(
                     [

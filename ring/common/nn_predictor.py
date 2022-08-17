@@ -158,7 +158,7 @@ class Predictor:
         else:
             dataset_val = self.create_dataset(
                 data_val,
-                begin_point=self.verify_point(data_val, -self._data_cfg.indexer.look_forward),
+                begin_point=self.verify_point(data_val, -self._data_cfg.indexer.look_forward - 1),
             )
 
         batch_size = self._trainer_cfg.get("batch_size", 64)
@@ -313,9 +313,7 @@ class Predictor:
         except:  # if datetime like str
             begin_point = data[data[self._data_cfg.time] == begin_point].index.to_numpy()
         finally:
-            assert (
-                begin_point and begin_point > 0 and begin_point < data.index[-1]
-            ), "make sure begin_point is available in data"
+            assert begin_point, "make sure begin_point is available in data"
             assert (
                 begin_point >= data.index[0] + self._data_cfg.indexer.look_back - 1
             ), "not enough length for look_back"
@@ -348,7 +346,7 @@ class Predictor:
         begin_point = (
             self.verify_point(data_val, begin_point)
             if begin_point
-            else self.verify_point(data_val, -self._data_cfg.indexer.look_forward)
+            else self.verify_point(data_val, -self._data_cfg.indexer.look_forward - 1)
         )
         assert (
             [
@@ -413,7 +411,7 @@ class Predictor:
     ):
         """Do smoke test on given dataset, take the last max sequence to do a prediction and plot"""
         if len(self._data_cfg.time_varying_known_categoricals + self._data_cfg.time_varying_known_reals) > 0:
-            begin_point = -self._data_cfg.indexer.look_forward  # last available point
+            begin_point = -self._data_cfg.indexer.look_forward - 1  # last available point
         begin_point = self.verify_point(data, begin_point)
         # TODO: assert should consider limits
         assert (
