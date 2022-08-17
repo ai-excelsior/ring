@@ -86,7 +86,7 @@ def get_validate_parser(subparsers):
         "--begin_point",
         type=str,
         default=None,
-        help="Identify the begin point of validation, default=None means the last available point",
+        help="Identify the position/time of begin point of validation, default=None means the last available point",
     )
     return parser
 
@@ -131,7 +131,7 @@ def get_predict_parser(subparsers):
         "--begin_point",
         type=str,
         default=-1,
-        help="Identify the begin poing of prediction,default=-1 means the last available point",
+        help="Identify the position/time of begin point of prediction, default=-1 means the last available point",
     )
     return parser
 
