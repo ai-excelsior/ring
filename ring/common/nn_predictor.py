@@ -301,7 +301,17 @@ class Predictor:
         return dict(params=params, dataset=dataset)
 
     def _examine_point(self, data: pd.DataFrame, begin_point: str) -> int:
-        try:  # if int like str
+        """convert and check whether `begin_point` satisfy basic requirements,
+           no lags take in consideration
+
+        Args:
+            data (pd.DataFrame): data to do evaluate/validate/predict
+            begin_point (str): the last point of look_back, both int-like and datetime-like str
+
+        Returns:
+            int: index of begin_point in data.index
+        """
+        try:  # if int-like str
             begin_point = data[
                 data.index
                 == (
@@ -310,7 +320,7 @@ class Predictor:
                     else data.index[-1] + int(begin_point) + 1
                 )
             ].index.to_numpy()
-        except:  # if datetime like str
+        except:  # if datetime-like str
             begin_point = data[data[self._data_cfg.time] == begin_point].index.to_numpy()
         finally:
             assert begin_point, "make sure begin_point is available in data"
@@ -319,16 +329,16 @@ class Predictor:
             ), "not enough length for look_back"
             return int(begin_point)
 
-    def verify_point(self, data: pd.DataFrame, begin_point: str) -> Union[Dict, int]:
-        """verify whether `begin_point` satisfy basic requirements, no lags take in consideration
+    def verify_point(self, data: pd.DataFrame, begin_point: str) -> Dict:
+        """convert input `begin_point` to index in data.index and check availablity
 
         Args:
             data (pd.DataFrame): data to do evaluate/validate/predict
             begin_point (str): the last point of look_back, both int-like and datetime-like str
 
         Returns:
-            Union[Dict, int]: key indicates the value of group_ids(if no groups, then `PREDICTION_DATA`),
-            value indicates the index of begin_point in data
+            Dict: key indicates the value of group_ids(if no groups, then `PREDICTION_DATA`),
+            value indicates the index of begin_point in data.index
         """
         if not self._data_cfg.group_ids:
             data.name = PREDICTION_DATA
@@ -509,7 +519,6 @@ class Predictor:
         # 这里需要的，根据不同的loss，绘制对应target, group_ids的图像
         if plot:
             # for deepar
-
             original_prediction_columns = list(
                 filter(
                     lambda col: col not in prediction_column_names,

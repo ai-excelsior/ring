@@ -627,12 +627,17 @@ class TimeSeriesDataset(Dataset):
 
         return data_to_return
 
-    def _implement_forward(
-        self, data: pd.DataFrame, begin_point: Union[Dict, int] = None, has_known: int = None
-    ):
-        """
-        # if future known features do not exist, we implement rows of 0 for data if needed
-        # if future known features exist, we check whether there has enough rows left in data
+    def _implement_forward(self, data: pd.DataFrame, begin_point: Dict = None, has_known: int = None):
+        """if future known features do not exist, we implement rows of 0 for data if needed
+        if future known features exist, we check whether there has enough rows left in data
+
+        Args:
+            data (pd.DataFrame): data to do predict
+            begin_point (Dict)
+            has_known (int) : number of future known features
+
+        Returns:
+            _type_: _description_
         """
         if has_known:
             if data.index[-1] - begin_point[data.name] - self._indexer._look_forward < 0:
@@ -662,9 +667,12 @@ class TimeSeriesDataset(Dataset):
                 data = pd.concat([data, df_append], axis=0)
         return data
 
-    def _verify_lags(self, data, begin_point):
-        """
-        verify whether the `begin_point` is too small to include lags
+    def _verify_lags(self, data: pd.DataFrame, begin_point: Dict):
+        """verify whether the `begin_point` is too small to include lags
+
+        Args:
+            data (pd.DataFrame): data to do train/evaluate/validate/predict
+            begin_point (Dict)
         """
         assert (
             [
