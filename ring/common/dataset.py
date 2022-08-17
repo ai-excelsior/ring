@@ -164,7 +164,7 @@ class TimeSeriesDataset(Dataset):
 
         # initialize indexer
         data = add_time_idx(data, time_column_name=time, freq=freq)
-        if begin_point:  # only validate and predict, not train and evaluate_in_train
+        if begin_point:  # only validate/predict/evaluate_in_train, not train
             if self._group_ids:  # convert value of begin_point to `TIME_IDX`
                 begin_point.update(
                     {
@@ -232,12 +232,7 @@ class TimeSeriesDataset(Dataset):
         # but some frequency has no time_features, e.g. Year, or `time_features` should not be added
         if (
             self._add_static_known_real is None
-            and (
-                len(self.decoder_cont)
-                + len(self.decoder_cat)
-                + len(self.decoder_lag_features)
-                + len(self.time_features)
-            )
+            and (len(self.decoder_cont + self.decoder_cat + self.decoder_lag_features + self.time_features))
             == 0
         ):
             self._add_static_known_real = True
