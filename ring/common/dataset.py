@@ -164,34 +164,14 @@ class TimeSeriesDataset(Dataset):
 
         # initialize indexer
         data = add_time_idx(data, time_column_name=time, freq=freq)
-        if begin_point:  # only validate/predict/evaluate_in_train, not train
-            if self._group_ids:  # convert value of begin_point to `TIME_IDX`
-                begin_point.update(
-                    {
-                        grp[0]: grp[1].loc[begin_point[grp[0]], TIME_IDX]
-                        for grp in data.groupby(self._group_ids)
-                    }
-                )
-            else:
-                begin_point.update({k: data.loc[begin_point[k], TIME_IDX] for k, _ in begin_point.items()})
-
-        data.sort_values([*self._group_ids, TIME_IDX], inplace=True)
-        data.reset_index(drop=True, inplace=True)
+        #    data.sort_values([*self._group_ids, TIME_IDX], inplace=True)
+        # data.reset_index(drop=True, inplace=True)
 
         # detrend targets, all targets together at once
         if not self._target_detrenders.fitted:
             data[self.targets] = self._target_detrenders.fit_transform(data, self._group_ids)
         else:
             data[self.targets] = self._target_detrenders.transform(data, self._group_ids)
-
-        # fit categoricals
-        for i, cat in enumerate(self.categoricals):
-            encoder = self._categorical_encoders[i]
-            if not encoder.fitted:
-                data[cat] = encoder.fit_transform(data[cat].astype(str))
-
-            else:
-                data[cat] = encoder.transform(data[cat].astype(str), self.embedding_sizes)
 
         # fit target normalizers
         for i, target_name in enumerate(self._targets):
@@ -200,14 +180,6 @@ class TimeSeriesDataset(Dataset):
                 data[target_name] = normalizer.fit_transform(data[target_name], data)
             else:
                 data[target_name] = normalizer.transform(data[target_name], data)
-
-        # fit continous scalar
-        for i, cont in enumerate(filter(lambda i: i not in self.targets, self.encoder_cont)):
-            scalar = self._cont_scalars[i]
-            if not scalar.fitted:
-                data[cont] = scalar.fit_transform(data[cont], data)
-            else:
-                data[cont] = scalar.transform(data[cont], data)
 
         # obtain target lags through seasonality
         if self._lags:
@@ -228,6 +200,41 @@ class TimeSeriesDataset(Dataset):
                     k for k, v in self._lags[tar]._state.items() if v < self._indexer._look_forward
                 ]
 
+        data.name = PREDICTION_DATA
+
+        if begin_point:  # only validate/predict/evaluate_in_train, not train
+            if self._group_ids:  # convert value of begin_point to `TIME_IDX`
+                begin_point.update(
+                    {
+                        grp[0]: grp[1].loc[begin_point[grp[0]], TIME_IDX]
+                        for grp in data.groupby(self._group_ids)
+                    }
+                )
+            else:
+                begin_point.update({k: data.loc[begin_point[k], TIME_IDX] for k, _ in begin_point.items()})
+
+        # remove nan caused by lag shift, apply index
+        data = data.dropna().reset_index(drop=True)
+        # begin point only works in predict and validate
+        self._indexer.index(data, begin_point)
+
+        # fit categoricals
+        for i, cat in enumerate(self.categoricals):
+            encoder = self._categorical_encoders[i]
+            if not encoder.fitted:
+                data[cat] = encoder.fit_transform(data[cat])
+
+            else:
+                data[cat] = encoder.transform(data[cat], self.embedding_sizes)
+
+        # fit continous scalar
+        for i, cont in enumerate(filter(lambda i: i not in self.targets, self.encoder_cont)):
+            scalar = self._cont_scalars[i]
+            if not scalar.fitted:
+                data[cont] = scalar.fit_transform(data[cont], data)
+            else:
+                data[cont] = scalar.transform(data[cont], data)
+
         # commonly, `time_features` have been calculated, so `__ZERO__` will not be added
         # but some frequency has no time_features, e.g. Year, or `time_features` should not be added
         if (
@@ -239,11 +246,7 @@ class TimeSeriesDataset(Dataset):
         if self._add_static_known_real is True:
             data[STATIC_UNKNOWN_REAL_NAME] = 0.0
 
-        # remove nan caused by lag shift, apply index
-        self._data = data.dropna().reset_index(drop=True)
-        self._data.name = PREDICTION_DATA
-        # begin point only works in predict and validate
-        self._indexer.index(self._data, begin_point)
+        self._data = data
 
     @property
     def targets(self):
@@ -609,6 +612,15 @@ class TimeSeriesDataset(Dataset):
         data_to_return = data_to_return.assign(is_prediction=False)
         data_to_return.loc[decoder_indices, "is_prediction"] = True
 
+        # inverse group_id
+        if self._group_ids:
+            data_to_return = data_to_return.assign(
+                **{
+                    group_id: self._categorical_encoders[i].inverse_transform(data_to_return[group_id])
+                    for i, group_id in enumerate(self.categoricals)
+                    if group_id in self._group_ids
+                }
+            )
         # inverse normalize
         if inverse_scale_target:
             data_to_return = data_to_return.assign(
@@ -617,14 +629,6 @@ class TimeSeriesDataset(Dataset):
                         data_to_return[target_name], data_to_return
                     )
                     for i, target_name in enumerate(self._targets)
-                }
-            )
-        if self._group_ids:
-            data_to_return = data_to_return.assign(
-                **{
-                    group_id: self._categorical_encoders[i].inverse_transform(data_to_return[group_id])
-                    for i, group_id in enumerate(self.categoricals)
-                    if group_id in self._group_ids
                 }
             )
         # inverse detrend
