@@ -24,6 +24,21 @@ class SlideWindowIndexer(BaseIndexer):
         self._group_ids = group_ids
         self._time_idx = time_idx
 
+    def drop_index(self, max_lags: int = 0):
+        """drop unavailable index caused by lag features(value = np.nan)
+
+        Args:
+            max_lags (int, optional): max lag values in data, use to filter index unavailable. Defaults to 0.
+        """
+        assert self._index is not None, ".drop_index must be applied after .index"
+        # evaluate/validate/predict do not need drop, so set errors=ignore
+        self._index.drop(
+            index=self._index[self._index["time_idx"].isin(range(max_lags))].index,
+            axis=1,
+            inplace=True,
+            errors="ignore",
+        )
+
     def index(self, data: pd.DataFrame, begin_point: str = None):
         """
         Create index of samples.
@@ -87,6 +102,7 @@ class SlideWindowIndexer(BaseIndexer):
         # filter sequence based on given begin_point
         # availablity has been checked in previous sections
         if begin_point:  # validate or predict or evaluate
+            # sequence start must be large enou to get lags
             if len(self._group_ids) > 0:
                 df_index = pd.concat(
                     [
