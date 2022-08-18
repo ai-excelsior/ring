@@ -15,7 +15,6 @@ from .utils import register
 
 
 NORMALIZERS: Dict[str, "AbstractNormalizer"] = {}
-UNKNOWN_CAT = "UNKNOWN"
 
 
 def serialize_normalizer(obj: "AbstractNormalizer"):
@@ -247,12 +246,9 @@ class GroupNormalizer(AbstractNormalizer):
     def transform_self(self, data: pd.Series, source: pd.DataFrame = None, **kwargs) -> pd.Series:
         assert self._state is not None
         # for unknown group
-        self._state.loc[UNKNOWN_CAT] = [self._state.mean()["center"], self._state.mean()["scale"]]
+        self._state.loc[0] = [self._state.mean()["center"], self._state.mean()["scale"]]
 
         state = source[self._group_ids].join(self._state, on=self._group_ids, how="left")
-        # fill in unknown group
-        state["center"].fillna(self._state.loc[UNKNOWN_CAT, "center"], inplace=True)
-        state["scale"].fillna(self._state.loc[UNKNOWN_CAT, "scale"], inplace=True)
 
         return (data - state["center"]) / state["scale"]
 
