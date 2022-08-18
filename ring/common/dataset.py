@@ -164,8 +164,6 @@ class TimeSeriesDataset(Dataset):
 
         # initialize indexer
         data = add_time_idx(data, time_column_name=time, freq=freq)
-        #    data.sort_values([*self._group_ids, TIME_IDX], inplace=True)
-        # data.reset_index(drop=True, inplace=True)
 
         # detrend targets, all targets together at once
         if not self._target_detrenders.fitted:
@@ -201,7 +199,6 @@ class TimeSeriesDataset(Dataset):
                 ]
 
         data.name = PREDICTION_DATA
-
         if begin_point:  # only validate/predict/evaluate_in_train, not train
             if self._group_ids:  # convert value of begin_point to `TIME_IDX`
                 begin_point.update(
