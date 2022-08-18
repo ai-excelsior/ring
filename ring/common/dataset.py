@@ -1,7 +1,9 @@
+from dataclasses import replace
 import pandas as pd
 import numpy as np
 import torch
 import inspect
+import functools
 from copy import deepcopy
 from typing import Any, Dict, List, Tuple, Union
 from torch.utils.data import Dataset, DataLoader
@@ -89,8 +91,17 @@ class TimeSeriesDataset(Dataset):
         self._known_lag_features = []
         self._unknown_lag_features = []
 
+        max_lags = (
+            max(
+                functools.reduce(
+                    lambda a, b: a + b, [v.lags if v.lags else [0] for _, v in self._lags.items()]
+                )
+            )
+            if self._lags
+            else 0
+        )
         # evaluate_in_train will also create begin_point automatically
-        self._verify_lags(data, begin_point)
+        self._verify_lags(data, begin_point, max_lags)
 
         if predict_task:  # do real prediction without true value
             if not group_ids:
@@ -125,6 +136,26 @@ class TimeSeriesDataset(Dataset):
             self._time_features = list(time_feature_data.columns)
             # make sure time_features always at the end of dataset
             data = pd.concat([data, time_feature_data], axis=1)
+
+        # add absolute _time_idx_
+        data = add_time_idx(data, time_column_name=time, freq=freq)
+        # initialize indexer
+        data.name = PREDICTION_DATA
+        if begin_point:  # only validate/predict/evaluate_in_train, not train
+            if self._group_ids:  # convert value of begin_point to `TIME_IDX`
+                begin_point.update(
+                    {
+                        grp[0]: grp[1].loc[begin_point[grp[0]], TIME_IDX]
+                        for grp in data.groupby(self._group_ids)
+                    }
+                )
+                # groups has already been transformed to int, group always at the first of categoricals
+                # begin_point.update(
+                #     {int(self._categorical_encoders[0].transform([k])): v for k, v in begin_point.items()}
+                # )
+            else:
+                begin_point.update({k: data.loc[begin_point[k], TIME_IDX] for k, _ in begin_point.items()})
+        self._indexer.index(data, begin_point)
 
         # create target normalizer
         if len(self._target_normalizers) == 0:
@@ -162,8 +193,14 @@ class TimeSeriesDataset(Dataset):
                 self._embedding_sizes[categorical_name] = (cat_size + 1, get_default_embedding_size(cat_size))
                 # with unknow capacity
 
-        # initialize indexer
-        data = add_time_idx(data, time_column_name=time, freq=freq)
+        # fit categoricals
+        for i, cat in enumerate(self.categoricals):
+            encoder = self._categorical_encoders[i]
+            if not encoder.fitted:
+                data[cat] = encoder.fit_transform(data[cat])
+
+            else:
+                data[cat] = encoder.transform(data[cat], self.embedding_sizes)
 
         # detrend targets, all targets together at once
         if not self._target_detrenders.fitted:
@@ -197,32 +234,15 @@ class TimeSeriesDataset(Dataset):
                 self._unknown_lag_features += [
                     k for k, v in self._lags[tar]._state.items() if v < self._indexer._look_forward
                 ]
-
-        data.name = PREDICTION_DATA
-        if begin_point:  # only validate/predict/evaluate_in_train, not train
-            if self._group_ids:  # convert value of begin_point to `TIME_IDX`
-                begin_point.update(
-                    {
-                        grp[0]: grp[1].loc[begin_point[grp[0]], TIME_IDX]
-                        for grp in data.groupby(self._group_ids)
-                    }
+            max_lags = max(
+                functools.reduce(
+                    lambda a, b: a + b, [v.lags if v.lags else [0] for _, v in self._lags.items()]
                 )
-            else:
-                begin_point.update({k: data.loc[begin_point[k], TIME_IDX] for k, _ in begin_point.items()})
+            )
 
-        # remove nan caused by lag shift, apply index
-        data = data.dropna().reset_index(drop=True)
-        # begin point only works in predict and validate
-        self._indexer.index(data, begin_point)
-
-        # fit categoricals
-        for i, cat in enumerate(self.categoricals):
-            encoder = self._categorical_encoders[i]
-            if not encoder.fitted:
-                data[cat] = encoder.fit_transform(data[cat])
-
-            else:
-                data[cat] = encoder.transform(data[cat], self.embedding_sizes)
+        # remove nan caused by lag shift
+        data = data.dropna()  # .reset_index(drop=True)
+        self._indexer.drop_index(max_lags)
 
         # fit continous scalar
         for i, cont in enumerate(filter(lambda i: i not in self.targets, self.encoder_cont)):
@@ -610,14 +630,6 @@ class TimeSeriesDataset(Dataset):
         data_to_return.loc[decoder_indices, "is_prediction"] = True
 
         # inverse group_id
-        if self._group_ids:
-            data_to_return = data_to_return.assign(
-                **{
-                    group_id: self._categorical_encoders[i].inverse_transform(data_to_return[group_id])
-                    for i, group_id in enumerate(self.categoricals)
-                    if group_id in self._group_ids
-                }
-            )
         # inverse normalize
         if inverse_scale_target:
             data_to_return = data_to_return.assign(
@@ -636,6 +648,15 @@ class TimeSeriesDataset(Dataset):
         data_to_return.loc[decoder_indices, self.targets] = data_to_return.loc[
             decoder_indices, self.targets
         ].applymap(lambda x: 0 if np.isclose(x, 0) else x)
+
+        if self._group_ids:
+            data_to_return = data_to_return.assign(
+                **{
+                    group_id: self._categorical_encoders[i].inverse_transform(data_to_return[group_id])
+                    for i, group_id in enumerate(self.categoricals)
+                    if group_id in self._group_ids
+                }
+            )
 
         return data_to_return
 
@@ -679,7 +700,7 @@ class TimeSeriesDataset(Dataset):
                 data = pd.concat([data, df_append], axis=0)
         return data
 
-    def _verify_lags(self, data: pd.DataFrame, begin_point: Dict):
+    def _verify_lags(self, data: pd.DataFrame, begin_point: Dict, max_lags: int = 0):
         """verify whether the `begin_point` is too small to include lags
 
         Args:
@@ -691,16 +712,12 @@ class TimeSeriesDataset(Dataset):
                 idx
                 >= data.groupby(self._group_ids).get_group(grp).index[0]
                 + self._indexer._look_back
-                + max([v.lags for _, v in self._lags.items()] if self._lags else [0])
+                + max_lags
                 - 1
                 for grp, idx in begin_point.items()
             ]
             if self._group_ids and begin_point
-            else begin_point[data.name]
-            >= data.index[0]
-            + self._indexer._look_back
-            + max([v.lags for _, v in self._lags.items()] if self._lags else [0])
-            - 1
+            else begin_point[data.name] >= data.index[0] + self._indexer._look_back + max_lags - 1
             if begin_point
             else True
         ), "not enough length for look_back due to lags"
