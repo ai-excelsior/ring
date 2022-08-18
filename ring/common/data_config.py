@@ -119,6 +119,7 @@ def dict_to_data_config(cfg: Dict, *args):
             read_from_url(
                 cfg["data_source"]["path"],
                 parse_dates=[] if data_cfg.time is None else [data_cfg.time],
+                dtype=data_cfg.group_ids,
                 *args,
             )
             if cfg["data_source"]["type"] == "file"
@@ -129,6 +130,7 @@ def dict_to_data_config(cfg: Dict, *args):
             read_from_url(
                 cfg["data_source"]["path"],
                 parse_dates=[] if data_cfg.time is None else [data_cfg.time],
+                dtype=data_cfg.group_ids,
                 *(args[0], args[1]),
             )
             if cfg["data_source"]["type"] == "file"
@@ -138,6 +140,7 @@ def dict_to_data_config(cfg: Dict, *args):
             read_from_url(
                 cfg["data_source"]["path"],
                 parse_dates=[] if data_cfg.time is None else [data_cfg.time],
+                dtype=data_cfg.group_ids,
                 *(args[2], args[3]),
             )
             if cfg["data_source"]["type"] == "file"
