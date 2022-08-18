@@ -16,6 +16,7 @@ def is_csv(s: str):
 def read_from_url(url: str, *args, **config) -> pd.DataFrame:
     if is_parquet(url):
         config.pop("parse_dates")
+        config.pop("dtype")
 
     if url.startswith("oss://"):
         tempdir = tempfile.mkdtemp()
@@ -28,6 +29,7 @@ def read_from_url(url: str, *args, **config) -> pd.DataFrame:
         filename = remove_prefix(url, "file://")
 
     if is_csv(filename):
+        config.update({"dtype": {k: object for k in config["dtype"]}})
         df = pd.read_csv(filename, thousands=",", chunksize=1000, **config)
         if args[0] and args[1]:
             return pd.concat(
