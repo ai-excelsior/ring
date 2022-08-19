@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 
 SEASONALITY: Dict[str, "AbsrtactDetrend"] = {}
+TIME_IDX = "_time_idx_"
 
 
 def create_detrender_from_cfg(no_lags: bool, detrend: bool, group_ids: List[str], targets: List[str]):
@@ -130,25 +131,28 @@ class DetrendTargets(AbsrtactDetrend):
             target_column_name: PolynomialDetrendEstimator() for target_column_name in self.feature_name
         }
         for column_name, estimator in self._state.items():
-            estimator.fit(data[column_name], data["_time_idx_"])
+            estimator.fit(data[column_name], data[TIME_IDX])
 
     def transform_self(self, data: pd.DataFrame, group_ids):
         assert self._state is not None
         for column_name, estimator in self._state.items():
-            data[column_name] = estimator.transform(data[column_name], data["_time_idx_"])
+            data[column_name] = estimator.transform(data[column_name], data[TIME_IDX])
         return data[self.feature_name]
 
     def inverse_transform_self(self, data: pd.DataFrame, group_ids):
         assert self._state is not None
         for column_name, estimator in self._state.items():
-            data[column_name] = estimator.inverse_transform(data[column_name], data["_time_idx_"])
+            data[column_name] = estimator.inverse_transform(data[column_name], data[TIME_IDX])
 
         return data[self.feature_name]
 
 
 @register(SEASONALITY)
-class GroupDetrendTargets(AbsrtactDetrend):
+class GroupDetrendTargets(DetrendTargets):
     """do detrend, has groups"""
+
+    def __init__(self, feature_name=None) -> None:
+        super().__init__(feature_name=feature_name)
 
     def fit_self(self, data: pd.DataFrame, group_ids):
         if self.fitted:
@@ -160,32 +164,28 @@ class GroupDetrendTargets(AbsrtactDetrend):
             for group_id, idx in group_indices.items():
                 source = data.iloc[idx]
                 estimator = PolynomialDetrendEstimator()
-                estimator.fit(source[column_name], source["_time_idx_"])
+                estimator.fit(source[column_name], source[TIME_IDX])
                 groupped_estimators[group_id] = estimator
             self._state[column_name] = groupped_estimators
 
+    def _transform_seperately(self, data: pd.DataFrame, column_name):
+        estimators = self._state[column_name][data.name]
+        data[column_name] = estimators.transform(data[column_name], data[TIME_IDX])
+        return data[self.feature_name]
+
     def transform_self(self, data: pd.DataFrame, group_ids):
-        group_indices = data.groupby(group_ids).groups
         for column_name in self.feature_name:
-            groupped_estimators = self._state[column_name]
-            for group_id, idx in group_indices.items():
-                source = data.loc[idx]
+            data = data.groupby(group_ids).apply(self._transform_seperately, column_name)
+        return data[self.feature_name]
 
-                data.loc[idx, column_name] = groupped_estimators[group_id].transform(
-                    source[column_name], source["_time_idx_"]
-                )
-
+    def _inverse_transform_seperately(self, data: pd.DataFrame, column_name):
+        estimators = self._state[column_name][data.name]
+        data[column_name] = estimators.inverse_transform(data[column_name], data[TIME_IDX])
         return data[self.feature_name]
 
     def inverse_transform_self(self, data: pd.DataFrame, group_ids):
-        group_indices = data.groupby(group_ids).groups
         for column_name in self.feature_name:
-            groupped_estimators = self._state[column_name]
-            for group_id, idx in group_indices.items():
-                source = data.loc[idx]
-                data.loc[idx, column_name] = groupped_estimators[group_id].inverse_transform(
-                    source[column_name], source["_time_idx_"]
-                )
+            data = data.groupby(group_ids).apply(self._inverse_transform_seperately, column_name)
         return data[self.feature_name]
 
 
@@ -233,7 +233,7 @@ class DetectTargetLags(AbstractDetectTargetLags):
 
     def _detect_lags(self, data: pd.DataFrame, group_ids: List = []):
         """Detect data lags"""
-        p = Autoperiod(data["_time_idx_"].values, data[data.columns[1]].values)
+        p = Autoperiod(data[TIME_IDX].values, data[data.columns[1]].values)
         if p.period is not None:
             self.lags += p.period_list
 

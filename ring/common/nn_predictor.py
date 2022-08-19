@@ -422,8 +422,8 @@ class Predictor:
         plot=False,
     ):
         """Do smoke test on given dataset, take the last max sequence to do a prediction and plot"""
-        data = data[data["id"] < 4]
-        data["id"] = data["id"].apply(lambda x: 2000 if x == 3 else x)
+
+        #  data["groups"] = data["groups"].apply(lambda x: 2000 if x == "1" else x)
         if len(self._data_cfg.time_varying_known_categoricals + self._data_cfg.time_varying_known_reals) > 0:
             begin_point = -self._data_cfg.indexer.look_forward - 1  # last available point
         begin_point = self.verify_point(data, begin_point)
@@ -501,10 +501,12 @@ class Predictor:
 
             encoder_indices = x["encoder_idx"].detach().cpu().numpy().flatten().tolist()
             decoder_indices = x["decoder_idx"].detach().cpu().numpy().flatten().tolist()
+            encoder_indices_range = x["encoder_idx_range"].detach().cpu().numpy().flatten().tolist()
+            decoder_indices_range = x["decoder_idx_range"].detach().cpu().numpy().flatten().tolist()
 
-            raw_data = dataset.reflect(encoder_indices, decoder_indices)
+            raw_data = dataset.reflect(encoder_indices, decoder_indices,encoder_indices_range,decoder_indices_range)
             raw_data = raw_data.assign(**{name: np.nan for name in prediction_column_names})
-
+            print("adsdada")
             # cuz `inverse_transform` can only deal with column names stored in state
             raw_data.loc[
                 decoder_indices, prediction_column_names

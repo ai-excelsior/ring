@@ -61,21 +61,26 @@ class SlideWindowIndexer(BaseIndexer):
             df_index["group_id"] = data[self._group_ids]
         else:
             df_index = -data[self._time_idx].diff(-1).fillna(-1).astype(int).to_frame("time_idx_to_next")
+            # relative index(re-number for each group)
             df_index["time_idx_first"] = int(data.iloc[0][self._time_idx])
             df_index["time_idx_last"] = int(data.iloc[-1][self._time_idx])
 
-        df_index["index_start"] = np.arange(len(df_index))
-        # the begin of sequence
+        # index(.loc not .iloc)  corresponding to that in data, may have overlapped value due to implementation in predict task
+        df_index["index_start"] = df_index.index
+        # the begin of sequence, relative index(re-number for each group)
         df_index["time_idx"] = data[self._time_idx]
-        # the last of look_back point
+        # the last of look_back point, relative index(re-number for each group)
         df_index["time_idx_begin"] = df_index["time_idx"] + self._look_back - 1
+        # the last of prediction point, relative index(re-number for each group)
+        df_index["time_idx_end"] = df_index["time_idx_begin"] + self._look_forward
 
         sequence_length = self._look_back + self._look_forward
 
         # calculate maximum index to include from current index_start
         max_time_idx = (df_index["time_idx"] + sequence_length - 1).clip(upper=df_index["time_idx_last"])
+        # index_end: actual end index(not .iloc) correspondint to that in data
         df_index["index_end"], missing_sequences = find_end_indices(
-            diffs=df_index["time_idx_to_next"].to_numpy(),
+            diffs=df_index["time_idx_to_next"],
             max_lengths=(max_time_idx - df_index["time_idx"]).to_numpy() + 1,
             min_length=sequence_length,
         )
@@ -91,10 +96,10 @@ class SlideWindowIndexer(BaseIndexer):
             df_index = pd.concat([df_index, shortened_sequences], axis=0, ignore_index=True)
 
         # filter out where encode and decode length are not satisfied
-        df_index["sequence_length"] = (
-            df_index["time_idx"].iloc[df_index["index_end"]].to_numpy() - df_index["time_idx"] + 1
-        )
-
+        # df_index["sequence_length"] = (
+        #     df_index["time_idx"].iloc[df_index["index_end"]].to_numpy() - df_index["time_idx"] + 1
+        # )
+        df_index["sequence_length"] = df_index["index_end"] - df_index["index_start"] + 1
         # filter too short sequences and data has been added if necessary in prediction
         # sequence must be at least of minimal prediction length
         df_index = df_index[lambda x: (x["sequence_length"] >= sequence_length)]
@@ -158,7 +163,16 @@ class SlideWindowIndexer(BaseIndexer):
         encoder_idx = range(index_start, index_start + encoder_length)
         decoder_idx = range(index_end - decoder_length, index_end)
 
-        return dict(encoder_idx=encoder_idx, decoder_idx=decoder_idx)
+        # to filter records dont belong to this group
+        encoder_idx_range = range(index["time_idx"], index["time_idx_begin"] + 1)
+        decoder_idx_range = range(index["time_idx_begin"] + 1, index["time_idx_end"] + 1)
+
+        return dict(
+            encoder_idx=encoder_idx,
+            decoder_idx=decoder_idx,
+            encoder_idx_range=encoder_idx_range,
+            decoder_idx_range=decoder_idx_range,
+        )
 
 
 class SlideWindowIndexer_fixed(BaseIndexer):

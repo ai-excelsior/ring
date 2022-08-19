@@ -138,7 +138,11 @@ class TimeSeriesDataset(Dataset):
             data = pd.concat([data, time_feature_data], axis=1)
 
         # add absolute _time_idx_
-        data = add_time_idx(data, time_column_name=time, freq=freq)
+        data = (
+            data.groupby(group_ids).apply(add_time_idx, time_column_name=time, freq=freq)
+            if group_ids
+            else add_time_idx(data, time_column_name=time, freq=freq)
+        )
         # initialize indexer
         data.name = PREDICTION_DATA
         if begin_point:  # only validate/predict/evaluate_in_train, not train
@@ -193,6 +197,12 @@ class TimeSeriesDataset(Dataset):
                 self._embedding_sizes[categorical_name] = (cat_size + 1, get_default_embedding_size(cat_size))
                 # with unknow capacity
 
+        # detrend targets, all targets together at once
+        if not self._target_detrenders.fitted:
+            data[self.targets] = self._target_detrenders.fit_transform(data, self._group_ids)
+        else:
+            data[self.targets] = self._target_detrenders.transform(data, self._group_ids)
+
         # fit categoricals
         for i, cat in enumerate(self.categoricals):
             encoder = self._categorical_encoders[i]
@@ -201,12 +211,6 @@ class TimeSeriesDataset(Dataset):
 
             else:
                 data[cat] = encoder.transform(data[cat], self.embedding_sizes)
-
-        # detrend targets, all targets together at once
-        if not self._target_detrenders.fitted:
-            data[self.targets] = self._target_detrenders.fit_transform(data, self._group_ids)
-        else:
-            data[self.targets] = self._target_detrenders.transform(data, self._group_ids)
 
         # fit target normalizers
         for i, target_name in enumerate(self._targets):
@@ -452,8 +456,15 @@ class TimeSeriesDataset(Dataset):
         index = self._indexer[idx]
         encoder_idx = index["encoder_idx"]
         decoder_idx = index["decoder_idx"]
-        encoder_period: pd.DataFrame = self._data.loc[encoder_idx]
-        decoder_period: pd.DataFrame = self._data.loc[decoder_idx]
+        # to filter data dont belong to current group
+        encoder_idx_range = index["encoder_idx_range"]
+        decoder_idx_range = index["decoder_idx_range"]
+        encoder_period: pd.DataFrame = self._data[self._data[TIME_IDX].isin(encoder_idx_range)].loc[
+            encoder_idx
+        ]
+        decoder_period: pd.DataFrame = self._data[self._data[TIME_IDX].isin(decoder_idx_range)].loc[
+            decoder_idx
+        ]
 
         # TODO 缺失值是个值得研究的主题
         encoder_cont = torch.tensor(encoder_period[self.encoder_cont].to_numpy(np.float64), dtype=torch.float)
@@ -524,6 +535,7 @@ class TimeSeriesDataset(Dataset):
                 encoder_cat=encoder_cat,
                 encoder_time_idx=encoder_time_idx,
                 encoder_idx=torch.tensor(encoder_idx, dtype=torch.long),
+                encoder_idx_range=torch.tensor(encoder_idx_range, dtype=torch.long),
                 encoder_target=encoder_target,
                 encoder_time_features=encoder_time_features,
                 encoder_lag_features=encoder_lag_features,
@@ -531,6 +543,7 @@ class TimeSeriesDataset(Dataset):
                 decoder_cat=decoder_cat,
                 decoder_time_idx=decoder_time_idx,
                 decoder_idx=torch.tensor(decoder_idx, dtype=torch.long),
+                decoder_idx_range=torch.tensor(decoder_idx_range, dtype=torch.long),
                 decoder_target=decoder_target,
                 decoder_time_features=decoder_time_features,
                 decoder_lag_features=decoder_lag_features,
@@ -545,6 +558,7 @@ class TimeSeriesDataset(Dataset):
         encoder_cat = torch.stack([batch[0]["encoder_cat"] for batch in batches])
         encoder_time_idx = torch.stack([batch[0]["encoder_time_idx"] for batch in batches])
         encoder_idx = torch.stack([batch[0]["encoder_idx"] for batch in batches])
+        encoder_idx_range = torch.stack([batch[0]["encoder_idx_range"] for batch in batches])
         encoder_target = torch.stack([batch[0]["encoder_target"] for batch in batches])
         encoder_length = torch.tensor([len(batch[0]["encoder_target"]) for batch in batches])
 
@@ -552,6 +566,7 @@ class TimeSeriesDataset(Dataset):
         decoder_cat = torch.stack([batch[0]["decoder_cat"] for batch in batches])
         decoder_time_idx = torch.stack([batch[0]["decoder_time_idx"] for batch in batches])
         decoder_idx = torch.stack([batch[0]["decoder_idx"] for batch in batches])
+        decoder_idx_range = torch.stack([batch[0]["decoder_idx_range"] for batch in batches])
         decoder_target = torch.stack([batch[0]["decoder_target"] for batch in batches])
         decoder_length = torch.tensor([len(batch[0]["decoder_target"]) for batch in batches])
 
@@ -568,12 +583,14 @@ class TimeSeriesDataset(Dataset):
                 encoder_cat=encoder_cat,
                 encoder_time_idx=encoder_time_idx,
                 encoder_idx=encoder_idx,
+                encoder_idx_range=encoder_idx_range,
                 encoder_target=encoder_target,
                 encoder_length=encoder_length,
                 decoder_cont=decoder_cont,
                 decoder_cat=decoder_cat,
                 decoder_time_idx=decoder_time_idx,
                 decoder_idx=decoder_idx,
+                decoder_idx_range=decoder_idx_range,
                 decoder_target=decoder_target,
                 decoder_length=decoder_length,
                 target_scales=target_scales,
@@ -603,6 +620,8 @@ class TimeSeriesDataset(Dataset):
         self,
         encoder_indices: List[int],
         decoder_indices: List[int],
+        encoder_indices_range: List[int],
+        decoder_indices_range: List[int],
         inverse_scale_target=True,
         columns: List[str] = None,
     ):
@@ -611,6 +630,8 @@ class TimeSeriesDataset(Dataset):
         Args:
             encoder_indices (List[int]): look_back sequence
             decoder_indices (List[int]): look_forward sequence
+            encoder_indices_range (List[int]): index(.loc) corresponding to that in data, re-number for each group
+            decoder_indices_range (List[int]): index(.loc) corresponding to that in data, re-number for each group
             inverse_scale_target (bool, optional): whether inverse target back. Defaults to True.
             columns (List[str], optional): columns to do inverse_transform
 
@@ -623,7 +644,9 @@ class TimeSeriesDataset(Dataset):
             else:
                 columns = [self._time, *self._group_ids, *self._targets, "_time_idx_"]
         # get desired part
-        data_to_return = self._data.loc[[*encoder_indices, *decoder_indices]][columns]
+        data_to_return = self._data[
+            self._data[TIME_IDX].isin(encoder_indices_range + decoder_indices_range)
+        ].loc[[*encoder_indices, *decoder_indices]][columns]
 
         # add decoder part is_prediction is True
         data_to_return = data_to_return.assign(is_prediction=False)
@@ -640,14 +663,6 @@ class TimeSeriesDataset(Dataset):
                     for i, target_name in enumerate(self._targets)
                 }
             )
-        # inverse detrend
-        data_to_return[self.targets] = self._target_detrenders.inverse_transform(
-            data_to_return, self._group_ids
-        )
-        # caliberate bias caused by detrend, tolerance is default as 1e-8
-        data_to_return.loc[decoder_indices, self.targets] = data_to_return.loc[
-            decoder_indices, self.targets
-        ].applymap(lambda x: 0 if np.isclose(x, 0) else x)
 
         if self._group_ids:
             data_to_return = data_to_return.assign(
@@ -657,6 +672,14 @@ class TimeSeriesDataset(Dataset):
                     if group_id in self._group_ids
                 }
             )
+        # inverse detrend
+        data_to_return[self.targets] = self._target_detrenders.inverse_transform(
+            data_to_return, self._group_ids
+        )
+        # caliberate bias caused by detrend, tolerance is default as 1e-8
+        data_to_return.loc[decoder_indices, self.targets] = data_to_return.loc[
+            decoder_indices, self.targets
+        ].applymap(lambda x: 0 if np.isclose(x, 0) else x)
 
         return data_to_return
 
