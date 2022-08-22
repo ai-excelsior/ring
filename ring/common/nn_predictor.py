@@ -28,6 +28,7 @@ from .base_model import BaseModel
 from .oss_utils import get_bucket_from_oss_url
 
 PREDICTION_DATA = "_prediction_data_"
+AGG_GROUP = "_GROUPS_"
 
 
 def get_last_updated_model(filepath: str):
@@ -424,7 +425,10 @@ class Predictor:
         """Do smoke test on given dataset, take the last max sequence to do a prediction and plot"""
 
         #  data["groups"] = data["groups"].apply(lambda x: 2000 if x == "1" else x)
-        if len(self._data_cfg.time_varying_known_categoricals + self._data_cfg.time_varying_known_reals) > 0:
+        if (
+            len(self._data_cfg.time_varying_known_categoricals + self._data_cfg.time_varying_known_reals) > 0
+            and begin_point == "-1"
+        ):
             begin_point = -self._data_cfg.indexer.look_forward - 1  # last available point
         begin_point = self.verify_point(data, begin_point)
 
@@ -504,7 +508,9 @@ class Predictor:
             encoder_indices_range = x["encoder_idx_range"].detach().cpu().numpy().flatten().tolist()
             decoder_indices_range = x["decoder_idx_range"].detach().cpu().numpy().flatten().tolist()
 
-            raw_data = dataset.reflect(encoder_indices, decoder_indices,encoder_indices_range,decoder_indices_range)
+            raw_data = dataset.reflect(
+                encoder_indices, decoder_indices, encoder_indices_range, decoder_indices_range
+            )
             raw_data = raw_data.assign(**{name: np.nan for name in prediction_column_names})
             print("adsdada")
             # cuz `inverse_transform` can only deal with column names stored in state
@@ -553,7 +559,7 @@ class Predictor:
                 fig.savefig(f"{self.save_dir}{os.sep}smoke_testing_{target_name}.png")
             print(f"plotted figures saved at: {self.save_dir}")
 
-        return raw_data
+        return raw_data.drop(columns=[AGG_GROUP], errors="ignore")
 
     @classmethod
     def from_parameters(
