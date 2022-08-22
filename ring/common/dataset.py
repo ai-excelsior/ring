@@ -136,7 +136,7 @@ class TimeSeriesDataset(Dataset):
             # make sure time_features always at the end of dataset
             data = pd.concat([data, time_feature_data], axis=1)
 
-        # add absolute _time_idx_
+        # add relative _time_idx_, will re-order for each group
         data = (
             data.groupby(group_ids).apply(add_time_idx, time_column_name=time, freq=freq)
             if group_ids
