@@ -34,7 +34,6 @@ class SlideWindowIndexer(BaseIndexer):
         # evaluate/validate/predict do not need drop, so set errors=ignore
         self._index.drop(
             index=self._index[self._index["time_idx"].isin(range(max_lags))].index,
-            axis=1,
             inplace=True,
             errors="ignore",
         )
@@ -50,7 +49,11 @@ class SlideWindowIndexer(BaseIndexer):
 
         if len(self._group_ids) > 0:
             g = data.groupby(self._group_ids, observed=True)
-            group_ids = data[self._group_ids].squeeze()  # in order to match that in begin_point dict
+            group_ids = (
+                pd.Series(data[self._group_ids].itertuples(index=False, name=None)).squeeze()
+                if len(self._group_ids) > 1
+                else data[self._group_ids].squeeze()
+            )  # in order to match that in begin_point dict
 
             df_time_idx_first = g[self._time_idx].transform("nth", 0).to_frame("time_idx_first")
             df_time_idx_last = g[self._time_idx].transform("nth", -1).to_frame("time_idx_last")
@@ -58,7 +61,8 @@ class SlideWindowIndexer(BaseIndexer):
                 -g[self._time_idx].diff(-1).fillna(-1).astype(int).to_frame("time_idx_to_next")
             )
             df_index = pd.concat([df_time_idx_first, df_time_idx_last, df_time_idx_to_next], axis=1)
-            df_index["group_id"] = data[self._group_ids]
+            df_index["group_id"] = group_ids
+
         else:
             df_index = -data[self._time_idx].diff(-1).fillna(-1).astype(int).to_frame("time_idx_to_next")
             # relative index(re-number for each group)
