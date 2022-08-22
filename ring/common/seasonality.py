@@ -8,6 +8,7 @@ import pandas as pd
 
 SEASONALITY: Dict[str, "AbsrtactDetrend"] = {}
 TIME_IDX = "_time_idx_"
+AGG_GROUP = "_GROUPS_"
 
 
 def create_detrender_from_cfg(no_lags: bool, detrend: bool, group_ids: List[str], targets: List[str]):
@@ -59,8 +60,8 @@ def deserialize_detrender(d: Dict[str, Any]):
     cls: "AbsrtactDetrend" = SEASONALITY[d["name"]]
     state = d.get("state", {})
     _state = {}
-    for k, v in state.items():
-        if isinstance(v, list):
+    for k, v in state.items():  # targets
+        if isinstance(v, list):  # groups
             _state[k] = {item["k"]: PolynomialDetrendEstimator.deserialize(item["v"]) for item in v}
         else:
             _state[k] = PolynomialDetrendEstimator.deserialize(v)
@@ -148,24 +149,33 @@ class DetrendTargets(AbsrtactDetrend):
 
 
 @register(SEASONALITY)
-class GroupDetrendTargets(DetrendTargets):
+class GroupDetrendTargets(AbsrtactDetrend):
     """do detrend, has groups"""
 
     def __init__(self, feature_name=None) -> None:
         super().__init__(feature_name=feature_name)
 
+    def _fit_seperately(self, data: pd.DataFrame, column_name):
+        estimator = PolynomialDetrendEstimator()
+        estimator.fit(data[column_name], data[TIME_IDX])
+        return estimator
+
     def fit_self(self, data: pd.DataFrame, group_ids):
         if self.fitted:
             return
         self._state = {}
-        group_indices = data.groupby(group_ids).indices
         for column_name in self.feature_name:
-            groupped_estimators = {}
-            for group_id, idx in group_indices.items():
-                source = data.iloc[idx]
-                estimator = PolynomialDetrendEstimator()
-                estimator.fit(source[column_name], source[TIME_IDX])
-                groupped_estimators[group_id] = estimator
+            if len(group_ids) == 1:
+                groupped_estimators = (
+                    data.groupby(group_ids).apply(self._fit_seperately, column_name).to_dict()
+                )
+            else:
+                data[AGG_GROUP] = pd.Series(
+                    data[group_ids].itertuples(index=False, name=None), index=data.index
+                ).map(lambda x: str(x))
+                groupped_estimators = (
+                    data.groupby(AGG_GROUP).apply(self._fit_seperately, column_name).to_dict()
+                )
             self._state[column_name] = groupped_estimators
 
     def _transform_seperately(self, data: pd.DataFrame, column_name):
@@ -175,7 +185,13 @@ class GroupDetrendTargets(DetrendTargets):
 
     def transform_self(self, data: pd.DataFrame, group_ids):
         for column_name in self.feature_name:
-            data = data.groupby(group_ids).apply(self._transform_seperately, column_name)
+            if len(group_ids) == 1:
+                data = data.groupby(group_ids).apply(self._transform_seperately, column_name)
+            else:
+                data[AGG_GROUP] = pd.Series(
+                    data[group_ids].itertuples(index=False, name=None), index=data.index
+                ).map(lambda x: str(x))
+                data = data.groupby(AGG_GROUP).apply(self._transform_seperately, column_name)
         return data[self.feature_name]
 
     def _inverse_transform_seperately(self, data: pd.DataFrame, column_name):
@@ -185,7 +201,13 @@ class GroupDetrendTargets(DetrendTargets):
 
     def inverse_transform_self(self, data: pd.DataFrame, group_ids):
         for column_name in self.feature_name:
-            data = data.groupby(group_ids).apply(self._inverse_transform_seperately, column_name)
+            if len(group_ids) == 1:
+                data = data.groupby(group_ids).apply(self._inverse_transform_seperately, column_name)
+            else:
+                data[AGG_GROUP] = pd.Series(
+                    data[group_ids].itertuples(index=False, name=None), index=data.index
+                ).map(lambda x: str(x))
+                data = data.groupby(AGG_GROUP).apply(self._inverse_transform_seperately, column_name)
         return data[self.feature_name]
 
 

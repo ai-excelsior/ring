@@ -15,6 +15,7 @@ from .utils import register
 
 
 NORMALIZERS: Dict[str, "AbstractNormalizer"] = {}
+AGG_GROUP = "_GROUPS_"
 
 
 def serialize_normalizer(obj: "AbstractNormalizer"):
@@ -247,18 +248,36 @@ class GroupNormalizer(AbstractNormalizer):
         assert self._state is not None
         # for unknown group
         self._state.loc[0] = [self._state.mean()["center"], self._state.mean()["scale"]]
-
-        state = source[self._group_ids].join(self._state, on=self._group_ids, how="left")
-
+        if len(self._group_ids) == 1:
+            state = source[self._group_ids].join(self._state, on=self._group_ids, how="left")
+        else:
+            source[AGG_GROUP] = pd.Series(
+                source[self._group_ids].itertuples(index=False, name=None), index=source.index
+            ).map(lambda x: str(x))
+            state = source[[AGG_GROUP]].join(self._state, on=AGG_GROUP, how="left")
         return (data - state["center"]) / state["scale"]
 
     def inverse_transform_self(self, data: pd.Series, source: pd.DataFrame = None, **kwargs) -> pd.Series:
         assert self._state is not None
-        state = source[self._group_ids].join(self._state, on=self._group_ids)
+        if len(self._group_ids) == 1:
+            state = source[self._group_ids].join(self._state, on=self._group_ids)
+        else:
+            source[AGG_GROUP] = pd.Series(
+                source[self._group_ids].itertuples(index=False, name=None), index=source.index
+            ).map(lambda x: str(x))
+            state = source[[AGG_GROUP]].join(self._state, on=AGG_GROUP, how="left")
         return data * state["scale"] + state["center"]
 
     def get_norm(self, source: pd.DataFrame) -> np.ndarray:
-        return source[self._group_ids].join(self._state, on=self._group_ids)[["center", "scale"]].to_numpy()
+        if len(self._group_ids) == 1:
+            return (
+                source[self._group_ids].join(self._state, on=self._group_ids)[["center", "scale"]].to_numpy()
+            )
+        else:
+            source[AGG_GROUP] = pd.Series(
+                source[self._group_ids].itertuples(index=False, name=None), index=source.index
+            ).map(lambda x: str(x))
+            return source[[AGG_GROUP]].join(self._state, on=AGG_GROUP)[["center", "scale"]].to_numpy()
 
     def serialize(self):
         return {
@@ -272,7 +291,11 @@ class GroupNormalizer(AbstractNormalizer):
         state = config.get("state", None)
         group_ids = params.get("group_ids", [])
 
-        state = None if state is None else pd.read_csv(io.StringIO(state), index_col=group_ids)
+        state = (
+            None
+            if state is None
+            else pd.read_csv(io.StringIO(state), index_col=group_ids if len(group_ids) == 1 else AGG_GROUP)
+        )
         self = cls(**params)
         self._state = state
 
@@ -282,12 +305,23 @@ class GroupNormalizer(AbstractNormalizer):
 @register(NORMALIZERS)
 class GroupStardardNormalizer(GroupNormalizer):
     def fit_self(self, data: pd.Series, source: pd.DataFrame = None, **kwargs):
-        df_center_scale = (
-            source[self._group_ids]
-            .assign(y=data)
-            .groupby(self._group_ids, observed=True)
-            .agg(center=("y", "mean"), scale=("y", "std"))
-        )
+        if len(self._group_ids) == 1:
+            df_center_scale = (
+                source[self._group_ids]
+                .assign(y=data)
+                .groupby(self._group_ids, observed=True)
+                .agg(center=("y", "mean"), scale=("y", "std"))
+            )
+        else:
+            source[AGG_GROUP] = pd.Series(
+                source[self._group_ids].itertuples(index=False, name=None), index=source.index
+            ).map(lambda x: str(x))
+            df_center_scale = (
+                source[[AGG_GROUP]]
+                .assign(y=data)
+                .groupby(AGG_GROUP, observed=True)
+                .agg(center=("y", "mean"), scale=("y", "std"))
+            )
         if self._center:
             df_center_scale["scale"] += self._eps
             self._state = df_center_scale
@@ -300,12 +334,23 @@ class GroupStardardNormalizer(GroupNormalizer):
 @register(NORMALIZERS)
 class GroupMinMaxNormalizer(GroupNormalizer):
     def fit_self(self, data: pd.Series, source: pd.DataFrame = None, **kwargs):
-        df_min_max = (
-            source[self._group_ids]
-            .assign(y=data)
-            .groupby(self._group_ids, observed=True)
-            .agg(min=("y", "min"), max=("y", "max"))
-        )
+        if len(self._group_ids) == 1:
+            df_min_max = (
+                source[self._group_ids]
+                .assign(y=data)
+                .groupby(self._group_ids, observed=True)
+                .agg(min=("y", "min"), max=("y", "max"))
+            )
+        else:
+            source[AGG_GROUP] = pd.Series(
+                source[self._group_ids].itertuples(index=False, name=None), index=source.index
+            ).map(lambda x: str(x))
+            df_min_max = (
+                source[[AGG_GROUP]]
+                .assign(y=data)
+                .groupby(AGG_GROUP, observed=True)
+                .agg(center=("y", "mean"), scale=("y", "std"))
+            )
 
         if self._center:
             df_min_max["center"] = (df_min_max["min"] + df_min_max["max"]) / 2.0
@@ -337,12 +382,23 @@ class GroupQuantileNormalizer(GroupNormalizer):
             quantiles = [x.quantile(q) for q in self._quantiles]
             return max(quantiles) - min(quantiles) / float(len(quantiles))
 
-        df = (
-            source[self._group_ids]
-            .assign(y=data)
-            .groupby(self._group_ids, observed=True)
-            .agg(center=("y", "median"), scale=("y", scale_fn))
-        )
+        if len(self._group_ids) == 1:
+            df = (
+                source[self._group_ids]
+                .assign(y=data)
+                .groupby(self._group_ids, observed=True)
+                .agg(center=("y", "median"), scale=("y", scale_fn))
+            )
+        else:
+            source[AGG_GROUP] = pd.Series(
+                source[self._group_ids].itertuples(index=False, name=None), index=source.index
+            ).map(lambda x: str(x))
+            df = (
+                source[[AGG_GROUP]]
+                .assign(y=data)
+                .groupby(AGG_GROUP, observed=True)
+                .agg(center=("y", "mean"), scale=("y", "std"))
+            )
 
         if self._center:
             df["scale"] += self._eps
