@@ -128,11 +128,11 @@ class DetrendTargets(AbsrtactDetrend):
         """
         if self.fitted:
             return
-        self._state = {
-            target_column_name: PolynomialDetrendEstimator() for target_column_name in self.feature_name
-        }
-        for column_name, estimator in self._state.items():
+
+        for column_name in self.feature_name:
+            estimator = PolynomialDetrendEstimator()
             estimator.fit(data[column_name], data[TIME_IDX])
+            self._state[column_name] = estimator
 
     def transform_self(self, data: pd.DataFrame, group_ids):
         assert self._state is not None
