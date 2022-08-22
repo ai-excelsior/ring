@@ -152,10 +152,6 @@ class TimeSeriesDataset(Dataset):
                         for grp in data.groupby(self._group_ids)
                     }
                 )
-                # groups has already been transformed to int, group always at the first of categoricals
-                # begin_point.update(
-                #     {int(self._categorical_encoders[0].transform([k])): v for k, v in begin_point.items()}
-                # )
             else:
                 begin_point.update({k: data.loc[begin_point[k], TIME_IDX] for k, _ in begin_point.items()})
         self._indexer.index(data, begin_point)
@@ -692,7 +688,7 @@ class TimeSeriesDataset(Dataset):
             has_known (int) : number of future known features
 
         Returns:
-            Union[None,pd.DataFrame]: data after append if needed or None
+            pd.DataFrame: data after append if needed
         """
         if has_known:
             if data.index[-1] - begin_point[data.name] - self._indexer._look_forward < 0:
