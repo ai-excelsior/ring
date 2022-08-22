@@ -130,7 +130,7 @@ def get_predict_parser(subparsers):
     parser.add_argument(
         "--begin_point",
         type=str,
-        default=-1,
+        default="-1",
         help="Identify the position/time of begin point of prediction, default=-1 means the last available point",
     )
     return parser
