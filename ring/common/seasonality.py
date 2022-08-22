@@ -152,9 +152,6 @@ class DetrendTargets(AbsrtactDetrend):
 class GroupDetrendTargets(AbsrtactDetrend):
     """do detrend, has groups"""
 
-    def __init__(self, feature_name=None) -> None:
-        super().__init__(feature_name=feature_name)
-
     def _fit_seperately(self, data: pd.DataFrame, column_name):
         estimator = PolynomialDetrendEstimator()
         estimator.fit(data[column_name], data[TIME_IDX])
