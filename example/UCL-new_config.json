@@ -20,7 +20,12 @@
             "look_back": 24,
             "look_forward": 12
         },
-        "time_features": []
+        "time_features": [],
+        "lags": {
+            "ele_load": [
+                11
+            ]
+        }
     },
     "data_source": {
         "type": "file",

@@ -5,15 +5,18 @@
         "targets": [
             " Prices"
         ],
-        "group_ids": [],
+        "group_ids": [
+            "groups_2"
+        ],
         "static_categoricals": [],
         "static_reals": [],
         "time_varying_known_categoricals": [],
-        "time_varying_known_reals": [],
+        "time_varying_known_reals": [
+            " System load forecast"
+        ],
         "time_varying_unknown_categoricals": [],
         "time_varying_unknown_reals": [
-            " Generation forecast",
-            " System load forecast"
+            " Generation forecast"
         ],
         "categoricals": [],
         "indexer": {
@@ -23,10 +26,15 @@
         },
         "time_features": [],
         "detrend": true,
-        "lags": {}
+        "lags": {
+            " Prices": [
+                24,
+                31
+            ]
+        }
     },
     "data_source": {
         "type": "file",
-        "path": "file://example/xyz/BE.csv"
+        "path": "file://data/BE_multi_clip.csv"
     }
 }

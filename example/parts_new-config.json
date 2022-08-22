@@ -11,7 +11,9 @@
         "static_categoricals": [],
         "static_reals": [],
         "time_varying_known_categoricals": [],
-        "time_varying_known_reals": [],
+        "time_varying_known_reals": [
+            "manual_known"
+        ],
         "time_varying_unknown_categoricals": [],
         "time_varying_unknown_reals": [],
         "categoricals": [],
@@ -24,6 +26,6 @@
     },
     "data_source": {
         "type": "file",
-        "path": "file://data/parts_train.csv"
+        "path": "file://data/parts_train_known.csv"
     }
 }
