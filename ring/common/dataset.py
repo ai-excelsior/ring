@@ -240,7 +240,7 @@ class TimeSeriesDataset(Dataset):
             )
 
         # remove nan caused by lag shift
-        data = data.dropna()  # .reset_index(drop=True)
+        data = data.dropna()  # do not reset_index
         self._indexer.drop_index(max_lags)
 
         # fit continous scalar
@@ -600,7 +600,6 @@ class TimeSeriesDataset(Dataset):
 
     def to_dataloader(self, batch_size: int, train: bool = True, **kwargs) -> DataLoader:
         default_kwargs = dict(
-            # shuffle=train,
             drop_last=train and len(self) > batch_size,
             collate_fn=self._collate_fn,
             batch_size=batch_size,
@@ -714,7 +713,7 @@ class TimeSeriesDataset(Dataset):
                     inclusive="neither",
                 )
                 df_append[self._group_ids] = data.name if self._group_ids else None
-                data = pd.concat([data, df_append], axis=0)
+                data = pd.concat([data, df_append], axis=0)  # do not ignore_index
         return data
 
     def _verify_lags(self, data: pd.DataFrame, begin_point: Dict, max_lags: int = 0):
@@ -724,17 +723,12 @@ class TimeSeriesDataset(Dataset):
             data (pd.DataFrame): data to do train/evaluate/validate/predict
             begin_point (Dict)
         """
+        if not begin_point:  # during train
+            return True
         assert (
-            [
-                idx
-                >= data.groupby(self._group_ids).get_group(grp).index[0]
-                + self._indexer._look_back
-                + max_lags
-                - 1
-                for grp, idx in begin_point.items()
-            ]
-            if self._group_ids and begin_point
-            else begin_point[data.name] >= data.index[0] + self._indexer._look_back + max_lags - 1
-            if begin_point
-            else True
-        ), "not enough length for look_back due to lags"
+            data.groupby(self._group_ids).apply(
+                lambda grp: begin_point[grp.name] >= grp.index[0] + self._indexer._look_back + max_lags - 1
+            )
+            if self._group_ids
+            else begin_point[PREDICTION_DATA] >= data.index[0] + self._indexer._look_back + max_lags - 1
+        ), "not enough length for look_back because of lags"

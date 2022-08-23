@@ -11,12 +11,11 @@
         "static_categoricals": [],
         "static_reals": [],
         "time_varying_known_categoricals": [],
-        "time_varying_known_reals": [
-            " System load forecast"
-        ],
+        "time_varying_known_reals": [],
         "time_varying_unknown_categoricals": [],
         "time_varying_unknown_reals": [
-            " Generation forecast"
+            " Generation forecast",
+            " System load forecast"
         ],
         "categoricals": [],
         "indexer": {
