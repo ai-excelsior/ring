@@ -647,7 +647,6 @@ class TimeSeriesDataset(Dataset):
         data_to_return = data_to_return.assign(is_prediction=False)
         data_to_return.loc[decoder_indices, "is_prediction"] = True
 
-        # inverse group_id
         # inverse normalize
         if inverse_scale_target:
             data_to_return = data_to_return.assign(
@@ -658,7 +657,7 @@ class TimeSeriesDataset(Dataset):
                     for i, target_name in enumerate(self._targets)
                 }
             )
-
+        # inverse group_id
         if self._group_ids:
             data_to_return = data_to_return.assign(
                 **{
@@ -671,7 +670,7 @@ class TimeSeriesDataset(Dataset):
         data_to_return[self.targets] = self._target_detrenders.inverse_transform(
             data_to_return, self._group_ids
         )
-        # caliberate bias caused by detrend, tolerance is default as 1e-8
+        # caliberate bias caused by detrend on implement-data, tolerance is default as 1e-8
         data_to_return.loc[decoder_indices, self.targets] = data_to_return.loc[
             decoder_indices, self.targets
         ].applymap(lambda x: 0 if np.isclose(x, 0) else x)
@@ -679,7 +678,7 @@ class TimeSeriesDataset(Dataset):
         return data_to_return
 
     def _implement_forward(self, data: pd.DataFrame, begin_point: Dict = None, has_known: int = None):
-        """if future known features do not exist, implement rows of 0 for data if needed
+        """if future known features do not exist, implement rows of 0 for data when needed;
         if future known features exist, check whether there has enough rows left in data
 
         Args:
