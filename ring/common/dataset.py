@@ -115,7 +115,7 @@ class TimeSeriesDataset(Dataset):
                     has_known=len(time_varying_known_categoricals + time_varying_known_reals),
                     begin_point=begin_point,
                 )
-                try:  # drop potential multiindex caused by groupby
+                try:  # drop potential multiindex caused by groupby, do not use drop_index
                     data = data.droplevel(self._group_ids)
                 except:
                     pass
