@@ -36,6 +36,14 @@ PREDICTION_DATA = "_prediction_data_"
 
 
 class TimeSeriesDataset(Dataset):
+    """The whole datapipeline is ordered in following order, some steps may not be necessary due to the stage and configs
+    implement data -> add time_features -> add time_idx -> detrend -> build indexer ->
+    categorical_encoder -> target_normalizer -> add lags -> continuous_normalizer -> add static
+
+    Args:
+        Dataset (_type_): _description_
+    """
+
     def __init__(
         self,
         data: pd.DataFrame,
