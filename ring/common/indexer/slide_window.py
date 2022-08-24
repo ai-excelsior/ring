@@ -193,7 +193,11 @@ class SlideWindowIndexer_fixed(BaseIndexer):
     def index(self, data: pd.DataFrame, last_only: bool = False, start_index: int = None):
         if len(self._group_ids) > 0:
             g = data.groupby(self._group_ids, observed=True)
-            group_ids = g.ngroup()
+            group_ids = (
+                pd.Series(data[self._group_ids].itertuples(index=False, name=None)).squeeze()
+                if len(self._group_ids) > 1
+                else data[self._group_ids].squeeze()
+            )  # in order to match that in begin_point dict
 
             df_time_idx_first = g[self._time_idx].transform("nth", 0).to_frame("time_idx_first")
             df_time_idx_last = g[self._time_idx].transform("nth", -1).to_frame("time_idx_last")
@@ -215,7 +219,7 @@ class SlideWindowIndexer_fixed(BaseIndexer):
         # calculate maximum index to include from current index_start
         max_time_idx = (df_index["time_idx"] + sequence_length - 1).clip(upper=df_index["time_idx_last"])
         df_index["index_end"], missing_sequences = find_end_indices(
-            diffs=df_index["time_idx_to_next"].to_numpy(),
+            diffs=df_index["time_idx_to_next"],
             max_lengths=(max_time_idx - df_index["time_idx"]).to_numpy() + 1,
             min_length=sequence_length,
         )
@@ -231,9 +235,7 @@ class SlideWindowIndexer_fixed(BaseIndexer):
             df_index = pd.concat([df_index, shortened_sequences], axis=0, ignore_index=True)
 
         # filter out where encode and decode length are not satisfied
-        df_index["sequence_length"] = (
-            df_index["time_idx"].iloc[df_index["index_end"]].to_numpy() - df_index["time_idx"] + 1
-        )
+        df_index["sequence_length"] = df_index["index_end"] - df_index["index_start"] + 1
 
         # filter too short sequences
         # sequence must be at least of minimal prediction length
@@ -327,7 +329,7 @@ class SlideWindowIndexer_bucketSampler(BaseIndexer):
         self._time_idx = time_idx
         self.scale_histogram = ScaleHistogram()
 
-    def index(self, data: pd.DataFrame, evaluate_mode: bool = False):
+    def index(self, data: pd.DataFrame, evaluate_mode: bool = False, targets: list = []):
         """
         Create index of samples.
 
@@ -338,7 +340,11 @@ class SlideWindowIndexer_bucketSampler(BaseIndexer):
 
         if len(self._group_ids) > 0:
             g = data.groupby(self._group_ids, observed=True)
-            group_ids = g.ngroup()
+            group_ids = (
+                pd.Series(data[self._group_ids].itertuples(index=False, name=None)).squeeze()
+                if len(self._group_ids) > 1
+                else data[self._group_ids].squeeze()
+            )
 
             df_time_idx_first = g[self._time_idx].transform("nth", 0).to_frame("time_idx_first")
             df_time_idx_last = g[self._time_idx].transform("nth", -1).to_frame("time_idx_last")
@@ -361,7 +367,7 @@ class SlideWindowIndexer_bucketSampler(BaseIndexer):
         # calculate maximum index to include from current index_start
         max_time_idx = (df_index["time_idx"] + sequence_length - 1).clip(upper=df_index["time_idx_last"])
         df_index["index_end"], missing_sequences = find_end_indices(
-            diffs=df_index["time_idx_to_next"].to_numpy(),
+            diffs=df_index["time_idx_to_next"],
             max_lengths=(max_time_idx - df_index["time_idx"]).to_numpy() + 1,
             min_length=sequence_length,
         )
@@ -377,9 +383,7 @@ class SlideWindowIndexer_bucketSampler(BaseIndexer):
             df_index = pd.concat([df_index, shortened_sequences], axis=0, ignore_index=True)
 
         # filter out where encode and decode length are not satisfied
-        df_index["sequence_length"] = (
-            df_index["time_idx"].iloc[df_index["index_end"]].to_numpy() - df_index["time_idx"] + 1
-        )
+        df_index["sequence_length"] = df_index["index_end"] - df_index["index_start"] + 1
 
         # filter too short sequences
         # sequence must be at least of minimal prediction length
@@ -417,25 +421,35 @@ class SlideWindowIndexer_bucketSampler(BaseIndexer):
 
         if len(self._group_ids) > 0:
             # 计算每个group的取样概率
-            unique_group_ids = data[self._group_ids[0]].unique()
-            sequence_length = self._look_back + self._look_forward
-            sample_df_index = []
-            for i in unique_group_ids:
-                group_data = data[data[self._group_ids[0]] == i]
-                group_target = group_data["sales"]
-                self.scale_histogram.add(group_target.values)
-
-            for i in unique_group_ids:
-                group_df_index = df_index[df_index["group_id"] == i]
-                group_data = data[data[self._group_ids[0]] == i]
-                group_target = group_data["sales"]
-                p_i = 1.0 / self.scale_histogram.count(group_target.values)
-                (indices,) = np.where(np.random.random_sample(len(group_df_index)) < p_i)
-                if len(indices) > 0:
-                    sample_group_i = group_df_index.loc[group_df_index["time_idx"].isin(indices)]
-                    sample_df_index.append(sample_group_i)
-            df_index = pd.concat(sample_df_index)
-            # print(len(df_index))
+            data.groupby(self._group_ids).apply(lambda x: self.scale_histogram.add(x[targets].values))
+            # for i in unique_group_ids:
+            #     group_data = data[data[self._group_ids[0]] == i]
+            #     group_target = group_data["sales"]
+            #     self.scale_histogram.add(group_target.values)
+            p_i = (
+                data.groupby(self._group_ids)
+                .apply(lambda x: 1 / self.scale_histogram.count(x[targets].values))
+                .to_dict()
+            )
+            indices = (
+                df_index.groupby("group_id")
+                .apply(lambda x: np.where(np.random.random_sample(len(x)) < p_i[x.name])[0])
+                .to_dict()
+            )
+            sample_df_index = df_index.groupby("group_id").apply(
+                lambda x: x.loc[x["time_idx"].isin(indices[x.name])]
+            )
+            df_index = sample_df_index.droplevel("group_id")
+            # for i in unique_group_ids:
+            #     group_df_index = df_index[df_index["group_id"] == i]
+            #     group_data = data[data[self._group_ids[0]] == i]
+            #     group_target = group_data["sales"]
+            #     p_i = 1.0 / self.scale_histogram.count(group_target.values)
+            #     (indices,) = np.where(np.random.random_sample(len(group_df_index)) < p_i)
+            #     if len(indices) > 0:
+            #         sample_group_i = group_df_index.loc[group_df_index["time_idx"].isin(indices)]
+            #         sample_df_index.append(sample_group_i)
+            # df_index = pd.concat(sample_df_index)
 
         self._index = df_index
 
