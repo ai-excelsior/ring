@@ -361,6 +361,10 @@ class SlideWindowIndexer_bucketSampler(BaseIndexer):
 
         df_index["index_start"] = np.arange(len(df_index))
         df_index["time_idx"] = data[self._time_idx]
+        # the last of look_back point, relative index(re-number for each group)
+        df_index["time_idx_begin"] = df_index["time_idx"] + self._look_back - 1
+        # the last of prediction point, relative index(re-number for each group)
+        df_index["time_idx_end"] = df_index["time_idx_begin"] + self._look_forward
 
         sequence_length = self._look_back + self._look_forward
 
@@ -479,4 +483,13 @@ class SlideWindowIndexer_bucketSampler(BaseIndexer):
         encoder_idx = range(index_start, index_start + encoder_length)
         decoder_idx = range(index_end - decoder_length, index_end)
 
-        return dict(encoder_idx=encoder_idx, decoder_idx=decoder_idx)
+        # to filter records dont belong to this group
+        encoder_idx_range = range(index["time_idx"], index["time_idx_begin"] + 1)
+        decoder_idx_range = range(index["time_idx_begin"] + 1, index["time_idx_end"] + 1)
+
+        return dict(
+            encoder_idx=encoder_idx,
+            decoder_idx=decoder_idx,
+            encoder_idx_range=encoder_idx_range,
+            decoder_idx_range=decoder_idx_range,
+        )
