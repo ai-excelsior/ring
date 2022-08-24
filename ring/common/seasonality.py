@@ -128,7 +128,7 @@ class DetrendTargets(AbsrtactDetrend):
         """
         if self.fitted:
             return
-
+        self._state = {}
         for column_name in self.feature_name:
             estimator = PolynomialDetrendEstimator()
             estimator.fit(data[column_name], data[TIME_IDX])
