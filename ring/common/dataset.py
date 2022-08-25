@@ -734,9 +734,11 @@ class TimeSeriesDataset(Dataset):
         if not begin_point:  # during train
             return True
         assert (
-            data.groupby(self._group_ids).apply(
+            data.groupby(self._group_ids)
+            .apply(
                 lambda grp: begin_point[grp.name] >= grp.index[0] + self._indexer._look_back + max_lags - 1
             )
+            .all()
             if self._group_ids
             else begin_point[PREDICTION_DATA] >= data.index[0] + self._indexer._look_back + max_lags - 1
         ), "not enough length for look_back because of lags"
