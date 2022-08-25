@@ -4,7 +4,9 @@ from .estimators.base import (
     Estimator,
     AbstractDetrendEstimator,
     PolynomialDetrendEstimator,
-    RobuststlDetrendEstimator,
+    LogDetrendEstimator,
+    SinDetrendEstimator,
+    CosDetrendEstimator,
 )
 from .autoperiod import Autoperiod
 from .utils import register
@@ -69,11 +71,13 @@ def deserialize_detrender(d: Dict[str, Any]):
     estimator = (
         PolynomialDetrendEstimator
         if d.get("estimator") == "PolynomialDetrendEstimator"
-        else RobuststlDetrendEstimator
-        if d.get("estimator") == "RobuststlDetrendEstimator"
+        else LogDetrendEstimator
+        if d.get("estimator") == "LogDetrendEstimator"
+        else SinDetrendEstimator
+        if d.get("estimator") == "SinDetrendEstimator"
+        else CosDetrendEstimator
+        if d.get("estimator") == "CosDetrendEstimator"
         else AbstractDetrendEstimator
-        if d.get("estimator") == "AbstractDetrendEstimator"
-        else print("estimator not available")
     )
     _state = {}
     for k, v in state.items():  # targets
@@ -150,7 +154,6 @@ class DetrendTargets(AbsrtactDetrend):
             return
         self._state = {}
         for column_name in self.feature_name:
-            #    estimator = PolynomialDetrendEstimator()
             self.estimator().fit(data[column_name], data[TIME_IDX])
             self._state[column_name] = self.estimator
 

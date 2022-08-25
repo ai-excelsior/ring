@@ -117,7 +117,15 @@ class AbstractDetrendEstimator(Estimator):
         return data
 
 
-class RobuststlDetrendEstimator(AbstractDetrendEstimator):
+class LogDetrendEstimator(AbstractDetrendEstimator):
+    pass
+
+
+class SinDetrendEstimator(AbstractDetrendEstimator):
+    pass
+
+
+class CosDetrendEstimator(AbstractDetrendEstimator):
     pass
 
 
