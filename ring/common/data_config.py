@@ -44,7 +44,7 @@ class DataConfig:
     time_varying_unknown_categoricals: List[str] = field(default_factory=list)
     time_varying_unknown_reals: List[str] = field(default_factory=list)
     time_features: List[str] = field(default_factory=list)
-    detrend: bool = field(default_factory=bool)
+    detrend: str = field(default_factory=str)
     lags: Dict = field(default_factory=dict)
 
 
@@ -106,7 +106,7 @@ def dict_to_data_cfg_anomal(cfg: Dict) -> DataConfig:
         cat_features=cfg.get("cat_features", []),
         categoricals=cats,
         time_features=cfg.get("time_features", []),
-        detrend=cfg.get("detrend", {}),
+        detrend=cfg.get("detrend", False),
         lags=cfg.get("lags", {}),
     )
     return data_config

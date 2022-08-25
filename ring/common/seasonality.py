@@ -18,15 +18,29 @@ TIME_IDX = "_time_idx_"
 AGG_GROUP = "_GROUPS_"
 
 
+def cfg_to_estimator(estimator):
+    return (
+        LogDetrendEstimator
+        if estimator == "LogDetrendEstimator"
+        else CosDetrendEstimator
+        if estimator == "CosDetrendEstimator"
+        else SinDetrendEstimator
+        if estimator == "SinDetrendEstimator"
+        else AbstractDetrendEstimator
+        if estimator == "AbstractDetrendEstimator"
+        else PolynomialDetrendEstimator  # not specified
+    )
+
+
 def create_detrender_from_cfg(no_lags: bool, detrend: bool, group_ids: List[str], targets: List[str]):
     # if `data_cfg.lags` is not None, detrender will not be `AbsrtactDetrend`
     return (
-        GroupDetrendTargets(feature_name=targets, estimator=PolynomialDetrendEstimator)
+        GroupDetrendTargets(feature_name=targets, estimator=cfg_to_estimator(detrend))
         if (detrend or not no_lags)
         and group_ids  # have groups and need detrend, or have groups and have lags_config
-        else DetrendTargets(feature_name=targets, estimator=PolynomialDetrendEstimator)
+        else DetrendTargets(feature_name=targets, estimator=cfg_to_estimator(detrend))
         if detrend or not no_lags  #  need detrend, or have lags_config
-        else AbsrtactDetrend(feature_name=targets)
+        else AbsrtactDetrend(feature_name=targets)  # always set estimator=AbstractDetrendEstimator
     )
 
 
@@ -68,17 +82,7 @@ def serialize_detrender(obj: "AbsrtactDetrend"):
 def deserialize_detrender(d: Dict[str, Any]):
     cls: "AbsrtactDetrend" = SEASONALITY[d["name"]]
     state = d.get("state", {})
-    estimator = (
-        PolynomialDetrendEstimator
-        if d.get("estimator") == "PolynomialDetrendEstimator"
-        else LogDetrendEstimator
-        if d.get("estimator") == "LogDetrendEstimator"
-        else SinDetrendEstimator
-        if d.get("estimator") == "SinDetrendEstimator"
-        else CosDetrendEstimator
-        if d.get("estimator") == "CosDetrendEstimator"
-        else AbstractDetrendEstimator
-    )
+    estimator = cfg_to_estimator(d.get("estimator", False))
     _state = {}
     for k, v in state.items():  # targets
         if isinstance(v, list):  # groups
