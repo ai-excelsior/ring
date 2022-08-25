@@ -117,6 +117,10 @@ class AbstractDetrendEstimator(Estimator):
         return data
 
 
+class RobuststlDetrendEstimator(AbstractDetrendEstimator):
+    pass
+
+
 class PolynomialDetrendEstimator(AbstractDetrendEstimator):
     """
     A PolynomialDetrendEstimator that try to find best degree to fit the passed-in data and remove the trend.

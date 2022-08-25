@@ -1,6 +1,11 @@
 from typing import Dict, Any, List, Union
 
-from .estimators.base import Estimator, AbstractDetrendEstimator, PolynomialDetrendEstimator
+from .estimators.base import (
+    Estimator,
+    AbstractDetrendEstimator,
+    PolynomialDetrendEstimator,
+    RobuststlDetrendEstimator,
+)
 from .autoperiod import Autoperiod
 from .utils import register
 import numpy as np
@@ -14,10 +19,11 @@ AGG_GROUP = "_GROUPS_"
 def create_detrender_from_cfg(no_lags: bool, detrend: bool, group_ids: List[str], targets: List[str]):
     # if `data_cfg.lags` is not None, detrender will not be `AbsrtactDetrend`
     return (
-        GroupDetrendTargets(feature_name=targets)
-        if (detrend or not no_lags) and group_ids
-        else DetrendTargets(feature_name=targets)
-        if detrend or not no_lags
+        GroupDetrendTargets(feature_name=targets, estimator=PolynomialDetrendEstimator)
+        if (detrend or not no_lags)
+        and group_ids  # have groups and need detrend, or have groups and have lags_config
+        else DetrendTargets(feature_name=targets, estimator=PolynomialDetrendEstimator)
+        if detrend or not no_lags  #  need detrend, or have lags_config
         else AbsrtactDetrend(feature_name=targets)
     )
 
@@ -53,18 +59,28 @@ def serialize_detrender(obj: "AbsrtactDetrend"):
         )
     d["name"] = obj.__class__.__name__
     d["state"] = out
+    d["estimator"] = obj.estimator.__name__
     return d
 
 
 def deserialize_detrender(d: Dict[str, Any]):
     cls: "AbsrtactDetrend" = SEASONALITY[d["name"]]
     state = d.get("state", {})
+    estimator = (
+        PolynomialDetrendEstimator
+        if d.get("estimator") == "PolynomialDetrendEstimator"
+        else RobuststlDetrendEstimator
+        if d.get("estimator") == "RobuststlDetrendEstimator"
+        else AbstractDetrendEstimator
+        if d.get("estimator") == "AbstractDetrendEstimator"
+        else print("estimator not available")
+    )
     _state = {}
     for k, v in state.items():  # targets
         if isinstance(v, list):  # groups
-            _state[k] = {item["k"]: PolynomialDetrendEstimator.deserialize(item["v"]) for item in v}
+            _state[k] = {item["k"]: estimator.deserialize(item["v"]) for item in v}
         else:
-            _state[k] = PolynomialDetrendEstimator.deserialize(v)
+            _state[k] = estimator.deserialize(v)
     this = cls(feature_name=[k for k, _ in _state.items()])
     this._state = _state
     return this
@@ -89,9 +105,10 @@ def deserialize_lags(d: Dict[str, Any]):
 class AbsrtactDetrend(Estimator):
     """do nothing to detrend"""
 
-    def __init__(self, feature_name=None) -> None:
+    def __init__(self, feature_name=None, estimator=AbstractDetrendEstimator) -> None:
         super().__init__()
         self.feature_name = feature_name
+        self.estimator = estimator
 
     def fit_transform(self, data: pd.DataFrame, group_ids, **kwargs) -> pd.Series:
         self.fit(data, group_ids)
@@ -107,9 +124,7 @@ class AbsrtactDetrend(Estimator):
         return self.inverse_transform_self(data, group_ids, **kwargs)
 
     def fit_self(self, data: pd.DataFrame, group_ids):
-        self._state = {
-            target_column_name: AbstractDetrendEstimator() for target_column_name in self.feature_name
-        }
+        self._state = {target_column_name: self.estimator() for target_column_name in self.feature_name}
 
     def transform_self(self, data: pd.DataFrame, group_ids, **kwargs):
         return data[self.feature_name]
@@ -122,6 +137,11 @@ class AbsrtactDetrend(Estimator):
 class DetrendTargets(AbsrtactDetrend):
     """do detrend, no groups"""
 
+    def __init__(self, feature_name=None, estimator=PolynomialDetrendEstimator) -> None:
+        super().__init__()
+        self.feature_name = feature_name
+        self.estimator = estimator
+
     def fit_self(self, data: pd.DataFrame, group_ids):
         """
         fit the PolynomialDetrendEstimator, and save it in the state.
@@ -130,9 +150,9 @@ class DetrendTargets(AbsrtactDetrend):
             return
         self._state = {}
         for column_name in self.feature_name:
-            estimator = PolynomialDetrendEstimator()
-            estimator.fit(data[column_name], data[TIME_IDX])
-            self._state[column_name] = estimator
+            #    estimator = PolynomialDetrendEstimator()
+            self.estimator().fit(data[column_name], data[TIME_IDX])
+            self._state[column_name] = self.estimator
 
     def transform_self(self, data: pd.DataFrame, group_ids):
         assert self._state is not None
@@ -152,8 +172,13 @@ class DetrendTargets(AbsrtactDetrend):
 class GroupDetrendTargets(AbsrtactDetrend):
     """do detrend, has groups"""
 
+    def __init__(self, feature_name=None, estimator=PolynomialDetrendEstimator) -> None:
+        super().__init__()
+        self.feature_name = feature_name
+        self.estimator = estimator
+
     def _fit_seperately(self, data: pd.DataFrame, column_name):
-        estimator = PolynomialDetrendEstimator()
+        estimator = self.estimator()
         estimator.fit(data[column_name], data[TIME_IDX])
         return estimator
 
