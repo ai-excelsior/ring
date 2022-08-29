@@ -64,9 +64,9 @@ class Autoperiod:
         mc_iterations: int = 100,
         confidence_level: float = 0.99,
         random_state: int = 666,
-        win_size: int = 5,
-        thres1: float = 0.01,
-        thres2: float = 0.01,
+        win_size: int = 7,
+        thres1: float = 0.1,
+        thres2: float = 0.1,
         auto_time_differencing: bool = False,
         n_jobs: int = 1,
     ):
@@ -139,7 +139,7 @@ class Autoperiod:
 
     @property
     def period(self):
-        return self._period
+        return [self._period]
 
     def period_area(self):
         period_region = self._sinwave > (np.max(self._sinwave) / 2)
@@ -255,7 +255,7 @@ class Autoperiod:
             else:
                 tarnow_idx = self._find_tarpre(tarpre_idx - self.win_size, tarpre_idx)
             # 下次循环从符合点+self.win_size+1开始，因为[符合点,符合点+self.win_size]间不可能有局部最大值点
-            i = abs(tarnow_idx) + 5 + 1
+            i = abs(tarnow_idx) + self.win_size + 1
             if tarnow_idx <= 0 or (tarnow_idx in [0, len(self.time_idx) - 1]):
                 continue
             # print(tarnow_idx)
@@ -277,7 +277,7 @@ class Autoperiod:
         # 防止potential_period_list为空报错
         try:
             acf_thres = sorted([self.acf[item] for item in potential_period_list])[
-                int(0.8 * len(potential_period_list))
+                int(0.95 * len(potential_period_list))
             ]
             potential_period_list_final = [idx for idx in potential_period_list if self.acf[idx] >= acf_thres]
         except:
