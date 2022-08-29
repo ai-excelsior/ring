@@ -248,7 +248,9 @@ class TimeSeriesDataset(Dataset):
             )
 
         # remove nan caused by lag shift
-        data = data.dropna()  # do not reset_index
+        data = data.dropna(
+            subset=self.reals + self.categoricals + self.encoder_lag_features + self.time_features
+        )  # do not reset_index
         self._indexer.drop_index(max_lags)
 
         # fit continous scalar
@@ -291,6 +293,15 @@ class TimeSeriesDataset(Dataset):
     @property
     def embedding_sizes(self):
         return self._embedding_sizes
+
+    @property
+    def reals(self):
+        return [
+            *self._targets,
+            *self._static_reals,
+            *self._time_varying_known_reals,
+            *self._time_varying_unknown_reals,
+        ]
 
     @property
     def categoricals(self):
