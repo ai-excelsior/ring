@@ -5,8 +5,6 @@ from .estimators.base import (
     AbstractDetrendEstimator,
     PolynomialDetrendEstimator,
     LogDetrendEstimator,
-    SinDetrendEstimator,
-    CosDetrendEstimator,
 )
 from .autoperiod import Autoperiod
 from .utils import register
@@ -22,10 +20,6 @@ def cfg_to_estimator(estimator):
     return (
         LogDetrendEstimator
         if estimator == "LogDetrendEstimator"
-        else CosDetrendEstimator
-        if estimator == "CosDetrendEstimator"
-        else SinDetrendEstimator
-        if estimator == "SinDetrendEstimator"
         else AbstractDetrendEstimator
         if estimator == "AbstractDetrendEstimator"
         else PolynomialDetrendEstimator  # not specified
@@ -158,8 +152,9 @@ class DetrendTargets(AbsrtactDetrend):
             return
         self._state = {}
         for column_name in self.feature_name:
-            self.estimator().fit(data[column_name], data[TIME_IDX])
-            self._state[column_name] = self.estimator
+            estimator = self.estimator()
+            estimator.fit(data[column_name], data[TIME_IDX])
+            self._state[column_name] = estimator
 
     def transform_self(self, data: pd.DataFrame, group_ids):
         assert self._state is not None
