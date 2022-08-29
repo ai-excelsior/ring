@@ -281,7 +281,7 @@ class DetectTargetLags(AbstractDetectTargetLags):
         """Detect data lags"""
         p = Autoperiod(data[TIME_IDX].values, data[data.columns[1]].values)
         if p.period is not None:
-            self.lags += p.period_list
+            self.lags += p.period
 
 
 @register(SEASONALITY)
@@ -294,7 +294,7 @@ class GroupDetectTargetLags(AbstractDetectTargetLags):
     def _detect_lags(self, data: pd.DataFrame, group_ids: List = []):
         """Detect data lags"""
         lags_df = data.groupby(group_ids).aggregate(
-            {data.columns[1]: lambda x: Autoperiod(np.arange(len(x)), x.values).period_list}
+            {data.columns[1]: lambda x: Autoperiod(np.arange(len(x)), x.values).period}
         )
 
         self.lags += self._is_unique(lags_df[data.columns[1]])
