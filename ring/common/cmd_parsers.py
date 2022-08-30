@@ -4,9 +4,7 @@ from typing import Union
 def get_train_parser(subparsers):
     parser = subparsers.add_parser("train", help="train a model")
     # parser = subparser
-    parser.add_argument(
-        "--data_cfg", type=str, required=True, help="The data config and data source, s3 address"
-    )
+    parser.add_argument("--data", type=str, required=True, help="The data config and data source, s3 address")
     parser.add_argument(
         "--train_start_time",
         type=str,
@@ -60,9 +58,7 @@ def get_train_parser(subparsers):
 
 def get_validate_parser(subparsers):
     parser = subparsers.add_parser("validate", help="validate a model, get validation metrics")
-    parser.add_argument(
-        "--data_cfg", type=str, required=True, help="The data config and data source, s3 address"
-    )
+    parser.add_argument("--data", type=str, required=True, help="The data config and data source, s3 address")
     parser.add_argument(
         "--start_time",
         type=str,
@@ -93,9 +89,7 @@ def get_validate_parser(subparsers):
 
 def get_predict_parser(subparsers):
     parser = subparsers.add_parser("predict", help="predict the last part of the given data")
-    parser.add_argument(
-        "--data_cfg", type=str, required=True, help="The data config and data source, s3 address"
-    )
+    parser.add_argument("--data", type=str, required=True, help="The data config and data source, s3 address")
     parser.add_argument(
         "--start_time",
         type=str,
@@ -139,9 +133,7 @@ def get_predict_parser(subparsers):
 def get_serve_parser(subparsers):
     parser = subparsers.add_parser("serve", help="serve a model")
     # parser = subparser
-    parser.add_argument(
-        "--data_cfg", type=str, required=True, help="The data config and data source, s3 address"
-    )
+    parser.add_argument("--data", type=str, required=True, help="The data config and data source, s3 address")
     parser.add_argument(
         "--load_state",
         type=str,
