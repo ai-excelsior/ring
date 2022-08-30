@@ -39,7 +39,6 @@ class TemporalFusionTransformer(AutoRegressiveBaseModelWithCovariates):
         static_reals: List[str] = [],
         time_varying_categoricals_encoder: List[str] = [],
         time_varying_categoricals_decoder: List[str] = [],
-        categorical_groups: Dict[str, List[str]] = {},
         time_varying_reals_encoder: List[str] = [],
         time_varying_reals_decoder: List[str] = [],
         x_reals: List[str] = [],
@@ -421,17 +420,23 @@ class TemporalFusionTransformer(AutoRegressiveBaseModelWithCovariates):
         """
         encoder_lengths = x["encoder_length"]
         decoder_lengths = x["decoder_length"]
-        
+
         x_cat = torch.cat([x["encoder_cat"], x["decoder_cat"]], dim=1)  # concatenate in time dimension
-        x_cont = torch.cat([x["encoder_cont"] - self._targets, x["decoder_cont"]], dim=1)  # concatenate in time dimension
+        x_cont = torch.cat(
+            [x["encoder_cont"] - self._targets, x["decoder_cont"]], dim=1
+        )  # concatenate in time dimension
         timesteps = x_cont.shape[1]  # encode + decode length
         max_encoder_length = int(encoder_lengths.max())
-        input_vectors = self.input_embeddings(x_cat) 
-            {name: x_cont[..., idx].unsqueeze(-1) for idx, name in enumerate(self.reals) if name in self.reals}
+        input_vectors = self.input_embeddings(x_cat)
+        input_vectors.update(
+            {
+                name: x_cont[..., idx].unsqueeze(-1)
+                for idx, name in enumerate(self.hparams.x_reals)
+                if name in self.reals
+            }
         )
-
         # Embedding and variable selection
-        if len(self.static_variables) > 0: 
+        if len(self.static_variables) > 0:
             # static embeddings will be constant over entire batch
             static_embedding = {name: input_vectors[name][:, 0] for name in self.static_variables}
             (
@@ -440,14 +445,14 @@ class TemporalFusionTransformer(AutoRegressiveBaseModelWithCovariates):
             ) = self.static_variable_selection(static_embedding)
         else:
             static_embedding = torch.zeros(
-                (x_cont.size(0), hidden_size),
+                (x_cont.size(0), self.hidden_size),
                 dtype=self.dtype,
                 device=self.device,
             )
             static_variable_selection = torch.zeros((x_cont.size(0), 0), dtype=self.dtype, device=self.device)
 
         static_context_variable_selection = self.expand_static_context(
-            self.static_context_variable_selection(static_embedding), 
+            self.static_context_variable_selection(static_embedding),
         )
 
         embeddings_varying_encoder = {
