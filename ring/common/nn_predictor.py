@@ -508,7 +508,6 @@ class Predictor:
                 encoder_indices, decoder_indices, encoder_indices_range, decoder_indices_range
             )
             raw_data = raw_data.assign(**{name: np.nan for name in prediction_column_names})
-            print("adsdada")
             # cuz `inverse_transform` can only deal with column names stored in state
             raw_data.loc[
                 decoder_indices, prediction_column_names
