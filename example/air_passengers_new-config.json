@@ -24,6 +24,6 @@
     },
     "data_source": {
         "type": "file",
-        "path": "file://data/air_passengers.csv"
+        "path": "file://data/air_passengers_train.csv"
     }
 }
