@@ -40,11 +40,11 @@ def train(data_config: DataConfig, data_train: pd.DataFrame, data_val: pd.DataFr
                 "dropout": kwargs["dropout"],
                 "attention_head_size": kwargs["attention_head_size"],
                 "max_encoder_length": kwargs["max_encoder_length"],
-                "hidden_continuous_size": kwargs["hidden_continuous_size"],
-                "hidden_continuous_sizes": kwargs["hidden_continuous_sizes"],
-                "embedding_sizes": kwargs["embedding_sizes"],
-                "embedding_paddings": kwargs["embedding_paddings"],
-                "embedding_labels": kwargs["embedding_labels"],
+                # "hidden_continuous_size": kwargs["hidden_continuous_size"],
+                # "hidden_continuous_sizes": kwargs["hidden_continuous_sizes"],
+                # "embedding_sizes": kwargs["embedding_sizes"],
+                # "embedding_paddings": kwargs["embedding_paddings"],
+                # "embedding_labels": kwargs["embedding_labels"],
                 # "output_size": kwargs["output_size"],
             },
             metric_cfg=kwargs.get("metric", None),
@@ -175,11 +175,11 @@ if __name__ == "__main__":
     train_parser.add_argument("--dropout", type=float, default=0.1)
     train_parser.add_argument("--attention_head_size", type=int, default=4)
     train_parser.add_argument("--max_encoder_length", type=int, default=10)
-    train_parser.add_argument("--hidden_continuous_size", type=int, default=8)
-    train_parser.add_argument("--hidden_continuous_sizes", type=int, default=1)
-    train_parser.add_argument("--embedding_sizes", type=int, default=1)
-    train_parser.add_argument("--embedding_paddings", type=int, default=1)
-    train_parser.add_argument("--embedding_labels", type=int, default=1)
+    # train_parser.add_argument("--hidden_continuous_size", type=int, default=8)
+    # train_parser.add_argument("--hidden_continuous_sizes", type=int, default=1)
+    # train_parser.add_argument("--embedding_sizes", type=int, default=1)
+    # train_parser.add_argument("--embedding_paddings", type=int, default=1)
+    # train_parser.add_argument("--embedding_labels", type=int, default=1)
 
     get_validate_parser(subparsers)
     get_predict_parser(subparsers)
