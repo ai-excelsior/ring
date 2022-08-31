@@ -2,7 +2,7 @@ from dataclasses import dataclass, field
 from typing import List, Dict, Optional
 
 from matplotlib.pyplot import vlines
-
+import pandas as pd
 from .oss_utils import get_bucket_from_oss_url
 from .serializer import loads
 from .utils import remove_prefix
@@ -112,73 +112,79 @@ def dict_to_data_cfg_anomal(cfg: Dict) -> DataConfig:
     return data_config
 
 
-def dict_to_data_config(cfg: Dict, *args):
+def dict_to_parse(cfg: Dict, *args):
     data_cfg = dict_to_data_cfg(cfg["data_config"])
-    if len(args) == 2:
-        data = (
-            read_from_url(
-                cfg["data_source"]["path"],
-                parse_dates=[] if data_cfg.time is None else [data_cfg.time],
-                dtype=data_cfg.group_ids,
-                *args,
-            )
-            if cfg["data_source"]["type"] == "file"
-            else None
-        ).sort_values([*data_cfg.group_ids, data_cfg.time], ignore_index=True)
-    elif len(args) == 4:
-        data_train = (
-            read_from_url(
-                cfg["data_source"]["path"],
-                parse_dates=[] if data_cfg.time is None else [data_cfg.time],
-                dtype=data_cfg.group_ids,
-                *(args[0], args[1]),
-            )
-            if cfg["data_source"]["type"] == "file"
-            else None
-        ).sort_values([*data_cfg.group_ids, data_cfg.time], ignore_index=True)
-        data_val = (
-            read_from_url(
-                cfg["data_source"]["path"],
-                parse_dates=[] if data_cfg.time is None else [data_cfg.time],
-                dtype=data_cfg.group_ids,
-                *(args[2], args[3]),
-            )
-            if cfg["data_source"]["type"] == "file"
-            else None
-        ).sort_values([*data_cfg.group_ids, data_cfg.time], ignore_index=True)
-        data = (data_train, data_val)
+    data_info = {
+        "url": cfg["data_source"]["path"],
+        "type": cfg["data_source"]["type"],
+        "parse_dates": [] if data_cfg.time is None else [data_cfg.time],
+        "time_range": args,
+        "dtype": data_cfg.group_ids,
+        "time": data_cfg.time,
+    }
+    return data_cfg, data_info
+
+
+def dict_to_parse_anomal(cfg: Dict, *args):
+    data_cfg = dict_to_data_cfg_anomal(cfg["data_config"])
+    data_info = {
+        "url": cfg["data_source"]["path"],
+        "type": cfg["data_source"]["type"],
+        "parse_dates": [] if data_cfg.time is None else [data_cfg.time],
+        "time_range": args,
+        "dtype": data_cfg.group_ids,
+        "time": data_cfg.time,
+    }
+    return data_cfg, data_info
+
+
+def info_to_data(cfg: Dict):
+    time = cfg.pop("time")
+    time_range = cfg.pop("time_range")
+    data = read_from_url(**cfg) if cfg.pop("type") == "file" else None
+    time_range = [
+        data[time].max()
+        if (not obj and i % 2 == 1)
+        else data[time].min()
+        if (not obj and i % 2 == 0)
+        else pd.to_datetime(obj, utc=True)
+        for i, obj in enumerate(time_range)
+    ]
+    if len(time_range) == 2:
+        data = data[(data[time] >= time_range[0]) & (data[time] <= time_range[1])]
+        data.sort_values([*cfg["dtype"], time], ignore_index=True)
+    elif len(time_range) == 4:
+        data_train = data[(data[time] >= time_range[0]) & (data[time] <= time_range[1])]
+        data_train.sort_values([*cfg["dtype"], time], ignore_index=True, inplace=True)
+        data_valid = data[(data[time] >= time_range[2]) & (data[time] <= time_range[3])]
+        data_valid.sort_values([*cfg["dtype"], time], ignore_index=True, inplace=True)
+        data = (data_train, data_valid)
     else:
         raise ValueError("start_time dont match with end_time")
-    return data_cfg, data
-
-
-def dict_to_data_config_anomal(cfg: Dict):
-    data_cfg = dict_to_data_cfg_anomal(cfg["data_config"])
-    data = (
-        read_from_url(cfg.data_source.path, parse_dates=[] if data_cfg.time is None else [data_cfg.time])
-        if cfg.data_source.type == "file"
-        else None
-    )
-    return data_cfg, data
+    return data
 
 
 def url_to_data_config(url: str, *args) -> DataConfig:
     if url.startswith("file://"):
         with open(remove_prefix(url, "file://"), "r") as f:
-            return dict_to_data_config(loads(f.read()), *args)
+            cfg_info, data_info = dict_to_parse(loads(f.read()), *args)
+            return cfg_info, info_to_data(data_info)
     elif url.startswith("oss://"):
         bucket, key = get_bucket_from_oss_url(url)
-        return dict_to_data_config(loads(bucket.get_object(key).read()), *args)
+        cfg_info, data_info = dict_to_parse(loads(bucket.get_object(key).read()), *args)
+        return cfg_info, info_to_data(data_info)
 
     raise "url should be one of file:// or oss://"
 
 
-def url_to_data_config_anomal(url: str) -> DataConfig:
+def url_to_data_config_anomal(url: str, *args) -> DataConfig:
     if url.startswith("file://"):
         with open(remove_prefix(url, "file://"), "r") as f:
-            return dict_to_data_config_anomal(loads(f.read()))
+            cfg_info, data_info = dict_to_parse_anomal(loads(f.read()), *args)
+            return cfg_info, info_to_data(data_info)
     elif url.startswith("oss://"):
         bucket, key = get_bucket_from_oss_url(url)
-        return dict_to_data_config_anomal(loads(bucket.get_object(key).read()))
+        cfg_info, data_info = dict_to_parse_anomal(loads(bucket.get_object(key).read()), *args)
+        return cfg_info, info_to_data(data_info)
 
     raise "url should be one of file:// or oss://"
