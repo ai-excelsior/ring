@@ -37,7 +37,3 @@ def read_from_url(**config) -> pd.DataFrame:
     else:
         raise TypeError("Only .csv .parq or .parquet can be accessed")
     return df
-
-
-# iter_csv = pd.read_csv("file.csv", iterator=True, chunksize=1000)
-# df = pd.concat([chunk[chunk["field"] > constant] for chunk in iter_csv])
