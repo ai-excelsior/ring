@@ -1,15 +1,15 @@
 """
 The temporal fusion transformer is a powerful predictive model for forecasting timeseries
 """
-from copy import copy
+
 from typing import Dict, List, Tuple, Union
-from tomlkit import TOMLDocument
 from collections import namedtuple
 
 import torch
 from torch import nn
-from pytorch_forecasting.metrics import QuantileLoss
-from pytorch_forecasting.models.nn import LSTM, MultiEmbedding
+from ring.common.loss import QuantileLoss
+from ring.common.ml.rnn import LSTM
+from ring.common.ml.embeddings import MultiEmbedding
 from pytorch_forecasting.models.temporal_fusion_transformer.sub_modules import (
     AddNorm,
     GateAddNorm,
