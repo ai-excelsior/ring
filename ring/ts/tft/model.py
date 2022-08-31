@@ -4,6 +4,7 @@ The temporal fusion transformer is a powerful predictive model for forecasting t
 from copy import copy
 from typing import Dict, List, Tuple, Union
 from tomlkit import TOMLDocument
+from collections import namedtuple
 
 import torch
 from torch import nn
@@ -17,7 +18,7 @@ from pytorch_forecasting.models.temporal_fusion_transformer.sub_modules import (
     InterpretableMultiHeadAttention,
     VariableSelectionNetwork,
 )
-from pytorch_forecasting.utils import create_mask
+from pytorch_forecasting.utils import create_mask, OutputMixIn
 
 from ring.common.base_model import AutoRegressiveBaseModelWithCovariates
 from ring.common.dataset import TimeSeriesDataset
@@ -141,15 +142,26 @@ class TemporalFusionTransformer(AutoRegressiveBaseModelWithCovariates):
             output_size=output_size,
         )
 
+        self.lstm_layers = (lstm_layers,)
+        self.output_size = (output_size,)
+
+        # data parameters
+        self.static_categoricals = (static_categoricals,)
+        self.static_reals = (static_reals,)
+        self.time_varying_categoricals_encoder = (time_varying_categoricals_encoder,)
+        self.time_varying_categoricals_decoder = (time_varying_categoricals_encoder,)
+        self.time_varying_reals_encoder = (time_varying_reals_encoder,)
+        self.time_varying_reals_decoder = (time_varying_reals_decoder,)
+
         # processing inputs
         # embeddings
-        # self.input_embeddings = MultiEmbedding(
-        #     embedding_sizes=embedding_sizes,
-        #     categorical_groups=categorical_groups,
-        #     embedding_paddings=embedding_paddings,
-        #     x_categoricals=x_categoricals,
-        #     max_embedding_size=hidden_size,
-        # )
+        self.input_embeddings = MultiEmbedding(
+            embedding_sizes=embedding_sizes,
+            categorical_groups={},
+            embedding_paddings=[],
+            x_categoricals=x_categoricals,
+            max_embedding_size=hidden_size,
+        )
 
         # continuous variable processing
         self.prescalers = nn.ModuleDict(
@@ -414,6 +426,67 @@ class TemporalFusionTransformer(AutoRegressiveBaseModelWithCovariates):
         )
         return mask
 
+    def static_variables(self) -> List[str]:
+        """List of all static variables in model"""
+        return self.static_categoricals + self.static_reals
+
+    def encoder_variables(self) -> List[str]:
+        """List of all encoder variables in model (excluding static variables)"""
+        return self.time_varying_categoricals_encoder + self.time_varying_reals_encoder
+
+    @property
+    def decoder_variables(self) -> List[str]:
+        """List of all decoder variables in model (excluding static variables)"""
+        return self.time_varying_categoricals_decoder + self.time_varying_reals_decoder
+
+    def to_network_output(self, **results):
+        """
+        Convert output into a named (and immuatable) tuple.
+
+        This allows tracing the modules as graphs and prevents modifying the output.
+
+        Returns:
+            named tuple
+        """
+        if hasattr(self, "_output_class"):
+            Output = self._output_class
+        else:
+            OutputTuple = namedtuple("output", results)
+
+            class Output(OutputMixIn, OutputTuple):
+                pass
+
+            self._output_class = Output
+
+        return self._output_class(**results)
+
+    # def transform_output(
+    #     self,
+    #     prediction: Union[torch.Tensor, List[torch.Tensor]],
+    #     target_scale: Union[torch.Tensor, List[torch.Tensor]],
+    # ) -> torch.Tensor:
+    #     """
+    #     Extract prediction from network output and rescale it to real space / de-normalize it.
+
+    #     Args:
+    #         prediction (Union[torch.Tensor, List[torch.Tensor]]): normalized prediction
+    #         target_scale (Union[torch.Tensor, List[torch.Tensor]]): scale to rescale prediction
+
+    #     Returns:
+    #         torch.Tensor: rescaled prediction
+    #     """
+    #     if isinstance(self.loss, MultiLoss):
+    #         out = self.loss.rescale_parameters(
+    #             prediction,
+    #             target_scale=target_scale,
+    #             encoder=self.output_transformer.normalizers,  # need to use normalizer per encoder
+    #         )
+    #     else:
+    #         out = self.loss.rescale_parameters(
+    #             prediction, target_scale=target_scale, encoder=self.output_transformer
+    #         )
+    #     return out
+
     def forward(self, x: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
         """
         input dimensions: n_samples x time x variables
@@ -422,16 +495,17 @@ class TemporalFusionTransformer(AutoRegressiveBaseModelWithCovariates):
         decoder_lengths = x["decoder_length"]
 
         x_cat = torch.cat([x["encoder_cat"], x["decoder_cat"]], dim=1)  # concatenate in time dimension
-        x_cont = torch.cat(
-            [x["encoder_cont"] - self._targets, x["decoder_cont"]], dim=1
-        )  # concatenate in time dimension
+        # x_cont = torch.cat(
+        #     [x["encoder_cont"] - self._targets, x["decoder_cont"]], dim=1
+        # )  # concatenate in time dimension
+        x_cont = x["encoder_cont"]
         timesteps = x_cont.shape[1]  # encode + decode length
         max_encoder_length = int(encoder_lengths.max())
         input_vectors = self.input_embeddings(x_cat)
         input_vectors.update(
             {
                 name: x_cont[..., idx].unsqueeze(-1)
-                for idx, name in enumerate(self.hparams.x_reals)
+                for idx, name in enumerate(self.reals)
                 if name in self.reals
             }
         )
@@ -474,8 +548,10 @@ class TemporalFusionTransformer(AutoRegressiveBaseModelWithCovariates):
 
         # LSTM
         # calculate initial state
-        input_hidden = self.static_context_initial_hidden_lstm(static_embedding).expand(lstm_layers, -1, -1)
-        input_cell = self.static_context_initial_cell_lstm(static_embedding).expand(lstm_layers, -1, -1)
+        input_hidden = self.static_context_initial_hidden_lstm(static_embedding).expand(
+            self.lstm_layers, -1, -1
+        )
+        input_cell = self.static_context_initial_cell_lstm(static_embedding).expand(self.lstm_layers, -1, -1)
 
         # run local encoder
         encoder_output, (hidden, cell) = self.lstm_encoder(
@@ -528,13 +604,14 @@ class TemporalFusionTransformer(AutoRegressiveBaseModelWithCovariates):
         # skip connection over temporal fusion decoder (not LSTM decoder despite the LSTM output contains
         # a skip from the variable selection network)
         output = self.pre_output_gate_norm(output, lstm_output[:, max_encoder_length:])
-        if self.n_targets > 1:  # if to use multi-target architecture
+        if self.output_size > 1:  # if to use multi-target architecture
             output = [output_layer(output) for output_layer in self.output_layer]
         else:
             output = self.output_layer(output)
 
         return self.to_network_output(
-            prediction=self.transform_output(output, target_scale=x["target_scale"]),
+            # prediction=self.transform_output(output, target_scale=x["target_scale"]),
+            prediction=output,
             attention=attn_output_weights,
             static_variables=static_variable_selection,
             encoder_variables=encoder_sparse_weights,
