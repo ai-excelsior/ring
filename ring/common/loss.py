@@ -226,7 +226,7 @@ class DilateLoss(AbstractLoss):
 
         path = PathDTW.apply(distances_matrix, self._gamma)
         omega = pairwise_distances(torch.arange(1, sequence_length + 1, dtype=torch.float).to(y_pred.device))
-        loss_temporal = torch.sum(path * omega) / (sequence_length ** 2)
+        loss_temporal = torch.sum(path * omega) / (sequence_length**2)
 
         return self._alpha * loss_shape + (1 - self._alpha) * loss_temporal
 
@@ -547,6 +547,7 @@ def cfg_to_losses(cfg: str, n=1) -> List[AbstractLoss]:
             "NbeatsNetwork": "SMAPE",
             "ReccurentNetwork": "MAE",
             "DeepAR": "NormalDistrubution",
+            "TemporalFusionTransformer": "Quantile",
             "BCE": "BCE",
             "MAE": "MAE",
             "SMAPE": "SMAPE",
