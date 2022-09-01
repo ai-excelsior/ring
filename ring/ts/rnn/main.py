@@ -58,7 +58,7 @@ def train(data_config: DataConfig, data_train: pd.DataFrame, data_val: pd.DataFr
     # else:
     #     predictor.upload(kwargs["save_state"])
 
-    validate(kwargs.get("save_state", None), data_val, None)
+    # validate(kwargs.get("save_state", None), data_val, None)
 
 
 def validate(load_state: str, data_val: pd.DataFrame, begin_point):
@@ -69,6 +69,17 @@ def validate(load_state: str, data_val: pd.DataFrame, begin_point):
 
     predictor = Predictor.load(load_state, ReccurentNetwork)
     predictor.validate(data_val, begin_point=begin_point)
+
+    df = predictor.predict(data_val, plot=False, begin_point=begin_point)
+    df["income_pred"] = df[df["is_prediction"] == True]["income_pred"].map(lambda x: int(x) if x > 0 else 0)
+    import matplotlib.pyplot as plt
+
+    plt.plot(df[["income"]])
+    plt.plot(df[["income_pred"]])
+    plt.legend(["observed", "pred"])
+    plt.title("income")
+    plt.savefig(f"example/xyz/taptap/income/income_{predictor._model_cls.__name__}_.jpg")
+    df.to_csv(f"example/xyz/taptap/income/income_{predictor._model_cls.__name__}_.csv")
 
 
 def predict(

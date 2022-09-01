@@ -3,7 +3,7 @@
         "time": "key",
         "freq": "H",
         "targets": [
-            "click"
+            "income"
         ],
         "group_ids": [],
         "static_categoricals": [],
@@ -11,7 +11,13 @@
         "time_varying_known_categoricals": [],
         "time_varying_known_reals": [],
         "time_varying_unknown_categoricals": [],
-        "time_varying_unknown_reals": [],
+        "time_varying_unknown_reals": [
+            "click",
+            "isCheating",
+            "activation",
+            "newUser",
+            "convertDevice"
+        ],
         "categoricals": [],
         "indexer": {
             "name": "slide_window",
