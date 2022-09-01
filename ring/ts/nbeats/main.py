@@ -88,7 +88,6 @@ def predict(
 
     predictor = Predictor.load(load_state, NbeatsNetwork)
     pred_df = predictor.predict(data, plot=True, begin_point=begin_point)
-    predictor.validate(data, begin_point=begin_point)
 
     predictions_to_influx(
         pred_df,
