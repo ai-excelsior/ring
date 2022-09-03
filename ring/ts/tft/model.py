@@ -10,15 +10,15 @@ from torch import nn
 from ring.common.loss import QuantileLoss
 from ring.common.ml.rnn import LSTM
 from ring.common.ml.embeddings import MultiEmbedding
-from pytorch_forecasting.models.temporal_fusion_transformer.sub_modules import (
+from submodules import (
     AddNorm,
     GateAddNorm,
     GatedLinearUnit,
     GatedResidualNetwork,
     InterpretableMultiHeadAttention,
     VariableSelectionNetwork,
+    OutputMixIn,
 )
-from pytorch_forecasting.utils import create_mask, OutputMixIn
 
 from ring.common.base_model import AutoRegressiveBaseModelWithCovariates
 from ring.common.dataset import TimeSeriesDataset
@@ -27,7 +27,7 @@ from ring.common.dataset import TimeSeriesDataset
 class TemporalFusionTransformer(AutoRegressiveBaseModelWithCovariates):
     def __init__(
         self,
-        targets: str,
+        targets: List[str],
         # hyper parameters
         hidden_size: int = 16,
         lstm_layers: int = 1,
@@ -58,26 +58,6 @@ class TemporalFusionTransformer(AutoRegressiveBaseModelWithCovariates):
         """
         Temporal Fusion Transformer for forecasting timeseries - use its :py:meth:`~from_dataset` method if possible.
 
-        Implementation of the article
-        `Temporal Fusion Transformers for Interpretable Multi-horizon Time Series
-        Forecasting <https://arxiv.org/pdf/1912.09363.pdf>`_. The network outperforms DeepAR by Amazon by 36-69%
-        in benchmarks.
-
-        Enhancements compared to the original implementation (apart from capabilities added through base model
-        such as monotone constraints):
-
-        * static variables can be continuous
-        * multiple categorical variables can be summarized with an EmbeddingBag
-        * variable encoder and decoder length by sample
-        * categorical embeddings are not transformed by variable selection network (because it is a redundant operation)
-        * variable dimension in variable selection network are scaled up via linear interpolation to reduce
-          number of parameters
-        * non-linear variable processing in variable selection network can be shared among decoder and encoder
-          (not shared by default)
-
-        Tune its hyperparameters with
-        :py:func:`~pytorch_forecasting.models.temporal_fusion_transformer.tuning.optimize_hyperparameters`.
-
         Args:
 
             hidden_size: hidden size of network which is its main hyperparameter and can range from 8 to 512
@@ -107,22 +87,9 @@ class TemporalFusionTransformer(AutoRegressiveBaseModelWithCovariates):
                 embedding size
             embedding_paddings: list of indices for embeddings which transform the zero's embedding to a zero vector
             embedding_labels: dictionary mapping (string) indices to list of categorical labels
-            learning_rate: learning rate
-            log_interval: log predictions every x batches, do not log if 0 or less, log interpretation if > 0. If < 1.0
-                , will log multiple entries per batch. Defaults to -1.
-            log_val_interval: frequency with which to log validation set metrics, defaults to log_interval
-            log_gradient_flow: if to log gradient flow, this takes time and should be only done to diagnose training
-                failures
-            reduce_on_plateau_patience (int): patience after which learning rate is reduced by a factor of 10
-            monotone_constaints (Dict[str, int]): dictionary of monotonicity constraints for continuous decoder
-                variables mapping
-                position (e.g. ``"0"`` for first position) to constraint (``-1`` for negative and ``+1`` for positive,
-                larger numbers add more weight to the constraint vs. the loss but are usually not necessary).
-                This constraint significantly slows down training. Defaults to {}.
+            learning_rate: learning rate    
             share_single_variable_networks (bool): if to share the single variable networks between the encoder and
                 decoder. Defaults to False.
-            logging_metrics (nn.ModuleList[LightningMetric]): list of metrics that are logged during training.
-                Defaults to nn.ModuleList([SMAPE(), MAE(), RMSE(), MAPE()]).
             **kwargs: additional arguments to :py:class:`~BaseModel`.
         """
 
@@ -138,7 +105,6 @@ class TemporalFusionTransformer(AutoRegressiveBaseModelWithCovariates):
             decoder_cat=decoder_cat,
             embedding_sizes=embedding_sizes,
             x_categoricals=x_categoricals,
-            # target_lags=target_lags,
             output_size=output_size,
         )
 
@@ -151,6 +117,10 @@ class TemporalFusionTransformer(AutoRegressiveBaseModelWithCovariates):
         self.time_varying_reals_encoder = time_varying_reals_encoder
         self.time_varying_reals_decoder = time_varying_reals_decoder
 
+        self.static_variables=self.static_categoricals + self.static_reals
+        self.encoder_variables=self.time_varying_categoricals_encoder + self.time_varying_reals_encoder
+        self.decoder_variables=self.time_varying_categoricals_decoder + self.time_varying_reals_decoder
+    
         # processing inputs
         # embeddings
         self.input_embeddings = MultiEmbedding(
@@ -330,7 +300,7 @@ class TemporalFusionTransformer(AutoRegressiveBaseModelWithCovariates):
         # output processing -> no dropout at this late stage
         self.pre_output_gate_norm = GateAddNorm(hidden_size, dropout=None, trainable_add=False)
 
-        if output_size > 1:  # if to run with multiple targets
+        if len(targets) > 1:  # if to run with multiple targets
             self.output_layer = nn.ModuleList(
                 [nn.Linear(hidden_size, output_size) for output_size in output_size]
             )
@@ -341,7 +311,6 @@ class TemporalFusionTransformer(AutoRegressiveBaseModelWithCovariates):
     def from_dataset(
         cls,
         dataset: TimeSeriesDataset,
-        # allowed_encoder_known_variable_names: List[str] = None,
         **kwargs,
     ):
         """
@@ -349,7 +318,6 @@ class TemporalFusionTransformer(AutoRegressiveBaseModelWithCovariates):
 
         Args:
             dataset: timeseries dataset
-            allowed_encoder_known_variable_names: List of known variables that are allowed in encoder, defaults to all
             **kwargs: additional arguments such as hyperparameters for model (see ``__init__()``)
 
         Returns:
@@ -359,10 +327,9 @@ class TemporalFusionTransformer(AutoRegressiveBaseModelWithCovariates):
         # update defaults
         # new_kwargs = copy(kwargs)
         # new_kwargs["max_encoder_length"] = kwargs["max_encoder_length"]
-        kwargs.update(cls.deduce_default_output_parameters(dataset, kwargs, QuantileLoss()))
+        # kwargs.update(cls.deduce_default_output_parameters(dataset, kwargs, QuantileLoss()))
 
         # create class and return
-
         desired_embedding_sizes = kwargs.pop("embedding_sizes", {})
         embedding_sizes = {}
         for k, v in dataset.embedding_sizes.items():
@@ -388,56 +355,10 @@ class TemporalFusionTransformer(AutoRegressiveBaseModelWithCovariates):
             time_varying_categoricals_encoder=dataset._time_varying_known_categoricals,
             time_varying_categoricals_decoder=dataset._time_varying_unknown_categoricals,
             time_varying_reals_encoder=dataset._time_varying_unknown_reals + dataset._targets,
-            time_varying_reals_decoder=dataset._time_varying_unknown_reals + dataset._targets,  # TODO confirm
+            time_varying_reals_decoder=dataset._time_varying_unknown_reals + dataset._targets,  
             x_reals=dataset.reals,
             **kwargs,
         )
-
-    def expand_static_context(self, context, timesteps):
-        """
-        add time dimension to static context
-        """
-        return context[:, None].expand(-1, timesteps, -1)
-
-    def get_attention_mask(self, encoder_lengths: torch.LongTensor, decoder_length: int):
-        """
-        Returns causal mask to apply for self-attention layer.
-
-        Args:
-            self_attn_inputs: Inputs to self attention layer to determine mask shape
-        """
-        # indices to which is attended
-        attend_step = torch.arange(decoder_length)
-        # indices for which is predicted
-        predict_step = torch.arange(0, decoder_length)[:, None]
-
-        decoder_mask = attend_step >= predict_step
-        # do not attend to steps where data is padded
-        encoder_mask = create_mask(encoder_lengths.max(), encoder_lengths)
-        # combine masks along attended time - first encoder and then decoder
-        mask = torch.cat(
-            (
-                encoder_mask.unsqueeze(1).expand(-1, decoder_length, -1),
-                decoder_mask.unsqueeze(0).expand(encoder_lengths.size(0), -1, -1),
-            ),
-            dim=2,
-        )
-        return mask
-
-    @property
-    def static_variables(self) -> List[str]:
-        """List of all static variables in model"""
-        return self.static_categoricals + self.static_reals
-
-    @property
-    def encoder_variables(self) -> List[str]:
-        """List of all encoder variables in model (excluding static variables)"""
-        return self.time_varying_categoricals_encoder + self.time_varying_reals_encoder
-
-    @property
-    def decoder_variables(self) -> List[str]:
-        """List of all decoder variables in model (excluding static variables)"""
-        return self.time_varying_categoricals_decoder + self.time_varying_reals_decoder
 
     def to_network_output(self, **results):
         """
@@ -459,33 +380,6 @@ class TemporalFusionTransformer(AutoRegressiveBaseModelWithCovariates):
             self._output_class = Output
 
         return self._output_class(**results)
-
-    # def transform_output(
-    #     self,
-    #     prediction: Union[torch.Tensor, List[torch.Tensor]],
-    #     target_scale: Union[torch.Tensor, List[torch.Tensor]],
-    # ) -> torch.Tensor:
-    #     """
-    #     Extract prediction from network output and rescale it to real space / de-normalize it.
-
-    #     Args:
-    #         prediction (Union[torch.Tensor, List[torch.Tensor]]): normalized prediction
-    #         target_scale (Union[torch.Tensor, List[torch.Tensor]]): scale to rescale prediction
-
-    #     Returns:
-    #         torch.Tensor: rescaled prediction
-    #     """
-    #     if isinstance(self.loss, MultiLoss):
-    #         out = self.loss.rescale_parameters(
-    #             prediction,
-    #             target_scale=target_scale,
-    #             encoder=self.output_transformer.normalizers,  # need to use normalizer per encoder
-    #         )
-    #     else:
-    #         out = self.loss.rescale_parameters(
-    #             prediction, target_scale=target_scale, encoder=self.output_transformer
-    #         )
-    #     return out
 
     def forward(self, x: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
         """
@@ -609,7 +503,7 @@ class TemporalFusionTransformer(AutoRegressiveBaseModelWithCovariates):
         # skip connection over temporal fusion decoder (not LSTM decoder despite the LSTM output contains
         # a skip from the variable selection network)
         output = self.pre_output_gate_norm(output, lstm_output[:, max_encoder_length:])
-        if self.output_size > 1:  # if to use multi-target architecture
+        if len(self._targets) > 1:  # if to use multi-target architecture
             output = [output_layer(output) for output_layer in self.output_layer]
         else:
             output = self.output_layer(output)

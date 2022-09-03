@@ -367,6 +367,60 @@ class AutoRegressiveBaseModelWithCovariates(BaseModel):
         )
         return output, hidden_state_
 
+    def expand_static_context(self, context, timesteps):
+        """
+        add time dimension to static context
+        """
+        return context[:, None].expand(-1, timesteps, -1)
+
+    
+    def create_mask(self,size: int, lengths: torch.LongTensor, inverse: bool = False) -> torch.BoolTensor:
+        """
+        Create boolean masks of shape len(lenghts) x size.
+
+        An entry at (i, j) is True if lengths[i] > j.
+
+        Args:
+            size (int): size of second dimension
+            lengths (torch.LongTensor): tensor of lengths
+            inverse (bool, optional): If true, boolean mask is inverted. Defaults to False.
+
+        Returns:
+            torch.BoolTensor: mask
+        """
+
+        if inverse:  # return where values are
+            return torch.arange(size, device=lengths.device).unsqueeze(0) < lengths.unsqueeze(-1)
+        else:  # return where no values are
+            return torch.arange(size, device=lengths.device).unsqueeze(0) >= lengths.unsqueeze(-1)
+
+
+     
+    def get_attention_mask(self, encoder_lengths: torch.LongTensor, decoder_length: int):
+        """
+        Returns causal mask to apply for self-attention layer.
+
+        Args:
+            self_attn_inputs: Inputs to self attention layer to determine mask shape
+        """
+        # indices to which is attended
+        attend_step = torch.arange(decoder_length)
+        # indices for which is predicted
+        predict_step = torch.arange(0, decoder_length)[:, None]
+
+        decoder_mask = attend_step >= predict_step
+        # do not attend to steps where data is padded
+        encoder_mask = self.create_mask(encoder_lengths.max(), encoder_lengths)
+        # combine masks along attended time - first encoder and then decoder
+        mask = torch.cat(
+            (
+                encoder_mask.unsqueeze(1).expand(-1, decoder_length, -1),
+                decoder_mask.unsqueeze(0).expand(encoder_lengths.size(0), -1, -1),
+            ),
+            dim=2,
+        )
+        return mask   
+
 
 class BaseAnormal(BaseModel):
     def __init__(

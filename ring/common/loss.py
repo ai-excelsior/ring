@@ -547,7 +547,7 @@ def cfg_to_losses(cfg: str, n=1) -> List[AbstractLoss]:
             "NbeatsNetwork": "SMAPE",
             "ReccurentNetwork": "MAE",
             "DeepAR": "NormalDistrubution",
-            "TemporalFusionTransformer": "Quantile",
+            "TemporalFusionTransformer": "NormalDistrubution",
             "BCE": "BCE",
             "MAE": "MAE",
             "SMAPE": "SMAPE",
