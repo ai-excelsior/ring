@@ -17,7 +17,6 @@ from submodules import (
     GatedResidualNetwork,
     InterpretableMultiHeadAttention,
     VariableSelectionNetwork,
-    OutputMixIn,
 )
 
 from ring.common.base_model import AutoRegressiveBaseModelWithCovariates
@@ -28,13 +27,14 @@ class TemporalFusionTransformer(AutoRegressiveBaseModelWithCovariates):
     def __init__(
         self,
         targets: List[str],
+
         # hyper parameters
         hidden_size: int = 16,
         lstm_layers: int = 1,
         dropout: float = 0.1,
         output_size: Union[int, List[int]] = 7,
         attention_head_size: int = 4,
-        # max_encoder_length: int = 10,
+
         # data parameters
         static_categoricals: List[str] = [],
         static_reals: List[str] = [],
@@ -42,7 +42,6 @@ class TemporalFusionTransformer(AutoRegressiveBaseModelWithCovariates):
         time_varying_categoricals_decoder: List[str] = [],
         time_varying_reals_encoder: List[str] = [],
         time_varying_reals_decoder: List[str] = [],
-        # x_reals: List[str] = [],
         encoder_cont: List[str] = [],
         encoder_cat: List[str] = [],
         decoder_cont: List[str] = [],
@@ -65,9 +64,7 @@ class TemporalFusionTransformer(AutoRegressiveBaseModelWithCovariates):
             dropout: dropout rate
             output_size: number of outputs (e.g. number of quantiles for QuantileLoss and one target or list
                 of output sizes).
-            loss: loss function taking prediction and targets
             attention_head_size: number of attention heads (4 is a good default)
-            max_encoder_length: length to encode (can be far longer than the decoder length but does not have to be)
             static_categoricals: names of static categorical variables
             static_reals: names of static continuous variables
             time_varying_categoricals_encoder: names of categorical variables for encoder
@@ -77,7 +74,6 @@ class TemporalFusionTransformer(AutoRegressiveBaseModelWithCovariates):
             categorical_groups: dictionary where values
                 are list of categorical variables that are forming together a new categorical
                 variable which is the key in the dictionary
-            x_reals: order of continuous variables in tensor passed to forward function
             x_categoricals: order of categorical variables in tensor passed to forward function
             hidden_continuous_size: default for hidden size for processing continous variables (similar to categorical
                 embedding size)
@@ -85,8 +81,6 @@ class TemporalFusionTransformer(AutoRegressiveBaseModelWithCovariates):
                 (fallback to hidden_continuous_size if index is not in dictionary)
             embedding_sizes: dictionary mapping (string) indices to tuple of number of categorical classes and
                 embedding size
-            embedding_paddings: list of indices for embeddings which transform the zero's embedding to a zero vector
-            embedding_labels: dictionary mapping (string) indices to list of categorical labels
             learning_rate: learning rate    
             share_single_variable_networks (bool): if to share the single variable networks between the encoder and
                 decoder. Defaults to False.
@@ -360,26 +354,6 @@ class TemporalFusionTransformer(AutoRegressiveBaseModelWithCovariates):
             **kwargs,
         )
 
-    def to_network_output(self, **results):
-        """
-        Convert output into a named (and immuatable) tuple.
-
-        This allows tracing the modules as graphs and prevents modifying the output.
-
-        Returns:
-            named tuple
-        """
-        if hasattr(self, "_output_class"):
-            Output = self._output_class
-        else:
-            OutputTuple = namedtuple("output", results)
-
-            class Output(OutputMixIn, OutputTuple):
-                pass
-
-            self._output_class = Output
-
-        return self._output_class(**results)
 
     def forward(self, x: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
         """

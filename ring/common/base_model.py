@@ -2,10 +2,12 @@ from torch import nn
 import torch
 from .dataset import TimeSeriesDataset
 from functools import cached_property
+from collections import namedtuple
 from typing import Callable, Dict, List, Tuple, Union
 from ring.common.ml.embeddings import MultiEmbedding, DataEmbedding, DataEmbedding_wo_pos
 from ring.common.ml.utils import to_list
 from ring.common.ml.rnn import get_rnn
+from ring.ts.tft.submodules import OutputMixIn
 from ring.common.base_en_decoder import (
     AutoencoderType,
     RnnType,
@@ -420,6 +422,27 @@ class AutoRegressiveBaseModelWithCovariates(BaseModel):
             dim=2,
         )
         return mask   
+
+    def to_network_output(self, **results):
+        """
+        Convert output into a named (and immuatable) tuple.
+
+        This allows tracing the modules as graphs and prevents modifying the output.
+
+        Returns:
+            named tuple
+        """
+        if hasattr(self, "_output_class"):
+            Output = self._output_class
+        else:
+            OutputTuple = namedtuple("output", results)
+
+            class Output(OutputMixIn, OutputTuple):
+                pass
+
+            self._output_class = Output
+
+        return self._output_class(**results)
 
 
 class BaseAnormal(BaseModel):
