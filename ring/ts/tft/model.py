@@ -10,7 +10,7 @@ from torch import nn
 from ring.common.loss import QuantileLoss
 from ring.common.ml.rnn import LSTM
 from ring.common.ml.embeddings import MultiEmbedding
-from submodules import (
+from ring.ts.tft.submodules import (
     AddNorm,
     GateAddNorm,
     GatedLinearUnit,
@@ -482,13 +482,15 @@ class TemporalFusionTransformer(AutoRegressiveBaseModelWithCovariates):
         else:
             output = self.output_layer(output)
 
-        return self.to_network_output(
-            # prediction=self.transform_output(output, target_scale=x["target_scale"]),
-            prediction=output,
-            attention=attn_output_weights,
-            static_variables=static_variable_selection,
-            encoder_variables=encoder_sparse_weights,
-            decoder_variables=decoder_sparse_weights,
-            decoder_lengths=decoder_lengths,
-            encoder_lengths=encoder_lengths,
-        )
+        # return self.to_network_output(
+        #     # prediction=self.transform_output(output, target_scale=x["target_scale"]),
+        #     prediction=output,
+        #     attention=attn_output_weights,
+        #     static_variables=static_variable_selection,
+        #     encoder_variables=encoder_sparse_weights,
+        #     decoder_variables=decoder_sparse_weights,
+        #     decoder_lengths=decoder_lengths,
+        #     encoder_lengths=encoder_lengths,
+        # )
+
+        return output
