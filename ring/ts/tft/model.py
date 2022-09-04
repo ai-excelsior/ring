@@ -103,6 +103,7 @@ class TemporalFusionTransformer(AutoRegressiveBaseModelWithCovariates):
         )
 
         self.lstm_layers = lstm_layers
+        self.hidden_size = hidden_size
         self.output_size = output_size
         self.static_categoricals = static_categoricals
         self.static_reals = static_reals
@@ -394,11 +395,11 @@ class TemporalFusionTransformer(AutoRegressiveBaseModelWithCovariates):
             static_embedding, static_variable_selection = self.static_variable_selection(static_embedding)
         else:
             static_embedding = torch.zeros(
-                (x_cont.size(0), self.hidden_size),
-                dtype=self.dtype,
-                device=self.device,
+                (x_cont.size(0), self.hidden_size)
+                # dtype=self.dtype,
+                # device=self.device,
             )
-            static_variable_selection = torch.zeros((x_cont.size(0), 0), dtype=self.dtype, device=self.device)
+            static_variable_selection = torch.zeros((x_cont.size(0), 0))
 
         static_context_variable_selection = self.expand_static_context(
             self.static_context_variable_selection(static_embedding), timesteps
