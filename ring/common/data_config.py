@@ -147,7 +147,7 @@ def info_to_data(cfg: Dict):
         if (not obj and i % 2 == 1)
         else data[time].min()
         if (not obj and i % 2 == 0)
-        else pd.to_datetime(obj, utc=True)
+        else pd.to_datetime(obj)
         for i, obj in enumerate(time_range)
     ]
     if len(time_range) == 2:
