@@ -347,16 +347,16 @@ class TemporalFusionTransformer(AutoRegressiveBaseModelWithCovariates):
             x_categoricals=dataset.categoricals,
             static_categoricals=dataset._static_categoricals,
             static_reals=dataset._static_reals,
-            time_varying_categoricals_encoder=dataset._time_varying_known_categoricals,
-            time_varying_categoricals_decoder=dataset._time_varying_unknown_categoricals,
-            time_varying_reals_encoder=dataset._time_varying_unknown_reals + dataset._targets,
-            time_varying_reals_decoder=dataset._time_varying_unknown_reals + dataset._targets,  
+            time_varying_categoricals_encoder=dataset._time_varying_known_categoricals + dataset._time_varying_unknown_categoricals,
+            time_varying_categoricals_decoder=dataset._time_varying_known_categoricals + dataset._time_varying_unknown_categoricals,
+            time_varying_reals_encoder=dataset._time_varying_known_reals + dataset._time_varying_unknown_reals + dataset._targets  + dataset.time_features,
+            time_varying_reals_decoder=dataset._time_varying_known_reals + dataset._time_varying_unknown_reals + dataset._targets  + dataset.time_features,  
             x_reals=dataset.reals,
             **kwargs,
         )
 
 
-    def forward(self, x: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
+    def forward(self, x: Dict[str, torch.Tensor], mode=None) -> Dict[str, torch.Tensor]:
         """
         input dimensions: n_samples x time x variables
         """

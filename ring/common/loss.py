@@ -266,7 +266,7 @@ class QuantileLoss(AbstractLoss):
         return torch.mean(losses)
 
     def scale_prediction(
-        self, y_pred: torch.Tensor, target_scale: torch.Tensor = None, normalizer: AbstractNormalizer = None
+        self, y_pred: torch.Tensor, target_scale: torch.Tensor = None, normalizer: AbstractNormalizer = None,need=True,
     ):
         if target_scale is None:
             return y_pred if normalizer is None else normalizer.inverse_postprocess(y_pred)
@@ -317,8 +317,8 @@ class QuantileLoss(AbstractLoss):
             q_upper_name = self.parameter_names[q_upper_idx]
             ax.fill_between(
                 data[x],
-                data[q_lower_name],
-                data[q_upper_name],
+                data[target + "_" + q_lower_name],
+                data[target + "_" + q_upper_name],
                 color=color_map[q_lower_name],
                 alpha=0.6,
             )
@@ -328,7 +328,7 @@ class QuantileLoss(AbstractLoss):
         # plot prediction
         (prediction_line,) = ax.plot(
             data[x],
-            data["q0.5"],
+            data[target + "_" + "q0.5"],
             color=PREDICTION_COLORS[0],
             linestyle="--",
         )
@@ -547,7 +547,7 @@ def cfg_to_losses(cfg: str, n=1) -> List[AbstractLoss]:
             "NbeatsNetwork": "SMAPE",
             "ReccurentNetwork": "MAE",
             "DeepAR": "NormalDistrubution",
-            "TemporalFusionTransformer": "Quantile",
+            "TemporalFusionTransformer": "MAE",
             "BCE": "BCE",
             "MAE": "MAE",
             "SMAPE": "SMAPE",
