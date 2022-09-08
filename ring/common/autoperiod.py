@@ -1,11 +1,17 @@
 from typing import List, Tuple, Union
-
+from statsmodels.tsa.filters.hp_filter import hpfilter
 import numpy as np
+import pywt
+from astropy.stats import biweight_midvariance
 from astropy.timeseries import LombScargle
 from joblib import Parallel, delayed
 from pmdarima.arima import auto_arima
 from scipy import integrate
-from scipy.signal import fftconvolve
+from scipy.special import binom
+from scipy.fftpack import fft
+from scipy.signal import fftconvolve, find_peaks
+from pandas.tseries.frequencies import to_offset
+import pandas as pd
 
 
 class DensityClustering:
@@ -102,7 +108,6 @@ class Autoperiod:
         else:
             self.time_idx = times - times[0] if times[0] != 0 else times
             self.values = values
-
         self.time_span = self.time_idx[-1] - self.time_idx[0]
         # assert self.time_span % (len(self.time_idx) - 1) == 0, "Check your time_idx"
         self.time_interval = self.time_span / (len(self.time_idx) - 1)
@@ -157,6 +162,21 @@ class Autoperiod:
     @property
     def phase_shift_guess(self):
         return self.time_idx[np.argmax(self.values)]
+
+    def _extract_trend(self, x, lamb=129600):
+        """use hp-filter to detrend
+        Args:
+            x (_type_): original values
+            lamb (_type_): regulization parameter, A value of 1600 issuggested for quarterly data.
+            Ravn and Uhlig suggest using a value of 6.25 (1600/4**4) for annual data
+            and 129600 (1600*3**4) for monthly data.
+
+        Returns:
+            _type_: values after detrend
+        """
+        _, trend = hpfilter(x, lamb)
+        x_detrend = x - trend
+        return x_detrend
 
     @staticmethod
     def __estimate_time_diferencing_order(values: np.ndarray) -> int:
@@ -359,3 +379,208 @@ class Autoperiod:
                     self.period_final.pop(i)
                 else:
                     i += 1
+
+
+class RobustPeriod:
+    def __init__(
+        self,
+        times: List[int],
+        values: Union[List[float], List[int]],
+        plotter=None,
+        num_wavelet: int = 8,
+        lamb: str = "MS",
+        c: float = 2,  # Huber function hyperparameter
+        wavelet_method: str = "db10",
+    ):
+        assert wavelet_method.startswith("db"), "wavelet method must be Daubechies family"
+
+        self.time_idx = times - times[0] if times[0] != 0 else times
+        self.wavelet_method = wavelet_method
+        self.plotter = plotter
+        self.num_wavelet = num_wavelet
+        # decide lamb according to freq
+        self.lamb = self._detect_freq(lamb)
+        self.huber_c = c
+        # Hodrick–Prescott (HP) filter to detrend
+        detrend_values = self._extract_trend(values, self.lamb)
+        # remove extreme outliers, TODO: can be polished
+        processed_values = self._remove_outliers(detrend_values, self.huber_c)
+        # Daubechies MODWT
+        self._wave = self.modwt(processed_values, self.wavelet_method, level=self.num_wavelet)
+        # Robust Unbiased Wavelet Variance to sort levels
+        self._bivar = np.array([biweight_midvariance(w) for w in self._wave])
+        order = [list(self._bivar).index(item) for item in sorted(self._bivar, reverse=True)]
+        # padding zeroes to its 2-times length and calculate periodogram
+        waves = np.hstack([self._wave[order], np.zeros_like(self._wave)])
+        periodograms = []
+        self._p_vals = []
+        for i, x in enumerate(waves):
+            print(f"Calculating periodogram for level {order[i]}")
+            perio = self._fft_reg(x)
+            p_val = self._fisher_g_test(perio)
+            periodograms.append(perio)
+            self._p_vals.append(p_val)
+        self._periodograms = np.array(periodograms)
+
+        periods = []
+        for i, p in enumerate(self._periodograms):
+            if self._p_vals[i] <= 0.05:
+                final_period = self.get_ACF_period(p)
+                periods.append(final_period)
+        periods = np.array(periods)
+        # to keep the order, use pd.unique instead of np.unique
+        self._final_periods = pd.DataFrame(periods[periods > 0])[0].unique()
+
+    @property
+    def period(self):
+        return [int(p) for p in self._final_periods]
+
+    @property
+    def acf(self):
+        return np.array([self._huber_acf(p) for p in self._periodograms])
+
+    @property
+    def p_val(self):
+        return self._p_vals
+
+    @property
+    def periodograms(self):
+        return self._periodograms
+
+    @property
+    def bivar(self):
+        return self._bivar
+
+    @property
+    def wavelets(self):
+        return self._wave
+
+    def _detect_freq(self, freq):
+        freq = to_offset(freq).name
+        if "AS-" in freq or "A-" in freq or freq == "AS" or freq == "A":
+            return 6.25
+        elif "QS-" in freq or "Q-" in freq or freq == "QS" or freq == "Q":
+            return 1600
+        elif "MS-" in freq or "M-" in freq or freq == "MS" or freq == "M":
+            return 129600
+        else:
+            return 10e6
+
+    def _extract_trend(self, x, lamb=129600):
+        """use hp-filter to detrend
+        Args:
+            x (_type_): original values
+            lamb (_type_): regulization parameter, A value of 1600 issuggested for quarterly data.
+            Ravn and Uhlig suggest using a value of 6.25 (1600/4**4) for annual data
+            and 129600 (1600*3**4) for monthly data.
+
+        Returns:
+            _type_: values after detrend
+        """
+        _, trend = hpfilter(x, lamb)
+        x_detrend = x - trend
+        return x_detrend
+
+    def _remove_outliers(self, x, c):
+        mu = np.median(x)
+        s = np.mean(np.abs(x - np.median(x)))
+        return np.sign((x - mu) / s) * np.minimum(np.abs((x - mu) / s), c)
+
+    def _circular_convolve_d(self, h_t, v_j_1, j):
+        """jth level decomposition
+
+        Args:
+            h_t : h / sqrt(2)
+            v_j_1 : the (j-1)th scale coefficients
+            j : level
+
+        Returns:
+            _type_: _description_
+        """
+        N = len(v_j_1)
+        L = len(h_t)
+        # Matching the paper
+        L_j = min(N, (2 ** 4 - 1) * (L - 1))
+        w_j = np.zeros(N)
+        l = np.arange(L)
+        for t in range(N):
+            index = np.mod(t - 2 ** (j - 1) * l, N)
+            v_p = np.array([v_j_1[ind] for ind in index])
+            # Keeping up to L_j items
+            w_j[t] = (np.array(h_t)[:L_j] * v_p[:L_j]).sum()
+        return w_j
+
+    def _fft_reg(self, series):
+        ffts = fft(series)
+        perior = np.abs(ffts) ** 2
+        return np.array(perior)
+
+    def _fisher_g_test(self, period):
+        g = max(period) / np.sum(period)
+        pval = self._p_val_g_stat(g, len(period))
+        return pval
+
+    def _p_val_g_stat(self, g0, N):
+        g0 = 1e-8 if g0 == 0 else g0
+        terms = np.arange(1, int(np.floor(1 / g0)) + 1, dtype="int32")
+        # Robust Period Equation
+        def event_term(k, N=N, g0=g0):
+            return (-1) ** (k - 1) * binom(N, k) * (1 - k * g0) ** (N - 1)
+
+        vect_event_term = np.vectorize(event_term)
+        pval = min(sum(vect_event_term(terms, N, g0)), 1)
+        return pval
+
+    def _huber_acf(self, periodogram):
+        N_prime = len(periodogram)
+        N = N_prime // 2
+        K = np.arange(N)
+
+        cond_1 = periodogram[range(N)]  # k = 0,1,...N-1
+        cond_2 = (periodogram[2 * K] - periodogram[2 * K + 1]).sum() ** 2 / N_prime  # k=N
+        cond_3 = [periodogram[N_prime - k] for k in range(N + 1, N_prime)]  # k=N+1,...,2N-1
+
+        P_bar = np.hstack([cond_1, cond_2, cond_3])
+        P = np.real(np.fft.ifft(P_bar))
+        # (N-t)*P0
+        denom = (N - np.arange(0, N)) * P[0]
+        # Pt / ((N-t) * P0)
+        res = P[:N] / denom
+
+        return res
+
+    def get_ACF_period(self, periodogram):
+        N = len(periodogram)
+        k = np.argmax(periodogram)
+        res = self._huber_acf(periodogram)
+        # TODO: why trim and scale
+        res_trim = res[: int(len(res) * 0.8)]  # The paper didn't use entire ACF
+        # min-max scale
+        res_scaled = 2 * ((res_trim - res_trim.min()) / (res_trim.max() - res_trim.min())) - 1
+        # the predefined height threshold is 0.5
+        peaks, _ = find_peaks(res_scaled, height=0.5)
+        distances = np.diff(peaks)
+        # calculate the median distance of peaks who satisfy threshold
+        acf_period = np.median(distances) if len(distances) > 0 else 0
+        # range
+        Rk = (0.5 * ((N / (k + 1)) + (N / k)) - 1, 0.5 * ((N / k) + (N / (k - 1))) + 1)
+        final_period = acf_period if (Rk[1] >= acf_period >= Rk[0]) else 0
+
+        return final_period
+
+    def modwt(self, x, filters="db10", level=3):
+        wavelet = pywt.Wavelet(filters)
+        h = wavelet.dec_hi  # wavelet filter
+        g = wavelet.dec_lo  # scaling filter
+        # TODO: why /np.sqrt(2)
+        h_t = np.array(h) / np.sqrt(2)
+        g_t = np.array(g) / np.sqrt(2)
+        wavecoeff = []
+        v_j_1 = x
+        for j in range(level):
+            w = self._circular_convolve_d(h_t, v_j_1, j + 1)
+            v_j_1 = self._circular_convolve_d(g_t, v_j_1, j + 1)
+            # if j > 0:
+            wavecoeff.append(w)
+        # wavecoeff.append(v_j_1)
+        return np.vstack(wavecoeff)
