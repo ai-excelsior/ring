@@ -6,7 +6,7 @@ from .estimators.base import (
     PolynomialDetrendEstimator,
     LogDetrendEstimator,
 )
-from .autoperiod import Autoperiod
+from .autoperiod import Autoperiod, RobustPeriod
 from .utils import register
 import numpy as np
 import pandas as pd
@@ -244,18 +244,18 @@ class AbstractDetectTargetLags(Estimator):
         self.feature_name = feature_name
         self.lags = [i for i in lags if i > 0 and isinstance(i, int)]
 
-    def fit_self(self, data: pd.DataFrame, group_ids: List = []):
+    def fit_self(self, data: pd.DataFrame, group_ids: List = [], freq=None):
         if self.fitted:
             return
-        self._detect_lags(data, group_ids)
+        self._detect_lags(data, group_ids, freq)
         self._state = {f"{self.feature_name}_lagged_by_{v}": v for v in self.lags}
 
-    def _detect_lags(self, data: pd.DataFrame, group_ids: List = []):
+    def _detect_lags(self, data: pd.DataFrame, group_ids: List = [], freq=None):
         pass
 
-    def add_lags(self, data: pd.DataFrame, group_ids: List = []):
+    def add_lags(self, data: pd.DataFrame, group_ids: List = [], freq=None):
         # find lags
-        self.fit_self(data, group_ids)
+        self.fit_self(data, group_ids, freq)
         # return pd.dataframe
         if self._state:
             if group_ids:
@@ -277,11 +277,11 @@ class AbstractDetectTargetLags(Estimator):
 class DetectTargetLags(AbstractDetectTargetLags):
     """detect lags, no groups"""
 
-    def _detect_lags(self, data: pd.DataFrame, group_ids: List = []):
+    def _detect_lags(self, data: pd.DataFrame, group_ids: List = [], freq=None):
         """Detect data lags"""
-        p = Autoperiod(data[TIME_IDX].values, data[data.columns[1]].values)
-        if p.period is not None:
-            self.lags += p.period
+        p_R = RobustPeriod(data[TIME_IDX].values, data[data.columns[1]].values, lamb=freq)
+        p_A = Autoperiod(data[TIME_IDX].values, data[data.columns[1]].values)
+        self.lags += [period for period in p_R.period if period in p_A.period_list]
 
 
 @register(SEASONALITY)
@@ -291,10 +291,16 @@ class GroupDetectTargetLags(AbstractDetectTargetLags):
     def _is_unique(self, s: pd.Series):
         return list(np.unique(np.array(list(filter(lambda x: x, s)))))
 
-    def _detect_lags(self, data: pd.DataFrame, group_ids: List = []):
+    def _detect_lags(self, data: pd.DataFrame, group_ids: List = [], freq=None):
         """Detect data lags"""
         lags_df = data.groupby(group_ids).aggregate(
-            {data.columns[1]: lambda x: Autoperiod(np.arange(len(x)), x.values).period}
+            {
+                data.columns[1]: lambda x: [
+                    p
+                    for p in RobustPeriod(np.arange(len(x)), x.values, lamb=freq).period
+                    if p in Autoperiod(np.arange(len(x)), x.values).period_list
+                ]
+            }
         )
 
         self.lags += self._is_unique(lags_df[data.columns[1]])
