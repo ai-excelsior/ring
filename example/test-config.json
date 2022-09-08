@@ -1,9 +1,9 @@
 {
     "data_config": {
-        "time": "key",
-        "freq": "H",
+        "time": "time",
+        "freq": "D",
         "targets": [
-            "income"
+            "artificial_value"
         ],
         "group_ids": [],
         "static_categoricals": [],
@@ -11,18 +11,12 @@
         "time_varying_known_categoricals": [],
         "time_varying_known_reals": [],
         "time_varying_unknown_categoricals": [],
-        "time_varying_unknown_reals": [
-            "click",
-            "isCheating",
-            "activation",
-            "newUser",
-            "convertDevice"
-        ],
+        "time_varying_unknown_reals": [],
         "categoricals": [],
         "indexer": {
             "name": "slide_window",
-            "look_back": 48,
-            "look_forward": 24
+            "look_back": 50,
+            "look_forward": 12
         },
         "time_features": [],
         "detrend": false,
@@ -30,6 +24,6 @@
     },
     "data_source": {
         "type": "file",
-        "path": "file://example/xyz/1001_edit.csv"
+        "path": "file://example/xyz/multi_artificial_value.csv"
     }
 }

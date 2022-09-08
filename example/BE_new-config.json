@@ -5,7 +5,9 @@
         "targets": [
             " Prices"
         ],
-        "group_ids": [],
+        "group_ids": [
+            "groups"
+        ],
         "static_categoricals": [],
         "static_reals": [],
         "time_varying_known_categoricals": [],
@@ -22,11 +24,11 @@
             "look_forward": 26
         },
         "time_features": [],
-        "detrend": true,
-        "lags": null
+        "detrend": false,
+        "lags": {}
     },
     "data_source": {
         "type": "file",
-        "path": "file://example/xyz/BE.csv"
+        "path": "file://data/BE_groups_clip.csv"
     }
 }

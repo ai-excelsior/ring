@@ -1,13 +1,29 @@
 {
-  "time": "_time",
-  "freq": "1H",
-  "targets": ["value"],
-  "group_ids": [],
-  "static_categoricals": [],
-  "static_reals": [],
-  "time_varying_known_categoricals": [],
-  "time_varying_known_reals": [],
-  "time_varying_unknown_categoricals": [],
-  "time_varying_unknown_reals": [],
-  "indexer": { "name": "slide_window", "look_back": 72, "look_forward": 24 }
+  "data_config": {
+    "time": "time",
+    "freq": "H",
+    "targets": [
+      "value"
+    ],
+    "group_ids": [],
+    "static_categoricals": [],
+    "static_reals": [],
+    "time_varying_known_categoricals": [],
+    "time_varying_known_reals": [],
+    "time_varying_unknown_categoricals": [],
+    "time_varying_unknown_reals": [],
+    "categoricals": [],
+    "indexer": {
+      "name": "slide_window",
+      "look_back": 20,
+      "look_forward": 10
+    },
+    "time_features": [],
+    "detrend": false,
+    "lags": {}
+  },
+  "data_source": {
+    "type": "file",
+    "path": "file://data/H198.csv"
+  }
 }

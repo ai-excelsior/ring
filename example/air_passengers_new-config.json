@@ -20,7 +20,8 @@
             "look_forward": 2
         },
         "categoricals": [],
-        "time_features": []
+        "time_features": [],
+        "lags": {}
     },
     "data_source": {
         "type": "file",
