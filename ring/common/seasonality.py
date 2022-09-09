@@ -5,6 +5,7 @@ from .estimators.base import (
     AbstractDetrendEstimator,
     PolynomialDetrendEstimator,
     LogDetrendEstimator,
+    HPfilterDetrendEstimator,
 )
 from .autoperiod import Autoperiod, RobustPeriod
 from .utils import register
@@ -22,7 +23,9 @@ def cfg_to_estimator(estimator):
         if estimator == "LogDetrendEstimator"
         else AbstractDetrendEstimator
         if estimator == "AbstractDetrendEstimator"
-        else PolynomialDetrendEstimator  # not specified
+        else PolynomialDetrendEstimator
+        if estimator == "PolynomialDetrendEstimator"
+        else HPfilterDetrendEstimator  # not specified
     )
 
 
@@ -113,25 +116,25 @@ class AbsrtactDetrend(Estimator):
         self.estimator = estimator
 
     def fit_transform(self, data: pd.DataFrame, group_ids, **kwargs) -> pd.Series:
-        self.fit(data, group_ids)
+        self.fit(data, group_ids, **kwargs)
         return self.transform(data, group_ids, **kwargs)
 
-    def fit(self, data: pd.DataFrame, group_ids):
-        return self.fit_self(data, group_ids)
+    def fit(self, data: pd.DataFrame, group_ids, **kwargs):
+        return self.fit_self(data, group_ids, **kwargs)
 
     def transform(self, data: pd.DataFrame, group_ids, **kwargs):
-        return self.transform_self(data, group_ids, **kwargs)
+        return self.transform_self(data, group_ids)
 
-    def inverse_transform(self, data: pd.DataFrame, group_ids, **kwargs):
-        return self.inverse_transform_self(data, group_ids, **kwargs)
+    def inverse_transform(self, data: pd.DataFrame, group_ids):
+        return self.inverse_transform_self(data, group_ids)
 
     def fit_self(self, data: pd.DataFrame, group_ids):
         self._state = {target_column_name: self.estimator() for target_column_name in self.feature_name}
 
-    def transform_self(self, data: pd.DataFrame, group_ids, **kwargs):
+    def transform_self(self, data: pd.DataFrame, group_ids):
         return data[self.feature_name]
 
-    def inverse_transform_self(self, data: pd.DataFrame, group_ids, **kwargs):
+    def inverse_transform_self(self, data: pd.DataFrame, group_ids):
         return data[self.feature_name]
 
 
@@ -144,7 +147,7 @@ class DetrendTargets(AbsrtactDetrend):
         self.feature_name = feature_name
         self.estimator = estimator
 
-    def fit_self(self, data: pd.DataFrame, group_ids):
+    def fit_self(self, data: pd.DataFrame, group_ids, **kwargs):
         """
         fit the PolynomialDetrendEstimator, and save it in the state.
         """
@@ -152,7 +155,7 @@ class DetrendTargets(AbsrtactDetrend):
             return
         self._state = {}
         for column_name in self.feature_name:
-            estimator = self.estimator()
+            estimator = self.estimator(**kwargs)
             estimator.fit(data[column_name], data[TIME_IDX])
             self._state[column_name] = estimator
 
@@ -179,26 +182,26 @@ class GroupDetrendTargets(AbsrtactDetrend):
         self.feature_name = feature_name
         self.estimator = estimator
 
-    def _fit_seperately(self, data: pd.DataFrame, column_name):
-        estimator = self.estimator()
+    def _fit_seperately(self, data: pd.DataFrame, column_name, **kwargs):
+        estimator = self.estimator(**kwargs)
         estimator.fit(data[column_name], data[TIME_IDX])
         return estimator
 
-    def fit_self(self, data: pd.DataFrame, group_ids):
+    def fit_self(self, data: pd.DataFrame, group_ids, **kwargs):
         if self.fitted:
             return
         self._state = {}
         for column_name in self.feature_name:
             if len(group_ids) == 1:
                 groupped_estimators = (
-                    data.groupby(group_ids).apply(self._fit_seperately, column_name).to_dict()
+                    data.groupby(group_ids).apply(self._fit_seperately, column_name, **kwargs).to_dict()
                 )
             else:
                 data[AGG_GROUP] = pd.Series(
                     data[group_ids].itertuples(index=False, name=None), index=data.index
                 ).map(lambda x: str(x))
                 groupped_estimators = (
-                    data.groupby(AGG_GROUP).apply(self._fit_seperately, column_name).to_dict()
+                    data.groupby(AGG_GROUP).apply(self._fit_seperately, column_name, **kwargs).to_dict()
                 )
             self._state[column_name] = groupped_estimators
 
@@ -280,7 +283,7 @@ class DetectTargetLags(AbstractDetectTargetLags):
     def _detect_lags(self, data: pd.DataFrame, group_ids: List = [], freq=None):
         """Detect data lags"""
         p_R = RobustPeriod(data[TIME_IDX].values, data[data.columns[1]].values, lamb=freq)
-        p_A = Autoperiod(data[TIME_IDX].values, data[data.columns[1]].values)
+        p_A = Autoperiod(data[TIME_IDX].values, data[data.columns[1]].values, lamb=freq)
         self.lags += [period for period in p_R.period if period in p_A.period_list]
 
 
@@ -298,7 +301,7 @@ class GroupDetectTargetLags(AbstractDetectTargetLags):
                 data.columns[1]: lambda x: [
                     p
                     for p in RobustPeriod(np.arange(len(x)), x.values, lamb=freq).period
-                    if p in Autoperiod(np.arange(len(x)), x.values).period_list
+                    if p in Autoperiod(np.arange(len(x)), x.values, lamb=freq).period_list
                 ]
             }
         )

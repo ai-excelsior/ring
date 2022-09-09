@@ -202,9 +202,13 @@ class TimeSeriesDataset(Dataset):
 
         # detrend targets, all targets together at once
         if not self._target_detrenders.fitted:
-            data[self.targets] = self._target_detrenders.fit_transform(data, self._group_ids)
+            data[self.targets] = self._target_detrenders.fit_transform(
+                data=data, group_ids=self._group_ids, freq=self._freq
+            )
         else:
-            data[self.targets] = self._target_detrenders.transform(data, self._group_ids)
+            data[self.targets] = self._target_detrenders.transform(
+                data=data, group_ids=self._group_ids, freq=self._freq
+            )
 
         # fit categoricals
         for i, cat in enumerate(self.categoricals):
