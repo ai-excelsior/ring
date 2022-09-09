@@ -234,7 +234,7 @@ class TimeSeriesDataset(Dataset):
                     [
                         data,
                         self._lags[tar].add_lags(
-                            data[["_time_idx_", tar] + self._group_ids], self._group_ids, self._freq
+                            data[["_time_idx_", tar] + self._group_ids], self._group_ids
                         ),
                     ],
                     axis=1,

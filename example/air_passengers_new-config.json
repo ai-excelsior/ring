@@ -21,6 +21,7 @@
         },
         "categoricals": [],
         "time_features": [],
+        "detrend": false,
         "lags": {}
     },
     "data_source": {

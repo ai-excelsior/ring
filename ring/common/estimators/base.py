@@ -5,6 +5,8 @@ import statsmodels.api as sm
 import pandas as pd
 import numpy as np
 from ..serializer import pickle_dumps, pick_loads
+from pandas.tseries.frequencies import to_offset
+from statsmodels.tsa.filters.hp_filter import hpfilter
 
 
 def log_func(x, base=np.e):
@@ -108,7 +110,7 @@ class AbstractDetrendEstimator(Estimator):
     A PolynomialDetrendEstimator that try to find best degree to fit the passed-in data and remove the trend.
     """
 
-    def __init__(self, max_degress=4) -> None:
+    def __init__(self, max_degress=4, **kwargs) -> None:
         super().__init__()
         self._max_degress = max_degress
 
@@ -128,7 +130,7 @@ class LogDetrendEstimator(AbstractDetrendEstimator):
         LogDetrendEstimator (_type_): try to fit a log trend
     """
 
-    def __init__(self, max_degress=[2, np.e, 10]) -> None:
+    def __init__(self, max_degress=[2, np.e, 10], **kwargs) -> None:
         super().__init__()
         self._max_degress = max_degress
         self._degree = None
@@ -198,7 +200,7 @@ class PolynomialDetrendEstimator(AbstractDetrendEstimator):
     A PolynomialDetrendEstimator that try to find best degre e to fit the passed-in data and remove the trend.
     """
 
-    def __init__(self, max_degress=4) -> None:
+    def __init__(self, max_degress=4, **kwargs) -> None:
         super().__init__()
         self._max_degress = max_degress
         self._degree = None
@@ -256,6 +258,63 @@ class PolynomialDetrendEstimator(AbstractDetrendEstimator):
         state = config.get("state", None)
         if state is not None:
             state = (pick_loads(state[0]), pick_loads(state[1]))
+        this = cls(**params)
+        this._state = state
+
+        return this
+
+
+class HPfilterDetrendEstimator(AbstractDetrendEstimator):
+    """
+
+    Args:
+        Hodrick-Prescott filter DetrendEstimator (_type_)
+    """
+
+    def __init__(self, freq=None) -> None:
+        super().__init__()
+        self._max_degress = freq
+
+    def _detect_freq(self, freq):
+        freq = to_offset(freq).name
+        if "AS-" in freq or "A-" in freq or freq == "AS" or freq == "A":
+            return 6.25
+        elif "QS-" in freq or "Q-" in freq or freq == "QS" or freq == "Q":
+            return 1600
+        elif "MS-" in freq or "M-" in freq or freq == "MS" or freq == "M":
+            return 129600
+        else:
+            return 10e6
+
+    def fit(self, data: pd.Series, index: pd.Series):
+        self._state = self._detect_freq(self._max_degress)
+
+    def get_trend(self, x: pd.Series) -> np.ndarray:
+        self._assert_fitted()
+        lamb = self._state
+        return hpfilter(x, lamb)[1]
+
+    def transform(self, data: pd.Series, index: pd.Series) -> pd.Series:
+        return data - self.get_trend(data) if self._state is not None else data
+
+    def inverse_transform(self, data: pd.Series, index: pd.Series) -> pd.Series:
+        return data + self.get_trend(data) if self._state is not None else data
+
+    def get_degree(self):
+        return self._state
+
+    def serialize(self):
+        return {
+            "params": self.get_params(),
+            "state": self._state if self._state is not None else None,
+        }
+
+    @classmethod
+    def deserialize(cls, config: Dict):
+        params = config.get("params", {})
+        state = config.get("state", None)
+        if state is not None:
+            state = state
         this = cls(**params)
         this._state = state
 
