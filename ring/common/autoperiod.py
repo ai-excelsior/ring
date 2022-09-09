@@ -14,6 +14,34 @@ from pandas.tseries.frequencies import to_offset
 import pandas as pd
 
 
+def _extract_trend(x, lamb=129600):
+    """use hp-filter to detrend
+    Args:
+        x (_type_): original values
+        lamb (_type_): regulization parameter, A value of 1600 issuggested for quarterly data.
+        Ravn and Uhlig suggest using a value of 6.25 (1600/4**4) for annual data
+        and 129600 (1600*3**4) for monthly data.
+
+    Returns:
+        _type_: values after detrend
+    """
+    _, trend = hpfilter(x, lamb)
+    x_detrend = x - trend
+    return x_detrend
+
+
+def _detect_freq(freq):
+    freq = to_offset(freq).name
+    if "AS-" in freq or "A-" in freq or freq == "AS" or freq == "A":
+        return 6.25
+    elif "QS-" in freq or "Q-" in freq or freq == "QS" or freq == "Q":
+        return 1600
+    elif "MS-" in freq or "M-" in freq or freq == "MS" or freq == "M":
+        return 129600
+    else:
+        return 10e6
+
+
 class DensityClustering:
     def __init__(self, time_idx: np.ndarray, powers: np.ndarray, periods: Tuple[int, float]) -> None:
         self.periods = periods
@@ -70,7 +98,7 @@ class Autoperiod:
         mc_iterations: int = 100,
         confidence_level: float = 0.99,
         random_state: int = 666,
-        win_size: int = 7,
+        win_size: int = 5,
         thres1: float = 0.1,
         thres2: float = 0.1,
         auto_time_differencing: bool = False,
@@ -163,21 +191,6 @@ class Autoperiod:
     def phase_shift_guess(self):
         return self.time_idx[np.argmax(self.values)]
 
-    def _extract_trend(self, x, lamb=129600):
-        """use hp-filter to detrend
-        Args:
-            x (_type_): original values
-            lamb (_type_): regulization parameter, A value of 1600 issuggested for quarterly data.
-            Ravn and Uhlig suggest using a value of 6.25 (1600/4**4) for annual data
-            and 129600 (1600*3**4) for monthly data.
-
-        Returns:
-            _type_: values after detrend
-        """
-        _, trend = hpfilter(x, lamb)
-        x_detrend = x - trend
-        return x_detrend
-
     @staticmethod
     def __estimate_time_diferencing_order(values: np.ndarray) -> int:
         return auto_arima(
@@ -195,7 +208,6 @@ class Autoperiod:
 
     def _get_period_hints(self) -> List[Tuple[int, float]]:
         periods__ = []
-        total_periods = len(self.periods)
         for i, period in enumerate(self.periods):
             # periods__=[(20,6.00031),(16,10.12421)...]
             periods__.append((i, period))
@@ -388,7 +400,6 @@ class RobustPeriod:
         values: Union[List[float], List[int]],
         plotter=None,
         num_wavelet: int = 8,
-        lamb: str = "MS",
         c: float = 2,  # Huber function hyperparameter
         wavelet_method: str = "db10",
     ):
@@ -399,12 +410,9 @@ class RobustPeriod:
         self.plotter = plotter
         self.num_wavelet = num_wavelet
         # decide lamb according to freq
-        self.lamb = self._detect_freq(lamb)
         self.huber_c = c
-        # Hodrick–Prescott (HP) filter to detrend
-        detrend_values = self._extract_trend(values, self.lamb)
         # remove extreme outliers, TODO: can be polished
-        processed_values = self._remove_outliers(detrend_values, self.huber_c)
+        processed_values = self._remove_outliers(values, self.huber_c)
         # Daubechies MODWT
         self._wave = self.modwt(processed_values, self.wavelet_method, level=self.num_wavelet)
         # Robust Unbiased Wavelet Variance to sort levels
@@ -454,32 +462,6 @@ class RobustPeriod:
     @property
     def wavelets(self):
         return self._wave
-
-    def _detect_freq(self, freq):
-        freq = to_offset(freq).name
-        if "AS-" in freq or "A-" in freq or freq == "AS" or freq == "A":
-            return 6.25
-        elif "QS-" in freq or "Q-" in freq or freq == "QS" or freq == "Q":
-            return 1600
-        elif "MS-" in freq or "M-" in freq or freq == "MS" or freq == "M":
-            return 129600
-        else:
-            return 10e6
-
-    def _extract_trend(self, x, lamb=129600):
-        """use hp-filter to detrend
-        Args:
-            x (_type_): original values
-            lamb (_type_): regulization parameter, A value of 1600 issuggested for quarterly data.
-            Ravn and Uhlig suggest using a value of 6.25 (1600/4**4) for annual data
-            and 129600 (1600*3**4) for monthly data.
-
-        Returns:
-            _type_: values after detrend
-        """
-        _, trend = hpfilter(x, lamb)
-        x_detrend = x - trend
-        return x_detrend
 
     def _remove_outliers(self, x, c):
         mu = np.median(x)
