@@ -266,21 +266,21 @@ class QuantileLoss(AbstractLoss):
         return torch.mean(losses)
 
     def scale_prediction(
-        self, y_pred: torch.Tensor, target_scale: torch.Tensor = None, normalizer: AbstractNormalizer = None,need=True,
+        self, y_pred: torch.Tensor, target_scale: torch.Tensor = None, normalizer: AbstractNormalizer = None,need=False,
     ):
-        if target_scale is None:
-            return y_pred if normalizer is None else normalizer.inverse_postprocess(y_pred)
+        if need:
+            if target_scale is None:
+                return y_pred if normalizer is None else normalizer.inverse_postprocess(y_pred)
 
-        # rescale back
-        center = target_scale[..., 0].unsqueeze(-1)
-        scale = target_scale[..., 1].unsqueeze(-1)
-        y_scaled = y_pred * scale + center
+            center = target_scale[..., 0].unsqueeze(-1)
+            scale = target_scale[..., 1].unsqueeze(-1)
+            y_scaled = y_pred * scale + center
 
-        # if postprocess exist
-        if normalizer:
-            return normalizer.inverse_postprocess(y_scaled)
+            # if postprocess exist
+            if normalizer:
+                return normalizer.inverse_postprocess(y_scaled)
 
-        return y_scaled
+        return y_pred
 
     def to_prediction(self, y_pred: torch.Tensor, **kwargs):
         return y_pred[..., self._quantiles.index(0.5)]
