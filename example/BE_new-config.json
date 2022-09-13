@@ -24,7 +24,7 @@
             "look_forward": 26
         },
         "time_features": [],
-        "detrend": false,
+        "detrend": true,
         "lags": {}
     },
     "data_source": {
