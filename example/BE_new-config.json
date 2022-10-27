@@ -20,7 +20,7 @@
         "categoricals": [],
         "indexer": {
             "name": "slide_window",
-            "look_back": 168,
+            "look_back": 52,
             "look_forward": 26
         },
         "time_features": [],

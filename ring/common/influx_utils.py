@@ -39,7 +39,7 @@ def predictions_to_influx(
 
     df.set_index(time_column, inplace=True)
     df.index = pd.to_datetime(df.index)
-    df["model_name"] = model_name
+    df["model"] = model_name
 
     if task_id is not None:
         df["task_id"] = task_id
@@ -52,4 +52,33 @@ def predictions_to_influx(
                 record=df,
                 data_frame_measurement_name=measurement,
                 data_frame_tag_columns=["model", "is_prediction", *additional_tags],
+            )
+
+
+def validations_to_influx(
+    df: pd.DataFrame,
+    time_column: str,
+    model_name: str,
+    measurement: str,
+    task_id: str = None,
+    additional_tags: list = [],
+):
+    if measurement is None or task_id is None:
+        return
+
+    df.set_index(time_column, inplace=True)
+    df.index = pd.to_datetime(df.index)
+    df["model"] = model_name
+
+    if task_id is not None:
+        df["task_id"] = task_id
+        additional_tags.append("task_id")
+
+    with get_influx_client() as client:
+        with client.write_api() as write_api:
+            write_api.write(
+                bucket=os.environ.get("INFLUX_VALIDATION_BUCKET_NAME"),
+                record=df,
+                data_frame_measurement_name=measurement,
+                data_frame_tag_columns=["model", "is_validation", *additional_tags],
             )

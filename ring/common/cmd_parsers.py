@@ -83,6 +83,18 @@ def get_validate_parser(subparsers):
         help="Load a pre-training model_state to do validation, s3 address",
     )
     parser.add_argument(
+        "--measurement",
+        type=str,
+        required=False,
+        help="The measurement name when saving validation result to influxdb",
+    )
+    parser.add_argument(
+        "--task_id",
+        type=str,
+        required=False,
+        help="The identicator of the specific validation task",
+    )
+    parser.add_argument(
         "--begin_point",
         type=str,
         default=None,

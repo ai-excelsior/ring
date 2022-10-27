@@ -193,7 +193,7 @@ def supervised_evaluation_step(
     device: Optional[Union[str, torch.device]] = None,
     non_blocking: bool = False,
     prepare_batch: Callable = prepare_batch,
-    output_transform: Callable[[Any, Any, Any], Any] = lambda x, y, y_pred: (y_pred, y),
+    output_transform: Callable[[Any, Any, Any], Any] = lambda x, y, y_pred: (y_pred, y, x),
 ):
     n_parameters = [loss.n_parameters for loss in loss_fns]
     loss_end_indices = list(itertools.accumulate(n_parameters))
@@ -402,7 +402,7 @@ def create_supervised_evaluator(
     device: Optional[Union[str, torch.device]] = None,
     non_blocking: bool = False,
     prepare_batch: Callable = prepare_batch,
-    output_transform: Callable[[Any, Any, Any], Any] = lambda x, y, y_pred: (y_pred, y),
+    output_transform: Callable[[Any, Any, Any], Any] = lambda x, y, y_pred: (y_pred, y, x),
 ):
     evaluate_step = supervised_evaluation_step(
         model,

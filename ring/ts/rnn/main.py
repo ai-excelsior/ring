@@ -1,4 +1,3 @@
-from ctypes import Union
 import pandas as pd
 from argparse import ArgumentParser
 from ring.common.cmd_parsers import (
@@ -9,7 +8,7 @@ from ring.common.cmd_parsers import (
 )
 from ring.common.data_config import DataConfig, url_to_data_config
 from ring.common.nn_predictor import Predictor
-from ring.common.influx_utils import predictions_to_influx
+from ring.common.influx_utils import predictions_to_influx, validations_to_influx
 from ring.common.data_utils import read_from_url
 from model import ReccurentNetwork
 from fastapi import FastAPI
@@ -61,25 +60,30 @@ def train(data_config: DataConfig, data_train: pd.DataFrame, data_val: pd.DataFr
     # validate(kwargs.get("save_state", None), data_val, None)
 
 
-def validate(load_state: str, data_val: pd.DataFrame, begin_point):
+def validate(
+    load_state: str,
+    data_val: pd.DataFrame,
+    measurement: str = "validation-dev",
+    task_id: str = None,
+    begin_point: str = None,
+):
     """
     load a model and using this model to validate a given dataset
     """
     assert load_state is not None, "load_state is required when validate"
 
     predictor = Predictor.load(load_state, ReccurentNetwork)
-    predictor.validate(data_val, begin_point=begin_point)
+    validations = predictor.validate(data_val, begin_point=begin_point)
 
-    df = predictor.predict(data_val, plot=False, begin_point=begin_point)
-    df["income_pred"] = df[df["is_prediction"] == True]["income_pred"].map(lambda x: int(x) if x > 0 else 0)
-    import matplotlib.pyplot as plt
-
-    plt.plot(df[["income"]])
-    plt.plot(df[["income_pred"]])
-    plt.legend(["observed", "pred"])
-    plt.title("income")
-    plt.savefig(f"example/xyz/taptap/income/income_{predictor._model_cls.__name__}_.jpg")
-    df.to_csv(f"example/xyz/taptap/income/income_{predictor._model_cls.__name__}_.csv")
+    validations_to_influx(
+        validations[1],
+        time_column=predictor._data_cfg.time,
+        model_name=predictor._model_cls.__module__,
+        measurement=measurement,
+        task_id=task_id,
+        additional_tags=predictor._data_cfg.group_ids,
+    )
+    return validations[0]
 
 
 def predict(
@@ -97,27 +101,14 @@ def predict(
     predictor = Predictor.load(load_state, ReccurentNetwork)
     pred_df = predictor.predict(data, plot=False, begin_point=begin_point)
     # predictor.validate(data)
-    pred_df.to_csv("example/xyz/uci_long_predict.csv")
-    import matplotlib.pyplot as plt
-
-    d = pd.read_csv("data/BE_pred.csv")
-    fig = plt.figure(figsize=(10, 5))
-    plt.plot(
-        range(24),
-        pred_df.loc[pred_df.index[-1] - 23 :][" Prices_pred"],
-        color="green",
+    predictions_to_influx(
+        pred_df,
+        time_column=predictor._data_cfg.time,
+        model_name=predictor._model_cls.__module__,
+        measurement=measurement,
+        task_id=task_id,
+        additional_tags=predictor._data_cfg.group_ids,
     )
-    plt.plot(range(24), d.iloc[-24:][" Prices"], color="blue")
-    plt.legend(["pred", "observed"])
-    plt.savefig("example/xyz/epf_resultpic/rnn_BE_lags_tf_real.jpg")
-    # predictions_to_influx(
-    #     pred_df,
-    #     time_column=predictor._data_cfg.time,
-    #     model_name=predictor._model_cls.__module__,
-    #     measurement=measurement,
-    #     task_id=task_id,
-    #     additional_tags=predictor._data_cfg.group_ids,
-    # )
 
 
 def serve(load_state, data_cfg):
@@ -215,7 +206,13 @@ if __name__ == "__main__":
             kwargs.pop("start_time"),
             kwargs.pop("end_time"),
         )
-        validate(kwargs.pop("load_state", None), data, kwargs.pop("begin_point"))
+        validate(
+            kwargs.pop("load_state", None),
+            data,
+            measurement=kwargs.pop("measurement"),
+            task_id=kwargs.pop("task_id", None),
+            begin_point=kwargs.pop("begin_point"),
+        )
 
     elif command == "predict":
         data_config, data = url_to_data_config(

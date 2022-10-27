@@ -1,7 +1,6 @@
 from dataclasses import dataclass, field
 from typing import List, Dict, Optional
 
-from matplotlib.pyplot import vlines
 import pandas as pd
 from .oss_utils import get_bucket_from_oss_url
 from .serializer import loads

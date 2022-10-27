@@ -1,3 +1,4 @@
+from curses import raw
 import warnings
 import pandas as pd
 import torch
@@ -17,7 +18,7 @@ from ignite.contrib.handlers.tensorboard_logger import TensorboardLogger, global
 from ignite.handlers import Checkpoint, EarlyStopping
 from .loss import cfg_to_losses
 from .metrics import RMSE, SMAPE, MAE, MSE, MAPE
-from .dataset import TimeSeriesDataset
+from .dataset import TIME_IDX, TimeSeriesDataset
 from .logger import Fluxlogger
 from .oss_utils import DiskAndOssSaverAdd
 from .serializer import dumps, loads
@@ -409,8 +410,33 @@ class Predictor:
         reporter.run(test_dataloader)
         print("===== Final Result =====")
         print(str(dumps(reporter.state.metrics), "utf-8"))
+        y_pred, _, x = reporter.state.output
+        raw_data = self._get_results(dataset, y_pred, x, suffix="valid")
+        raw_data.rename(columns={"is_prediction": "is_validation"}, inplace=True)
+        return reporter.state.metrics, raw_data[raw_data["is_validation"] == True]
 
-        return reporter.state.metrics
+    def _get_results(self, dataset, y_pred, x, suffix):
+        validation_column_names = [f"{target_name}_{suffix}" for _, target_name in enumerate(dataset.targets)]
+        encoder_indices = x["encoder_idx"].detach().cpu().numpy().flatten().tolist()
+        decoder_indices = x["decoder_idx"].detach().cpu().numpy().flatten().tolist()
+        encoder_indices_range = x["encoder_idx_range"].detach().cpu().numpy().flatten().tolist()
+        decoder_indices_range = x["decoder_idx_range"].detach().cpu().numpy().flatten().tolist()
+
+        raw_data = dataset.reflect(
+            encoder_indices, decoder_indices, encoder_indices_range, decoder_indices_range
+        )
+        raw_data = raw_data.assign(**{name: np.nan for name in validation_column_names})
+        # cuz `inverse_transform` can only deal with column names stored in state
+        raw_data.loc[decoder_indices, validation_column_names] = dataset._target_detrenders.inverse_transform(
+            pd.DataFrame(
+                y_pred.reshape((-1, len(validation_column_names))).cpu().detach().numpy(),
+                columns=dataset.targets,
+                index=decoder_indices,
+            ).join(raw_data.loc[decoder_indices, [TIME_IDX] + dataset._group_ids]),
+            dataset._group_ids,
+        ).rename(lambda x: f"{x}_{suffix}", axis=1)
+
+        return raw_data
 
     def predict(
         self,
@@ -457,9 +483,6 @@ class Predictor:
             ),
         )
 
-        # create predict mode dataset
-        prediction_column_names = [f"{target_name}_pred" for i, target_name in enumerate(dataset.targets)]
-
         batch_size = len(dataset)
         if self.enable_gpu:
             dataloader = dataset.to_dataloader(
@@ -474,7 +497,7 @@ class Predictor:
         loss_start_indices = [i - loss_end_indices[0] for i in loss_end_indices]
         with torch.no_grad():
             batch = next(iter(dataloader))
-            x, y = prepare_batch(batch, self._device)
+            x, _ = prepare_batch(batch, self._device)
             y_pred = model(x, mode="predict")
 
             if isinstance(y_pred, Dict):
@@ -498,37 +521,17 @@ class Predictor:
                 ],
                 dim=-1,
             )
-
-            encoder_indices = x["encoder_idx"].detach().cpu().numpy().flatten().tolist()
-            decoder_indices = x["decoder_idx"].detach().cpu().numpy().flatten().tolist()
-            encoder_indices_range = x["encoder_idx_range"].detach().cpu().numpy().flatten().tolist()
-            decoder_indices_range = x["decoder_idx_range"].detach().cpu().numpy().flatten().tolist()
-
-            raw_data = dataset.reflect(
-                encoder_indices, decoder_indices, encoder_indices_range, decoder_indices_range
-            )
-            raw_data = raw_data.assign(**{name: np.nan for name in prediction_column_names})
-            # cuz `inverse_transform` can only deal with column names stored in state
-            raw_data.loc[
-                decoder_indices, prediction_column_names
-            ] = dataset._target_detrenders.inverse_transform(
-                pd.DataFrame(
-                    y_pred_scaled.reshape((-1, len(prediction_column_names))).cpu().detach().numpy(),
-                    columns=dataset.targets,
-                    index=decoder_indices,
-                ).join(raw_data.loc[decoder_indices, ["_time_idx_"] + dataset._group_ids]),
-                dataset._group_ids,
-            ).rename(
-                lambda x: x + "_pred", axis=1
-            )
+            raw_data = self._get_results(dataset, y_pred_scaled, x, suffix="pred")
 
         # plot
         # 这里需要的，根据不同的loss，绘制对应target, group_ids的图像
         if plot:
             # for deepar
+            # create predict mode dataset
             original_prediction_columns = list(
                 filter(
-                    lambda col: col not in prediction_column_names,
+                    lambda col: col
+                    not in [f"{target_name}_pred" for i, target_name in enumerate(dataset.targets)],
                     [
                         f"{target_name}_{param_name}"
                         for i, target_name in enumerate(dataset.targets)
@@ -538,7 +541,9 @@ class Predictor:
             )
             if original_prediction_columns:
                 raw_data = raw_data.assign(**{name: np.nan for name in original_prediction_columns})
-                raw_data.loc[decoder_indices, original_prediction_columns] = (
+                raw_data.loc[
+                    x["decoder_idx"].detach().cpu().numpy().flatten().tolist(), original_prediction_columns
+                ] = (
                     torch.stack(
                         [reverse_scale(i, loss_obj) for i, loss_obj in enumerate(self._losses)],
                         dim=-1,

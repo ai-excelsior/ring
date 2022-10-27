@@ -8,7 +8,7 @@ from ring.common.cmd_parsers import (
 )
 from ring.common.data_config import DataConfig, url_to_data_config
 from ring.common.nn_predictor import Predictor
-from ring.common.influx_utils import predictions_to_influx
+from ring.common.influx_utils import predictions_to_influx, validations_to_influx
 from ring.common.data_utils import read_from_url
 from model import Informer
 from fastapi import FastAPI
@@ -62,14 +62,29 @@ def train(data_config: DataConfig, data_train: pd.DataFrame, data_val: pd.DataFr
     validate(kwargs.get("save_state", None), data_val, None)
 
 
-def validate(load_state: str, data_val: pd.DataFrame, begin_point: str = None):
+def validate(
+    load_state: str,
+    data_val: pd.DataFrame,
+    measurement: str = "validation-dev",
+    task_id: str = None,
+    begin_point: str = None,
+):
     """
     load a model and using this model to validate a given dataset
     """
     assert load_state is not None, "load_state is required when validate"
 
     predictor = Predictor.load(load_state, Informer)
-    predictor.validate(data_val, begin_point=begin_point)
+    validations = predictor.validate(data_val, begin_point=begin_point)
+    validations_to_influx(
+        validations[1],
+        time_column=predictor._data_cfg.time,
+        model_name=predictor._model_cls.__module__,
+        measurement=measurement,
+        task_id=task_id,
+        additional_tags=predictor._data_cfg.group_ids,
+    )
+    return validations[0]
 
 
 def predict(
@@ -195,7 +210,13 @@ if __name__ == "__main__":
             kwargs.pop("start_time"),
             kwargs.pop("end_time"),
         )
-        validate(kwargs.pop("load_state", None), data, kwargs.pop("begin_point"))
+        validate(
+            kwargs.pop("load_state", None),
+            data,
+            measurement=kwargs.pop("measurement"),
+            task_id=kwargs.pop("task_id", None),
+            begin_point=kwargs.pop("begin_point"),
+        )
 
     elif command == "predict":
         data_config, data = url_to_data_config(

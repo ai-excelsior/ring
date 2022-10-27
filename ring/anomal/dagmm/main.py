@@ -11,7 +11,7 @@ from ring.common.cmd_parsers import (
 )
 from ring.common.data_config import DataConfig, dict_to_data_config_anomal
 from ring.common.nn_detector import Detector as Predictor
-from ring.common.influx_utils import predictions_to_influx
+from ring.common.influx_utils import predictions_to_influx, validations_to_influx
 from ring.common.data_utils import read_from_url
 from ring.anomal.dagmm.model_kde import dagmm
 from fastapi import FastAPI
@@ -63,14 +63,26 @@ def train(data_config: DataConfig, data_train: pd.DataFrame, data_val: pd.DataFr
     #     predictor.upload(kwargs["save_state"])
 
 
-def validate(load_state: str, data_val: pd.DataFrame):
+def validate(
+    load_state: str, data_val: pd.DataFrame, measurement: str = "validation-dev", task_id: str = None
+):
     """
     load a model and using this model to validate a given dataset
     """
     assert load_state is not None, "load_state is required when validate"
 
     predictor = Predictor.load(load_state, dagmm)
-    predictor.validate(data_val)
+    validations = predictor.validate(data_val)
+
+    validations_to_influx(
+        validations[1],
+        time_column=predictor._data_cfg.time,
+        model_name=predictor._model_cls.__module__,
+        measurement=measurement,
+        task_id=task_id,
+        additional_tags=predictor._data_cfg.group_ids,
+    )
+    return validations[0]
 
 
 def predict(
@@ -196,7 +208,12 @@ if __name__ == "__main__":
             kwargs.pop("start_time"),
             kwargs.pop("end_time"),
         )
-        validate(kwargs.pop("load_state", None), data, kwargs.pop("begin_point"))
+        validate(
+            kwargs.pop("load_state", None),
+            data,
+            measurement=kwargs.pop("measurement"),
+            task_id=kwargs.pop("task_id", None),
+        )
 
     elif command == "predict":
         data_config, data = dict_to_data_config_anomal(
@@ -209,7 +226,6 @@ if __name__ == "__main__":
             data,
             measurement=kwargs.pop("measurement"),
             task_id=kwargs.pop("task_id", None),
-            begin_point=kwargs.pop("begin_point"),
         )
     elif command == "serve":
         uvicorn.run(serve(kwargs.pop("load_state", None), kwargs.pop("data_cfg")))
