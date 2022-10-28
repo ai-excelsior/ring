@@ -413,7 +413,7 @@ class Predictor:
         y_pred, _, x = reporter.state.output
         raw_data = self._get_results(dataset, y_pred, x, suffix="valid")
         raw_data.rename(columns={"is_prediction": "is_validation"}, inplace=True)
-        return reporter.state.metrics, raw_data[raw_data["is_validation"] == True]
+        return reporter.state.metrics, raw_data
 
     def _get_results(self, dataset, y_pred, x, suffix):
         validation_column_names = [f"{target_name}_{suffix}" for _, target_name in enumerate(dataset.targets)]
