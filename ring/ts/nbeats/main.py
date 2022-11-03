@@ -68,7 +68,7 @@ def validate(
     load_state: str,
     data_val: pd.DataFrame,
     measurement: str = "validation-dev",
-    task_id: str = None,
+    task_id: str = "test_taskid",
     begin_point: str = None,
 ):
     """
