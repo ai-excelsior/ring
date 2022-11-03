@@ -1,6 +1,6 @@
 from torch import nn
 import torch
-from .dataset import TimeSeriesDataset
+from ring.common.dataset import TimeSeriesDataset
 from functools import cached_property
 from collections import namedtuple
 from typing import Callable, Dict, List, Tuple, Union

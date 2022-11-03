@@ -1,0 +1,16 @@
+FROM python:3.8
+
+WORKDIR /home
+
+ADD requirements.txt requirements.txt
+ADD ring/ts/tft/requirements.txt ring/ts/tft/requirements.txt
+
+RUN --mount=type=cache,target=/root/.cache pip install -U pip -i https://mirrors.aliyun.com/pypi/simple/
+RUN --mount=type=cache,target=/root/.cache pip install -r requirements.txt -i https://mirrors.aliyun.com/pypi/simple/
+RUN --mount=type=cache,target=/root/.cache pip install -r ring/ts/tft/requirements.txt -i https://mirrors.aliyun.com/pypi/simple/
+
+ADD ring/common ring/common
+ADD ring/ts/tft ring/ts/tft
+
+ENV PYTHONPATH=/home
+ENTRYPOINT ["python", "/home/ring/ts/tft/main.py"]
