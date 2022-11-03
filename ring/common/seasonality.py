@@ -125,16 +125,16 @@ class AbsrtactDetrend(Estimator):
     def transform(self, data: pd.DataFrame, group_ids, **kwargs):
         return self.transform_self(data, group_ids)
 
-    def inverse_transform(self, data: pd.DataFrame, group_ids):
+    def inverse_transform(self, data: pd.DataFrame, group_ids, **kwargs):
         return self.inverse_transform_self(data, group_ids)
 
-    def fit_self(self, data: pd.DataFrame, group_ids):
+    def fit_self(self, data: pd.DataFrame, group_ids, **kwargs):
         self._state = {target_column_name: self.estimator() for target_column_name in self.feature_name}
 
-    def transform_self(self, data: pd.DataFrame, group_ids):
+    def transform_self(self, data: pd.DataFrame, group_ids, **kwargs):
         return data[self.feature_name]
 
-    def inverse_transform_self(self, data: pd.DataFrame, group_ids):
+    def inverse_transform_self(self, data: pd.DataFrame, group_ids, **kwargs):
         return data[self.feature_name]
 
 
@@ -159,13 +159,13 @@ class DetrendTargets(AbsrtactDetrend):
             estimator.fit(data[column_name], data[TIME_IDX])
             self._state[column_name] = estimator
 
-    def transform_self(self, data: pd.DataFrame, group_ids):
+    def transform_self(self, data: pd.DataFrame, group_ids, **kwargs):
         assert self._state is not None
         for column_name, estimator in self._state.items():
             data[column_name] = estimator.transform(data[column_name], data[TIME_IDX])
         return data[self.feature_name]
 
-    def inverse_transform_self(self, data: pd.DataFrame, group_ids):
+    def inverse_transform_self(self, data: pd.DataFrame, group_ids, **kwargs):
         assert self._state is not None
         for column_name, estimator in self._state.items():
             data[column_name] = estimator.inverse_transform(data[column_name], data[TIME_IDX])
@@ -205,12 +205,12 @@ class GroupDetrendTargets(AbsrtactDetrend):
                 )
             self._state[column_name] = groupped_estimators
 
-    def _transform_seperately(self, data: pd.DataFrame, column_name):
+    def _transform_seperately(self, data: pd.DataFrame, column_name, **kwargs):
         estimators = self._state[column_name][data.name]
         data[column_name] = estimators.transform(data[column_name], data[TIME_IDX])
         return data[self.feature_name]
 
-    def transform_self(self, data: pd.DataFrame, group_ids):
+    def transform_self(self, data: pd.DataFrame, group_ids, **kwargs):
         for column_name in self.feature_name:
             if len(group_ids) == 1:
                 data = data.groupby(group_ids).apply(self._transform_seperately, column_name)
@@ -221,12 +221,12 @@ class GroupDetrendTargets(AbsrtactDetrend):
                 data = data.groupby(AGG_GROUP).apply(self._transform_seperately, column_name)
         return data[self.feature_name]
 
-    def _inverse_transform_seperately(self, data: pd.DataFrame, column_name):
+    def _inverse_transform_seperately(self, data: pd.DataFrame, column_name, **kwargs):
         estimators = self._state[column_name][data.name]
         data[column_name] = estimators.inverse_transform(data[column_name], data[TIME_IDX])
         return data[self.feature_name]
 
-    def inverse_transform_self(self, data: pd.DataFrame, group_ids):
+    def inverse_transform_self(self, data: pd.DataFrame, group_ids, **kwargs):
         for column_name in self.feature_name:
             if len(group_ids) == 1:
                 data = data.groupby(group_ids).apply(self._inverse_transform_seperately, column_name)

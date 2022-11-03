@@ -23,9 +23,7 @@
             "look_back": 52,
             "look_forward": 26
         },
-        "time_features": [],
-        "detrend": true,
-        "lags": {}
+        "time_features": []
     },
     "data_source": {
         "type": "file",
