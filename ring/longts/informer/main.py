@@ -85,9 +85,6 @@ def validate(
         task_id=task_id,
         additional_tags=predictor._data_cfg.group_ids,
     )
-    print(
-        f"to test:{validations[0]},{os.environ.get('INFLUX_VALIDATION_BUCKET_NAME')},{measurement},{task_id}"
-    )
     return validations[0]
 
 

@@ -58,7 +58,7 @@ def train(data_config: DataConfig, data_train: pd.DataFrame, data_val: pd.DataFr
     # else:
     #     predictor.upload(kwargs["save_state"])
 
-    validate(kwargs.get("save_state", None), data_val, None)
+    validate(kwargs.get("save_state", None), data_val, begin_point=None)
 
 
 def validate(load_state: str, data_val: pd.DataFrame, begin_point: str = None):
