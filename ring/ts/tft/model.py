@@ -7,7 +7,6 @@ from collections import namedtuple
 
 import torch
 from torch import nn
-from ring.common.loss import QuantileLoss
 from ring.common.ml.rnn import LSTM
 from ring.common.ml.embeddings import MultiEmbedding
 from ring.ts.tft.submodules import (
@@ -17,6 +16,7 @@ from ring.ts.tft.submodules import (
     GatedResidualNetwork,
     InterpretableMultiHeadAttention,
     VariableSelectionNetwork,
+    OutputMixIn,
 )
 
 from ring.common.base_model import AutoRegressiveBaseModelWithCovariates
@@ -27,14 +27,12 @@ class TemporalFusionTransformer(AutoRegressiveBaseModelWithCovariates):
     def __init__(
         self,
         targets: List[str],
-
         # hyper parameters
         hidden_size: int = 16,
         lstm_layers: int = 1,
         dropout: float = 0.1,
         output_size: Union[int, List[int]] = 7,
         attention_head_size: int = 4,
-
         # data parameters
         static_categoricals: List[str] = [],
         static_reals: List[str] = [],
@@ -81,7 +79,7 @@ class TemporalFusionTransformer(AutoRegressiveBaseModelWithCovariates):
                 (fallback to hidden_continuous_size if index is not in dictionary)
             embedding_sizes: dictionary mapping (string) indices to tuple of number of categorical classes and
                 embedding size
-            learning_rate: learning rate    
+            learning_rate: learning rate
             share_single_variable_networks (bool): if to share the single variable networks between the encoder and
                 decoder. Defaults to False.
             **kwargs: additional arguments to :py:class:`~BaseModel`.
@@ -112,10 +110,10 @@ class TemporalFusionTransformer(AutoRegressiveBaseModelWithCovariates):
         self.time_varying_reals_encoder = time_varying_reals_encoder
         self.time_varying_reals_decoder = time_varying_reals_decoder
 
-        self.static_variables=self.static_categoricals + self.static_reals
-        self.encoder_variables=self.time_varying_categoricals_encoder + self.time_varying_reals_encoder
-        self.decoder_variables=self.time_varying_categoricals_decoder + self.time_varying_reals_decoder
-    
+        self.static_variables = self.static_categoricals + self.static_reals
+        self.encoder_variables = self.time_varying_categoricals_encoder + self.time_varying_reals_encoder
+        self.decoder_variables = self.time_varying_categoricals_decoder + self.time_varying_reals_decoder
+
         # processing inputs
         # embeddings
         self.input_embeddings = MultiEmbedding(
@@ -347,14 +345,42 @@ class TemporalFusionTransformer(AutoRegressiveBaseModelWithCovariates):
             x_categoricals=dataset.categoricals,
             static_categoricals=dataset._static_categoricals,
             static_reals=dataset._static_reals,
-            time_varying_categoricals_encoder=dataset._time_varying_known_categoricals + dataset._time_varying_unknown_categoricals,
-            time_varying_categoricals_decoder=dataset._time_varying_known_categoricals + dataset._time_varying_unknown_categoricals,
-            time_varying_reals_encoder=dataset._time_varying_known_reals + dataset._time_varying_unknown_reals + dataset._targets  + dataset.time_features,
-            time_varying_reals_decoder=dataset._time_varying_known_reals + dataset._time_varying_unknown_reals + dataset._targets  + dataset.time_features,  
+            time_varying_categoricals_encoder=dataset._time_varying_known_categoricals
+            + dataset._time_varying_unknown_categoricals,
+            time_varying_categoricals_decoder=dataset._time_varying_known_categoricals
+            + dataset._time_varying_unknown_categoricals,
+            time_varying_reals_encoder=dataset._time_varying_known_reals
+            + dataset._time_varying_unknown_reals
+            + dataset._targets
+            + dataset.time_features,
+            time_varying_reals_decoder=dataset._time_varying_known_reals
+            + dataset._time_varying_unknown_reals
+            + dataset._targets
+            + dataset.time_features,
             x_reals=dataset.reals,
             **kwargs,
         )
 
+    def to_network_output(self, **results):
+        """
+        Convert output into a named (and immuatable) tuple.
+
+        This allows tracing the modules as graphs and prevents modifying the output.
+
+        Returns:
+            named tuple
+        """
+        if hasattr(self, "_output_class"):
+            Output = self._output_class
+        else:
+            OutputTuple = namedtuple("output", results)
+
+            class Output(OutputMixIn, OutputTuple):
+                pass
+
+            self._output_class = Output
+
+        return self._output_class(**results)
 
     def forward(self, x: Dict[str, torch.Tensor], mode=None) -> Dict[str, torch.Tensor]:
         """
@@ -483,15 +509,13 @@ class TemporalFusionTransformer(AutoRegressiveBaseModelWithCovariates):
         else:
             output = self.output_layer(output)
 
-        # return self.to_network_output(
-        #     # prediction=self.transform_output(output, target_scale=x["target_scale"]),
-        #     prediction=output,
-        #     attention=attn_output_weights,
-        #     static_variables=static_variable_selection,
-        #     encoder_variables=encoder_sparse_weights,
-        #     decoder_variables=decoder_sparse_weights,
-        #     decoder_lengths=decoder_lengths,
-        #     encoder_lengths=encoder_lengths,
-        # )
-
-        return output
+        return self.to_network_output(
+            # prediction=self.transform_output(output, target_scale=x["target_scale"]),
+            prediction=output,
+            attention=attn_output_weights,
+            static_variables=static_variable_selection,
+            encoder_variables=encoder_sparse_weights,
+            decoder_variables=decoder_sparse_weights,
+            decoder_lengths=decoder_lengths,
+            encoder_lengths=encoder_lengths,
+        )
