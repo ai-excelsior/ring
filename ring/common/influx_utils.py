@@ -48,7 +48,7 @@ def predictions_to_influx(
     with get_influx_client() as client:
         with client.write_api() as write_api:
             write_api.write(
-                bucket=os.environ.get("INFLUX_PREDICTION_BUCKET_NAME","validation-dev"),
+                bucket=os.environ.get("INFLUX_PREDICTION_BUCKET_NAME", "prediction-dev"),
                 record=df,
                 data_frame_measurement_name=measurement,
                 data_frame_tag_columns=["model", "is_prediction", *additional_tags],
@@ -77,7 +77,7 @@ def validations_to_influx(
     with get_influx_client() as client:
         with client.write_api() as write_api:
             write_api.write(
-                bucket=os.environ.get("INFLUX_VALIDATION_BUCKET_NAME"),
+                bucket=os.environ.get("INFLUX_VALIDATION_BUCKET_NAME", "validation-dev"),
                 record=df,
                 data_frame_measurement_name=measurement,
                 data_frame_tag_columns=["model", "is_validation", *additional_tags],
