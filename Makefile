@@ -1,4 +1,4 @@
-VERSION := $(or ${VERSION},0.0.1)
+VERSION := $(or ${VERSION},0.0.2)
 
 build-docker-seq2seq:
 	docker build -f ring/ts/seq2seq/Dockerfile_cpu -t code.unianalysis.com:5050/unianalysis/ring/seq2seq:$(VERSION) --network=host .
