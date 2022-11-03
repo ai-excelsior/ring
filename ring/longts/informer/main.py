@@ -13,6 +13,7 @@ from ring.common.data_utils import read_from_url
 from model import Informer
 from fastapi import FastAPI
 import uvicorn
+import os
 
 
 def train(data_config: DataConfig, data_train: pd.DataFrame, data_val: pd.DataFrame, **kwargs):
@@ -84,7 +85,9 @@ def validate(
         task_id=task_id,
         additional_tags=predictor._data_cfg.group_ids,
     )
-    print(f"to test:{validations[0]}")
+    print(
+        f"to test:{validations[0]},{os.environ.get('INFLUX_VALIDATION_BUCKET_NAME')},{measurement},{task_id}"
+    )
     return validations[0]
 
 
