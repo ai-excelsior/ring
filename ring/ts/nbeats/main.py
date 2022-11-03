@@ -87,6 +87,7 @@ def validate(
         task_id=task_id,
         additional_tags=predictor._data_cfg.group_ids,
     )
+    print(f"to test:{validations[0]}")
     return validations[0]
 
 
