@@ -1,0 +1,18 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: example-cuda
+spec:
+  template:
+    spec:
+      containers:
+        - name: example-cuda
+          image: "code.unianalysis.com:5050/unianalysis/ring/cuda11.3-py3.8"
+          command: ["python"]
+          args:
+            - -c
+            - "import torch;print(torch.cuda.device_count());"
+          resources:
+            limits:
+              nvidia.com/gpu: 1
+      restartPolicy: Never
