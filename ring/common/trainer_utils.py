@@ -193,7 +193,12 @@ def supervised_evaluation_step(
     device: Optional[Union[str, torch.device]] = None,
     non_blocking: bool = False,
     prepare_batch: Callable = prepare_batch,
-    output_transform: Callable[[Any, Any, Any], Any] = lambda x, y, y_pred: (y_pred, y, x),
+    output_transform: Callable[[Any, Any, Any, Any], Any] = lambda x, y, y_pred, y_pred_scale: (
+        y_pred,
+        y,
+        x,
+        y_pred_scale,
+    ),
 ):
     n_parameters = [loss.n_parameters for loss in loss_fns]
     loss_end_indices = list(itertools.accumulate(n_parameters))
@@ -204,11 +209,18 @@ def supervised_evaluation_step(
         with torch.no_grad():
             x, y = prepare_batch(batch, device=device, non_blocking=non_blocking)
             y_pred = model(x)
+            reverse_scale_need = lambda i, loss: loss.scale_prediction(
+                y_pred[..., loss_start_indices[i] : loss_end_indices[i]],
+                x["target_scales"][..., i],
+                normalizers[i],
+                need=True,
+            )
             reverse_scale = lambda i, loss: loss.scale_prediction(
                 y_pred[..., loss_start_indices[i] : loss_end_indices[i]],
                 x["target_scales"][..., i],
                 normalizers[i],
             )
+
             if isinstance(y_pred, Dict):
                 try:
                     y_pred = y_pred["prediction"]
@@ -219,11 +231,18 @@ def supervised_evaluation_step(
             elif not isinstance(y_pred, torch.Tensor):
                 raise TypeError("output of model must be one of torch.tensor or Dict")
 
-            y_pred_scaled = torch.stack(
+            y_pred = torch.stack(
                 [loss_obj.to_prediction(reverse_scale(i, loss_obj)) for i, loss_obj in enumerate(loss_fns)],
                 dim=-1,
             )
-            return output_transform(x, y, y_pred_scaled)
+            y_pred_scaled = torch.stack(
+                [
+                    loss_obj.to_prediction(reverse_scale_need(i, loss_obj))
+                    for i, loss_obj in enumerate(loss_fns)
+                ],
+                dim=-1,
+            )
+            return output_transform(x, y, y_pred, y_pred_scaled)
 
     return evaluate_step
 
@@ -402,7 +421,12 @@ def create_supervised_evaluator(
     device: Optional[Union[str, torch.device]] = None,
     non_blocking: bool = False,
     prepare_batch: Callable = prepare_batch,
-    output_transform: Callable[[Any, Any, Any], Any] = lambda x, y, y_pred: (y_pred, y, x),
+    output_transform: Callable[[Any, Any, Any, Any], Any] = lambda x, y, y_pred, y_pred_scale: (
+        y_pred,
+        y,
+        x,
+        y_pred_scale,
+    ),
 ):
     evaluate_step = supervised_evaluation_step(
         model,

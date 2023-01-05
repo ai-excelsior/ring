@@ -410,7 +410,7 @@ class Predictor:
         reporter.run(test_dataloader)
         print("===== Final Result =====")
         print(str(dumps(reporter.state.metrics), "utf-8"))
-        y_pred, _, x = reporter.state.output
+        _, _, x, y_pred = reporter.state.output
         raw_data = self._get_results(dataset, y_pred, x, suffix="valid")
         raw_data.rename(columns={"is_prediction": "is_validation"}, inplace=True)
         return reporter.state.metrics, raw_data
