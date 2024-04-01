@@ -159,17 +159,34 @@ def supervised_training_step(
             )
         # cutomized loss function addtion to `y_pred`:dagmm, no need to `reverse_transform`
         elif isinstance(y_pred, tuple):
-            sample_energy = y_pred[0][0]
-            cov_diag = y_pred[0][1]
-            y_recon = y_pred[1]
-            loss_reconstruction = (
-                functools.reduce(
-                    lambda a, b: a + b,
-                    [loss_fn(y_recon[..., i], y[..., i]) for i, loss_fn in enumerate(loss_fns)],
+            if len(y_pred) != 7:
+                sample_energy = y_pred[0][0]
+                cov_diag = y_pred[0][1]
+                y_recon = y_pred[1]
+                loss_reconstruction = (
+                    functools.reduce(
+                        lambda a, b: a + b,
+                        [loss_fn(y_recon[..., i], y[..., i]) for i, loss_fn in enumerate(loss_fns)],
+                    )
+                    / len(loss_fns)
                 )
-                / len(loss_fns)
-            )
-            loss = loss_reconstruction + 0.005 * cov_diag + 0.1 * sample_energy
+                loss = loss_reconstruction + 0.005 * cov_diag + 0.1 * sample_energy
+            else:
+                y_prediction = y_pred.prediction
+                reverse_scale = lambda i, loss: loss.scale_prediction(
+                    y_prediction[..., loss_start_indices[i] : loss_end_indices[i]],
+                    x["target_scales"][..., i],
+                    normalizers[i],
+                )
+
+                loss = (
+                    functools.reduce(
+                        lambda a, b: a + b,
+                        [loss_fn(reverse_scale(i, loss_fn), y[..., i]) for i, loss_fn in enumerate(loss_fns)],
+                    )
+                    / len(loss_fns)
+                )
+
         else:
             raise TypeError("output of model must be one of torch.tensor or Dict or tuple of List")
 
@@ -227,11 +244,14 @@ def supervised_evaluation_step(
                 except:
                     raise ValueError("output should have both `prediction` and `backcast`")
             elif isinstance(y_pred, (tuple, list)):  # only consider reconstruction_error
-                y_pred = y_pred[1]
+                if len(y_pred) != 7:
+                    y_pred = y_pred[1]
+                else:
+                    y_pred = y_pred.prediction
             elif not isinstance(y_pred, torch.Tensor):
                 raise TypeError("output of model must be one of torch.tensor or Dict")
 
-            y_pred = torch.stack(
+            y_pred_notscaled = torch.stack(
                 [loss_obj.to_prediction(reverse_scale(i, loss_obj)) for i, loss_obj in enumerate(loss_fns)],
                 dim=-1,
             )
@@ -242,7 +262,7 @@ def supervised_evaluation_step(
                 ],
                 dim=-1,
             )
-            return output_transform(x, y, y_pred, y_pred_scaled)
+            return output_transform(x, y, y_pred_notscaled, y_pred_scaled)
 
     return evaluate_step
 

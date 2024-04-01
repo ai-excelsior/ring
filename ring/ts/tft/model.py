@@ -391,16 +391,25 @@ class TemporalFusionTransformer(AutoRegressiveBaseModelWithCovariates):
         decoder_lengths = x["decoder_length"]
 
         x_cat = torch.cat([x["encoder_cat"], x["decoder_cat"]], dim=1)  # concatenate in time dimension
-        x["encoder_cont"] = torch.cat(
-            [x["encoder_cont"], x["encoder_time_features"], x["encoder_lag_features"]], dim=-1
-        )
-        # x_cont = torch.cat([x["encoder_cont"], x["decoder_cont"]], dim=1)
-        x["decoder_cont"] = torch.cat(
-            [x["decoder_target"], x["decoder_cont"], x["decoder_time_features"], x["decoder_lag_features"]],
+        x_encoder_cont = torch.cat(
+            [x["encoder_cont"], x["encoder_time_features"], x["encoder_lag_features"]],
             dim=-1,
         )
+        # [..., : -1 * (self.target_positions.shape[0])]
+        # x_cont = torch.cat([x["encoder_cont"], x["decoder_cont"]], dim=1)
+        x_decoder_cont = torch.cat(
+            [
+                x["decoder_cont"],
+                torch.zeros(
+                    (x["decoder_cont"].shape[0], x["decoder_cont"].shape[1], len(self.target_positions.shape))
+                ),
+                x["decoder_time_features"],
+                x["decoder_lag_features"],
+            ],
+            dim=-1,
+        )  # x["decoder_target"],
         # x["decoder_cont"] = torch.cat([x["decoder_target"], x["decoder_cont"]], dim=-1)
-        x_cont = torch.cat([x["encoder_cont"], x["decoder_cont"]], dim=1)
+        x_cont = torch.cat([x_encoder_cont, x_decoder_cont], dim=1)
         # concatenate in time dimension
 
         timesteps = x_cont.shape[1]  # encode + decode length

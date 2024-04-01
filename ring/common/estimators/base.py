@@ -17,6 +17,7 @@ class Estimator(BaseEstimator, TransformerMixin):
     def __init__(self) -> None:
         super().__init__()
         self._state = None
+        self._detrend = None
 
     def get_params(self, deep=True):
         out = dict()
@@ -164,13 +165,14 @@ class LogDetrendEstimator(AbstractDetrendEstimator):
     def get_trend(self, index: pd.Series) -> np.ndarray:
         self._assert_fitted()
         log_feature_model, ols_model = self._state
-        return ols_model.predict(log_feature_model.transform(index.to_numpy()[:, np.newaxis]))
+        return pd.Series(ols_model.predict(log_feature_model.transform(index.to_numpy()[:, np.newaxis])))
 
     def transform(self, data: pd.Series, index: pd.Series) -> pd.Series:
-        return data - self.get_trend(index) if self._state is not None else data
+        self._detrend = self.get_trend(data)
+        return data - self._detrend if self._state is not None else data
 
     def inverse_transform(self, data: pd.Series, index: pd.Series) -> pd.Series:
-        return data + self.get_trend(index) if self._state is not None else data
+        return data + self._detrend if self._state is not None else data
 
     def get_degree(self):
         return self._degree
@@ -233,13 +235,16 @@ class PolynomialDetrendEstimator(AbstractDetrendEstimator):
     def get_trend(self, index: pd.Series) -> np.ndarray:
         self._assert_fitted()
         polynomial_feature_model, ols_model = self._state
-        return ols_model.predict(polynomial_feature_model.transform(index.to_numpy()[:, np.newaxis]))
+        return pd.Series(
+            ols_model.predict(polynomial_feature_model.transform(index.to_numpy()[:, np.newaxis]))
+        )
 
     def transform(self, data: pd.Series, index: pd.Series) -> pd.Series:
-        return data - self.get_trend(index) if self._state is not None else data
+        self._detrend = self.get_trend(data)
+        return data - self._detrend if self._state is not None else data
 
     def inverse_transform(self, data: pd.Series, index: pd.Series) -> pd.Series:
-        return data + self.get_trend(index) if self._state is not None else data
+        return data + self._detrend if self._state is not None else data
 
     def get_degree(self):
         return self._degree
@@ -295,10 +300,11 @@ class HPfilterDetrendEstimator(AbstractDetrendEstimator):
         return hpfilter(x, lamb)[1]
 
     def transform(self, data: pd.Series, index: pd.Series) -> pd.Series:
-        return data - self.get_trend(data) if self._state is not None else data
+        self._detrend = self.get_trend(data)
+        return data - self._detrend if self._state is not None else data
 
     def inverse_transform(self, data: pd.Series, index: pd.Series) -> pd.Series:
-        return data + self.get_trend(data) if self._state is not None else data
+        return data + self._detrend if self._state is not None else data
 
     def get_degree(self):
         return self._state

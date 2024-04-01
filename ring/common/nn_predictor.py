@@ -48,7 +48,7 @@ class Predictor:
         data_cfg: DataConfig,
         model_cls: BaseModel,
         model_params: Dict = {},
-        metric_cfg: str = "MSE",
+        metric_cfg: str = "SMAPE",
         trainer_cfg: Dict = {},
         save_dir: str = None,
         load_dir: str = None,
@@ -413,6 +413,7 @@ class Predictor:
         _, _, x, y_pred = reporter.state.output
         raw_data = self._get_results(dataset, y_pred, x, suffix="valid")
         raw_data.rename(columns={"is_prediction": "is_validation"}, inplace=True)
+        print(raw_data[-30:])
         return reporter.state.metrics, raw_data
 
     def _get_results(self, dataset, y_pred, x, suffix):
@@ -505,6 +506,11 @@ class Predictor:
                     y_pred = y_pred["prediction"]
                 except:
                     raise ValueError("output should have both `prediction` and `backcast`")
+            elif isinstance(y_pred, tuple):
+                if len(y_pred) != 7:
+                    y_pred = y_pred[1]
+                else:
+                    y_pred = y_pred.prediction
             elif not isinstance(y_pred, torch.Tensor):
                 raise TypeError("output of model must be one of torch.tensor or Dict")
 
