@@ -1,0 +1,28 @@
+{
+    "data_config": {
+        "time": "date",
+        "freq": "D",
+        "targets": [
+            "consign_cnt_30d"
+        ],
+        "group_ids": [],
+        "static_categoricals": [],
+        "static_reals": [],
+        "time_varying_known_categoricals": [],
+        "time_varying_known_reals": [],
+        "time_varying_unknown_categoricals": [],
+        "time_varying_unknown_reals": [],
+        "categoricals": [],
+        "indexer": {
+            "name": "slide_window",
+            "look_back": 90,
+            "look_forward": 30
+        },
+        "time_features": [],
+        "lags": {}
+    },
+    "data_source": {
+        "type": "file",
+        "path": "file://data/ooo_stockout_analysis_AFH0050129.parquet"
+    }
+}

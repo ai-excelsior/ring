@@ -37,7 +37,7 @@ class BaseModel(nn.Module):
 class AutoRegressiveBaseModelWithCovariates(BaseModel):
     def __init__(
         self,
-        targets: str,
+    targets: str,
         output_size: int,
         # hpyerparameters
         cell_type: str = "GRU",
