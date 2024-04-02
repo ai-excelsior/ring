@@ -165,7 +165,9 @@ class LogDetrendEstimator(AbstractDetrendEstimator):
     def get_trend(self, index: pd.Series) -> np.ndarray:
         self._assert_fitted()
         log_feature_model, ols_model = self._state
-        return pd.Series(ols_model.predict(log_feature_model.transform(index.to_numpy()[:, np.newaxis])))
+        return pd.Series(
+            ols_model.predict(log_feature_model.transform(index.to_numpy()[:, np.newaxis])), index=index.index
+        )
 
     def transform(self, data: pd.Series, index: pd.Series) -> pd.Series:
         self._detrend = self.get_trend(data)
@@ -236,7 +238,9 @@ class PolynomialDetrendEstimator(AbstractDetrendEstimator):
         self._assert_fitted()
         polynomial_feature_model, ols_model = self._state
         return pd.Series(
-            ols_model.predict(polynomial_feature_model.transform(index.to_numpy()[:, np.newaxis]))
+            ols_model.predict(
+                polynomial_feature_model.transform(index.to_numpy()[:, np.newaxis]), index=index.index
+            )
         )
 
     def transform(self, data: pd.Series, index: pd.Series) -> pd.Series:
